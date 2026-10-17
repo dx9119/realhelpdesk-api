@@ -29,7 +29,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>
  * Проверки читают финальный {@link Environment} (env-файлы + profile-файлы), то есть ловят и забытый override, и подмену в
- * {@code infrastructure/.env}. В debug-профиле компонент не создаётся.
+ * {@code infrastructure/.env}. В dev-профиле компонент не создаётся.
  * </p>
  */
 @Slf4j

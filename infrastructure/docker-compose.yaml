@@ -13,7 +13,7 @@
 # make obs-up      → infra + dev + app + monitoring
 # make down        → все профили (останавливает что угодно)
 #
-# Профиль приложения (SPRING_PROFILES_ACTIVE в infrastructure/.env) — debug/prod,
+# Профиль приложения (SPRING_PROFILES_ACTIVE в infrastructure/.env) — dev/prod,
 # по умолчанию + keycloak: токены выпускает сервис keycloak, приложение только
 # проверяет подпись по JWK. Без keycloak работает внутренний JWT-контур
 # приложения (cookie, /api/v1/auth/*) — им пользуются сценарии scripts/e2e-*.sh.
@@ -235,7 +235,7 @@ services:
   # Профиль dev: Keycloak (внешний выпуск токенов)
   # ==========================================================================
   # Приложение по умолчанию стартует с профилем keycloak
-  # (SPRING_PROFILES_ACTIVE=debug,keycloak в infrastructure/.env): токены
+  # (SPRING_PROFILES_ACTIVE=dev,keycloak в infrastructure/.env): токены
   # выпускает и подписывает Keycloak, приложение только проверяет подпись по
   # JWK и читает email/realm-роли из токена. Переключение на внутреннюю
   # JWT-логику — убрать keycloak из SPRING_PROFILES_ACTIVE (см. README).

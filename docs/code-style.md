@@ -104,18 +104,18 @@ import static ...;               // static — всегда в конце
 ## Логирование и комментарии
 
 - SLF4J: только `@Slf4j` — Lombok разворачивает аннотацию в `private static final Logger logger = LoggerFactory.getLogger(X.class)`, имя поля фиксирует `lombok.config` (`lombok.log.fieldName=logger`). Ручное `private static final Logger logger = ...` не используется: объявленное поле конфликтует с Lombok и оставляет аннотацию без эффекта.
-- Уровни привязаны к профилям `debug` и `prod` (`application-debug.properties`, `application-prod.properties`):
+- Уровни привязаны к профилям `dev` и `prod` (`application-dev.properties`, `application-prod.properties`):
   - `ERROR` — неожиданный сбой, со стеком. Без токенов, паролей, кодов восстановления и `toString()` сущностей.
   - `WARN` — отказ во входе, лимит запросов, отклонённый токен, доступ запрещён (403), конфликт версий, проглоченная ошибка.
   - `INFO` — завершённое бизнес-событие (создан, изменён, удалён, зарегистрирован, письмо отправлено) и ответ HTTP 4xx. Видно в `prod`.
-  - `DEBUG` — трассировка шагов и успешные HTTP-запросы. Видно только в `debug`.
+  - `DEBUG` — трассировка шагов и успешные HTTP-запросы. Видно только в `dev`.
 - Логировать путь через `LogSanitizer.uri(...)`: код восстановления пароля и токен подтверждения email идут в пути запроса. Email, имена файлов вложений и телефоны маскировать через `LogSanitizer.email(...)` / `emails(...)` / `fileName(...)` / `phone(...)` — полный адрес и имя файла в логах это ПДн.
-- Не дублировать «метод вызван» в сервисе: строку запроса пишет `LoggingFilter`. Query-string не логировать. Исключение логируется один раз на границе (`GlobalExceptionHandler`): 4xx — WARN без стектрейса, 5xx — ERROR со стектрейсом; сервисный лог перед `throw` не повторяет его — только debug.
-- Формат логов: в профиле `debug` — читаемый паттерн (`logback-spring.xml`; в тестах `logback-test.xml`), в остальных профилях — JSON по ECS через `StructuredLogEncoder`.
+- Не дублировать «метод вызван» в сервисе: строку запроса пишет `LoggingFilter`. Query-string не логировать. Исключение логируется один раз на границе (`GlobalExceptionHandler`): 4xx — WARN без стектрейса, 5xx — ERROR со стектрейсом; сервисный лог перед `throw` не повторяет его — только DEBUG.
+- Формат логов: в профиле `dev` — читаемый паттерн (`logback-spring.xml`; в тестах `logback-test.xml`), в остальных профилях — JSON по ECS через `StructuredLogEncoder`.
 - MDC (ключи `requestId` / `clientIp` / `uriRequest` / `role`, плюс `traceId` / `spanId` от OTel):
   - ключи брать только из констант `LoggingFilter.REQUEST_ID` / `CLIENT_IP` / `URI_REQUEST` / `ROLE`, не строками — иначе код и паттерн в `logback-spring.xml` разъедутся; `traceId`/`spanId` при включённом OTel кладёт `Slf4JEventListener`;
   - `role` по умолчанию `ANONYMOUS` кладёт `LoggingFilter`, после аутентификации значение перезаписывает контурный фильтр — `JwtAuthFilter` (внутренний JWT) или `KeycloakAuthenticationRoleFilter` (профиль `keycloak`), оба без префикса `ROLE_` — как в теге метрики; очистку в `finally` делает `LoggingFilter`;
-  - новый MDC-ключ = правка читаемых паттернов в `logback-spring.xml` (debug) и `logback-test.xml` — в JSON-ветке поля берутся из MDC автоматически — плюс константа в `LoggingFilter`;
+  - новый MDC-ключ = правка читаемых паттернов в `logback-spring.xml` (dev) и `logback-test.xml` — в JSON-ветке поля берутся из MDC автоматически — плюс константа в `LoggingFilter`;
   - логи в фоновых задачах и в колбэках `DeferredResult`/`SseEmitter` обязаны либо восстановить контекст запроса-инициатора (снимок `MDC.getCopyOfContextMap()` до подмены, в `finally` — прежний контекст потока), либо явно задать технический `requestId`; поток, возвращаемый в пул, не должен уносить чужой MDC;
   - любая строка уровня `WARN` и выше, видимая в `prod`, обязана нести `requestId` — иначе инцидент не связать с запросом.
 - Сообщения логов, тексты ошибок, `@DisplayName` — **по-русски**; имена кода, URL, ключи JSON — **по-английски**.

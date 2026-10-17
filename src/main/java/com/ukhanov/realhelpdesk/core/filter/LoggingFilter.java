@@ -72,7 +72,7 @@ public class LoggingFilter extends OncePerRequestFilter {
         }
     }
 
-    // Успех — DEBUG (только профиль debug). 4xx — INFO, 5xx — ERROR: это видно в prod.
+    // Успех — DEBUG (только профиль dev). 4xx — INFO, 5xx — ERROR: это видно в prod.
     private void logExchange(HttpServletRequest request, String uri, HttpServletResponse response, long startedNs) {
         int status = response.getStatus();
         long tookMs = elapsedMs(startedNs);

@@ -120,11 +120,11 @@ ps: ## Статус контейнеров (все профили)
 restart: ## Перезапустить только приложение
 	$(COMPOSE) $(PROFILES_ALL) restart app
 
-profile-local: ## Переключить приложение на внутренний JWT-контур (профиль debug) и пересоздать app
-	bash scripts/docker/set-profile.sh debug
+profile-local: ## Переключить приложение на внутренний JWT-контур (профиль dev) и пересоздать app
+	bash scripts/docker/set-profile.sh dev
 
-profile-keycloak: ## Переключить приложение на контур Keycloak (профиль debug,keycloak) и пересоздать app
-	bash scripts/docker/set-profile.sh debug,keycloak
+profile-keycloak: ## Переключить приложение на контур Keycloak (профиль dev,keycloak) и пересоздать app
+	bash scripts/docker/set-profile.sh dev,keycloak
 
 shell: ## Shell внутри контейнера app
 	$(COMPOSE) $(PROFILES_ALL) exec app sh
@@ -134,12 +134,12 @@ check-image: docker-build ## Проверки образа: секреты, ФС
 
 ## --- Нагрузочное тестирование (k6, scripts/load/) ---
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это
-# внутренний JWT-контур, поэтому up-load переводит приложение на профиль debug.
+# внутренний JWT-контур, поэтому up-load переводит приложение на профиль dev.
 
 up-load: env ## Поднять стек для нагрузки (TRUST_PROXY_HEADERS=true инлайном; только локально)
 	# Внутренний JWT-контур: пул сидируется через /api/v1/auth/register.
 	# NO_RESTART=1 — app пересоздаст сам up ниже, лишний перезапуск не нужен.
-	NO_RESTART=1 bash scripts/docker/set-profile.sh debug
+	NO_RESTART=1 bash scripts/docker/set-profile.sh dev
 	TRUST_PROXY_HEADERS=true OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces \
 	$(COMPOSE) $(PROFILES_DEV) up --build -d
 
@@ -170,8 +170,8 @@ openapi-types: openapi ## Сгенерировать TypeScript-типы из с
 
 ## --- E2E (нужен поднятый стек: make up) ---
 # Сценарии ходят в cookie-эндпоинты /api/v1/auth/* — это внутренний JWT-контур,
-# поэтому перед прогоном приложение переводится на профиль debug (без keycloak).
-# Контур Keycloak проверяет отдельный сценарий e2e-keycloak (профиль debug,keycloak).
+# поэтому перед прогоном приложение переводится на профиль dev (без keycloak).
+# Контур Keycloak проверяет отдельный сценарий e2e-keycloak (профиль dev,keycloak).
 
 e2e-portal-access: profile-local ## E2E: права на портал
 	bash $(E2E_DIR)/e2e-portal-access.sh

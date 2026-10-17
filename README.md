@@ -217,7 +217,7 @@ com.ukhanov.realhelpdesk
 Профиль задаётся `SPRING_PROFILES_ACTIVE` в `infrastructure/.env` — это
 единственное место, где он живёт (`env_file` контейнера перекрывает
 переменные окружения хоста). В шаблоне `infrastructure/.env.example` по
-умолчанию `debug,keycloak`: токены выпускает и подписывает Keycloak
+умолчанию `dev,keycloak`: токены выпускает и подписывает Keycloak
 (сервис `keycloak` профиля `dev`), приложение только проверяет подпись по
 JWK и читает из токена email и realm-роли. Рабочий контур — `prod`
 (при внешнем Keycloak — `prod,keycloak`), секция «Рабочий контур» в
@@ -231,18 +231,18 @@ JWK и читает из токена email и realm-роли. Рабочий к
 
 | Профиль | Файл | Что включает |
 |---|---|---|
-| `debug` | `application-debug.properties` | Локальная отладка: DEBUG по приложению, SQL-логи Hibernate без значений параметров |
+| `dev` | `application-dev.properties` | Локальная отладка: DEBUG по приложению, SQL-логи Hibernate без значений параметров |
 | `prod` (рабочий контур) | `application-prod.properties` | Рабочий контур: INFO/WARN, пошаговая трассировка и SQL выключены, инварианты рабочего контура |
 | `keycloak` | `application-keycloak.properties` | Внешний выпуск токенов: OAuth2 Resource Server, адрес JWK и issuer, синхронизация ролей и автосоздание пользователей |
 
 **Переключение контура аутентификации.** Профиль `keycloak` — второй, а не
-самостоятельный: он добавляет свои ключи к базовому `debug`/`prod`. Без него
+самостоятельный: он добавляет свои ключи к базовому `dev`/`prod`. Без него
 работает внутренний JWT-контур приложения (cookie `accessToken`, эндпоинты
 `/api/v1/auth/*`). Переключение — правкой `SPRING_PROFILES_ACTIVE`:
 
 ```bash
-make profile-local      # SPRING_PROFILES_ACTIVE=debug          — внутренний JWT
-make profile-keycloak   # SPRING_PROFILES_ACTIVE=debug,keycloak — Keycloak
+make profile-local      # SPRING_PROFILES_ACTIVE=dev          — внутренний JWT
+make profile-keycloak   # SPRING_PROFILES_ACTIVE=dev,keycloak — Keycloak
 ```
 
 Обе цели меняют значение в `infrastructure/.env` и пересоздают контейнер
@@ -331,7 +331,7 @@ PostgreSQL.
 
 ## Аутентификация
 
-Контур аутентификации выбирается профилем: по умолчанию (`debug,keycloak`)
+Контур аутентификации выбирается профилем: по умолчанию (`dev,keycloak`)
 токены выпускает Keycloak, без профиля `keycloak` работает внутренний
 JWT-контур приложения — сравнение и переключение в разделе
 [«Профили»](#профили). Ниже описан внутренний контур: он обслуживает
@@ -652,9 +652,9 @@ E2E-сценарии идут по живому стеку (`make up`) — вс�
 Сценарии `e2e-portal-access`, `e2e-ratelimit`, `e2e-jwt`, `e2e-notifications`,
 `e2e-portal-transfer` и `e2e-token-cleanup` ходят в cookie-эндпоинты
 `/api/v1/auth/*`, то есть во внутренний JWT-контур: цели `make` перед прогоном
-переключают приложение на профиль `debug` (без `keycloak`). Контур Keycloak
+переключают приложение на профиль `dev` (без `keycloak`). Контур Keycloak
 проверяет `e2e-keycloak` — он переключает профиль обратно на
-`debug,keycloak` и работает с Bearer-токеном, выпущенным Keycloak.
+`dev,keycloak` и работает с Bearer-токеном, выпущенным Keycloak.
 
 Скрипты создают тестовых пользователей и тратят рейт-лимиты — при повторных
 прогонах может потребоваться `make restart`. `e2e-token-cleanup` дополнительно

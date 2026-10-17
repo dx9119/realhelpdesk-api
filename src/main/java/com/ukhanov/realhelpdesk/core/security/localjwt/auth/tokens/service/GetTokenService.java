@@ -95,7 +95,7 @@ public class GetTokenService {
         validTokenService.lowLevelVerifyToken(tokenRefresh, JwtClaims.TYPE_REFRESH);
 
         UserModel user = refreshToken.getUser();
-        // Успешное обновление access-токена по refresh: видно в debug, отказ логирует advice (WARN).
+        // Успешное обновление access-токена по refresh: видно в dev, отказ логирует advice (WARN).
         // Идентификатор здесь доступен, поэтому пишем его, а не строку без контекста (audit B9).
         logger.debug("Access-токен обновлён, userId={}", user.getId());
         return genTokenService.generateAccessJwtToken(new SecurityUser(user));

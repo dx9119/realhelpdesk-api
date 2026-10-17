@@ -2,8 +2,8 @@
 #
 # Переключение профиля приложения в infrastructure/.env с пересозданием контейнера app.
 #
-#   bash scripts/docker/set-profile.sh debug            # внутренний JWT-контур
-#   bash scripts/docker/set-profile.sh debug,keycloak   # токены выпускает Keycloak
+#   bash scripts/docker/set-profile.sh dev            # внутренний JWT-контур
+#   bash scripts/docker/set-profile.sh dev,keycloak   # токены выпускает Keycloak
 #
 # Профиль читает spring.profiles.active в application.properties, значение
 # приходит из SPRING_PROFILES_ACTIVE (infrastructure/.env — единственное место,
@@ -11,7 +11,7 @@
 # поэтому переключение возможно только правкой файла.
 #
 # Ключ keycloak — второй, а не самостоятельный: он добавляет свои ключи
-# (application-keycloak.properties) к базовому debug/prod. Контур Keycloak
+# (application-keycloak.properties) к базовому dev/prod. Контур Keycloak
 # обслуживает сервис keycloak профиля dev, поэтому профиль без keycloak
 # работает и без него — им пользуются e2e-сценарии и нагрузочный прогон
 # (они ходят в /api/v1/auth/* по cookie).
@@ -25,7 +25,7 @@ HEALTH_URL="http://localhost:8081/actuator/health"
 
 PROFILES=${1:-}
 if [ -z "$PROFILES" ]; then
-    echo "Укажите профили: $0 debug|debug,keycloak|prod|prod,keycloak" >&2
+    echo "Укажите профили: $0 dev|dev,keycloak|prod|prod,keycloak" >&2
     exit 1
 fi
 

@@ -42,7 +42,7 @@ public class ClientIpResolver {
                 }
                 String ip = extract(request.getHeader(header.trim()));
                 if (ip != null) {
-                    // Источник виден в debug: без него не объяснить, почему IP в логе не совпал с ожидаемым
+                    // Источник виден в dev: без него не объяснить, почему IP в логе не совпал с ожидаемым
                     logger.debug("IP клиента: источник={}, trustProxyHeaders=true", header.trim());
                     return ip;
                 }

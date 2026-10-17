@@ -33,8 +33,9 @@ gradlew.bat
 venv/
 
 # Файлы конфигурации, специфичные для локальной разработки (могут содержать пароли!)
+# application-dev.properties не игнорируется: dev — отслеживаемый профиль проекта
+# (уровни логов, секреты живут в infrastructure/.env).
 application-local.properties
-application-dev.properties
 *.swp # Файлы подкачки Vim
 *.swo # Файлы подкачки Vim
 

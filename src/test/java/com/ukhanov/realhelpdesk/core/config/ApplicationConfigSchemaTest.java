@@ -87,7 +87,7 @@ class ApplicationConfigSchemaTest {
      */
     private static final List<Path> ENVIRONMENT_FILES = List.of(Path.of("src", "main", "resources", "application.properties"),
             Path.of("src", "main", "resources", "application-domains.properties"),
-            Path.of("src", "main", "resources", "application-debug.properties"),
+            Path.of("src", "main", "resources", "application-dev.properties"),
             Path.of("src", "main", "resources", "application-prod.properties"), DOCKER_COMPOSE, ENV_EXAMPLE);
 
     /** Любой ddl-auto в конфигурации среды: имя ключа и режим после {@code =}/{@code :}, кавычки опциональны. */
