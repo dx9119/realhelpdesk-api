@@ -132,7 +132,7 @@ services:
       - data
     logging: *default-logging
     labels:
-      org.opencontainers.image.source: "https://github.com/dx9119/RealHelpDesk"
+      org.opencontainers.image.source: "https://github.com/dx9119/realhelpdesk-api"
 
   # ==========================================================================
   # Профиль infra: данные (внутренняя сеть data, БЕЗ портов на хосту)

@@ -18,7 +18,7 @@
   "graphTooltip": 1,
   "id": null,
   "links": [
-    { "asDropdown": false, "icon": "doc", "includeVars": false, "keepTime": true, "tags": [], "targetBlank": true, "title": "Каталог метрик", "tooltip": "", "type": "link", "url": "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/observability/metrics.md" }
+    { "asDropdown": false, "icon": "doc", "includeVars": false, "keepTime": true, "tags": [], "targetBlank": true, "title": "Каталог метрик", "tooltip": "", "type": "link", "url": "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/observability/metrics.md" }
   ],
   "panels": [
     {

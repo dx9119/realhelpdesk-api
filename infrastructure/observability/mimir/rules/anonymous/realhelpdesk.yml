@@ -24,7 +24,7 @@ groups:
         annotations:
           summary: "Доля ошибок 5xx выше 2% ({{ $value | humanizePercentage }})"
           description: "У {{ $labels.instance }} более 2% HTTP-ответов — 5xx на протяжении 5 минут. Смотрите панель «Ошибки 5xx» дашборда RealHelpDesk — Обзор."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/api-high-error-rate.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/api-high-error-rate.md"
 
       - alert: ApiHighLatencyP99
         # Порог: p99 latency > SLO в течение 10 минут. SLO p99 ≤ 500 мс — docs/observability/slo.md.
@@ -39,7 +39,7 @@ groups:
         annotations:
           summary: "p99 латентности API выше SLO 500 мс ({{ $value | humanizeDuration }})"
           description: "У {{ $labels.instance }} p99 времени ответа превышает 500 мс дольше 10 минут (окно 5 минут)."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/api-high-latency.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/api-high-latency.md"
 
   - name: realhelpdesk-database
     rules:
@@ -59,7 +59,7 @@ groups:
         annotations:
           summary: "Пул соединений БД занят более чем на 90% ({{ $labels.name }})"
           description: "У {{ $labels.instance }} активных соединений {{ $value | humanizePercentage }} от максимума ({{ $labels.name }}) на протяжении 2 минут — риск исчерпания пула."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/db-pool-saturation.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/db-pool-saturation.md"
 
   - name: realhelpdesk-jvm
     rules:
@@ -77,7 +77,7 @@ groups:
         annotations:
           summary: "Heap JVM занят более чем на 90% ({{ $value | humanizePercentage }})"
           description: "У {{ $labels.instance }} использовано более 90% heap на протяжении 10 минут — риск Full GC / OOM."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/jvm-heap-high.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/jvm-heap-high.md"
 
       - alert: JvmGcOverheadHigh
         # Доля времени в GC: rate(sum) — секунды пауз в секунду. > 0.1 = 10%.
@@ -89,7 +89,7 @@ groups:
         annotations:
           summary: "Более 10% времени уходит на GC ({{ $value | humanizePercentage }})"
           description: "У {{ $labels.instance }} суммарные паузы GC составляют более 10% процессорного времени на протяжении 10 минут."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/jvm-gc-overhead.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/jvm-gc-overhead.md"
 
   - name: realhelpdesk-availability
     rules:
@@ -104,7 +104,7 @@ groups:
         annotations:
           summary: "Приложение не отдаёт метрики (скрейп down)"
           description: "Цель {{ $labels.instance }} недоступна для Prometheus более 2 минут: приложение упало, зависло или закрыл управляющий порт."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/app-unreachable.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/app-unreachable.md"
 
       - alert: NoNewTickets
         # Осторожный порог: нет новых заявок при рабочем трафике.
@@ -122,7 +122,7 @@ groups:
         annotations:
           summary: "Нет новых заявок более 2 часов в рабочее время"
           description: "Счётчик tickets.created не рос 2 часа подряд в рабочее время (пн–пт, 9–18 UTC). Возможна деградация фронтенда/шлюза или перестал работать канал создания заявок."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/no-new-tickets.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/no-new-tickets.md"
 
   - name: realhelpdesk-security
     rules:
@@ -136,4 +136,4 @@ groups:
         annotations:
           summary: "Всплеск неудачных попыток аутентификации ({{ $value | humanize }}/с)"
           description: "У {{ $labels.instance }} неудачные попытки входа идут со скоростью более 6/мин на протяжении 5 минут — возможный перебор паролей или сломанный клиент."
-          runbook_url: "https://github.com/anomalyco/RealHelpDesk/blob/feat/observability/docs/runbooks/auth-failures-spike.md"
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/auth-failures-spike.md"

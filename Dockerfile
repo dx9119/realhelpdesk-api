@@ -32,7 +32,7 @@ FROM eclipse-temurin:21-jre
 # Ревизия git для метки образа: передаётся при сборке (--build-arg GIT_SHA=$(git rev-parse HEAD))
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.revision=$GIT_SHA \
-      org.opencontainers.image.source="https://github.com/dx9119/RealHelpDesk"
+      org.opencontainers.image.source="https://github.com/dx9119/realhelpdesk-api"
 
 WORKDIR /app
 
