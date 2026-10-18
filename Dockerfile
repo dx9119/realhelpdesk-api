@@ -14,14 +14,12 @@ COPY config ./config
 # без него @Slf4j генерирует поле «log», а код проекта обращается к «logger» —
 # сборка образа падает на компиляции (JwtAuthFilter, GlobalExceptionHandler и др.).
 COPY lombok.config .
-RUN --mount=type=cache,target=/root/.m2 mvn -B -q package -DskipTests
-
-# Переименовываем jar (в target лежит ещё *.jar.original)
-RUN cp $(ls target/*.jar | grep -v '\.original$' | head -n 1) app.jar
-
-# Раскладываем jar на слои Spring Boot: слой зависимостей меняется только при
-# правке pom.xml, слой приложения — при правке кода (sec.md §7.6).
-RUN java -Djarmode=tools -jar app.jar extract --layers --destination /app/extracted
+# Сборка + переименование jar + раскладка слоёв Boot одним RUN (hadolint DL3059).
+# Glob target/*.jar матчит только fat-jar: *.jar.original оканчивается на
+# .original и не совпадает, поэтому пайп с ls|grep не нужен (DL4006/SC2010).
+RUN --mount=type=cache,target=/root/.m2 mvn -B -q package -DskipTests && \
+    cp target/*.jar app.jar && \
+    java -Djarmode=tools -jar app.jar extract --layers --destination /app/extracted
 
 # Самоподписанный keystore при сборке НЕ генерируется: пароль не должен
 # попадать в слои образа и в `docker history`. Он создаётся при старте
