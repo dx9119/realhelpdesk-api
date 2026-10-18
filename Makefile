@@ -3,6 +3,8 @@
 
 MVN ?= ./mvnw
 IMAGE ?= realhelpdesk:latest
+# Образ для проверок CI (hadolint/trivy job в .github/workflows/ci.yml)
+CI_IMAGE ?= realhelpdesk:ci
 APP_JAR ?= target/realhelpdesk-0.0.1-SNAPSHOT.jar
 E2E_DIR ?= scripts
 
@@ -32,6 +34,7 @@ PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile mo
 .PHONY: help build clean compile package test verify format check run \
         dev-run dev-test run-local up-deps \
         env apply-config docker-build up up-prod up-load down down-volumes logs ps restart shell check-image \
+        check-ci check-secrets check-dockerfile ci-image check-image-vuln \
         backup restore \
         profile-local profile-keycloak \
         obs-up obs-down obs-open obs-reload obs-alerts \
@@ -164,6 +167,27 @@ shell: ## Shell внутри контейнера app
 
 check-image: docker-build ## Проверки образа: секреты, ФС, jar
 	./scripts/docker/check-image.sh $(IMAGE)
+
+## --- Локальные проверки CI (те же команды, что job docker в .github/workflows/ci.yml) ---
+# Гонять перед коммитом/пушем — ловит то же самое, что упало бы в CI.
+# Порядок: быстрые сначала (секреты, Dockerfile), trivy последним —
+# ему нужна сборка образа. check-image выше — другой набор (гигиена ФС/истории
+# образа), он CI не дублируется.
+
+check-secrets: ## gitleaks: секреты в дереве и истории коммитов (как в CI)
+	docker run --rm -v "$(CURDIR):/repo" zricethezav/gitleaks:v8.21.2 detect --source /repo --redact
+
+check-dockerfile: ## hadolint: линтер Dockerfile (как в CI)
+	docker run --rm -i hadolint/hadolint:2.12.0 < Dockerfile
+
+ci-image: ## Собрать образ $(CI_IMAGE) для trivy (как в CI)
+	docker build --build-arg GIT_SHA=$(GIT_SHA) -t $(CI_IMAGE) .
+
+check-image-vuln: ci-image ## trivy: уязвимости образа CRITICAL/HIGH с исправлением (как в CI)
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+	  aquasec/trivy:0.58.2 image --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $(CI_IMAGE)
+
+check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
 
 ## --- Нагрузочное тестирование (k6, scripts/load/) ---
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это
