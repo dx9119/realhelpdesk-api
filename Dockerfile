@@ -1,6 +1,6 @@
 # ---------- STAGE 1: Build JAR ----------
 #JDK
-FROM maven:3.9.6-eclipse-temurin-21 AS build
+FROM maven:3.9.16-eclipse-temurin-25-noble AS build
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q package -DskipTests && \
 
 
 # ---------- STAGE 2: Runtime ----------
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre-noble
 
 # Ревизия git для метки образа: передаётся при сборке (--build-arg GIT_SHA=$(git rev-parse HEAD))
 ARG GIT_SHA=unknown

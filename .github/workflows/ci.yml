@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
           cache: maven
       - name: Стиль, юнит- и интеграционные тесты
         run: ./mvnw -B spotless:check checkstyle:check verify
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
           cache: maven
       - name: Секреты CI (временные, только для запуска)
         run: |

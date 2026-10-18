@@ -81,7 +81,7 @@ import static ...;               // static — всегда в конце
 
 ## Spring / Java-конвенции
 
-- **Java 21**, `jakarta.*` (не `javax.*`); **Lombok** — `@Slf4j`, `@Getter`/`@Setter`, `@RequiredArgsConstructor`, `@Builder` не используется, `@Data` запрещён.
+- **Java 25**, `jakarta.*` (не `javax.*`); **Lombok** — `@Slf4j`, `@Getter`/`@Setter`, `@RequiredArgsConstructor`, `@Builder` не используется, `@Data` запрещён.
 - **JPA entity** — только `@Getter @Setter` (без `@Data`: equals/hashCode/toString не должны трогать lazy-связи).
 - **Constructor injection** — только через конструктор с `private final`-полями, `@Autowired` запрещён.
 - Утилитарные классы (только static-методы): `final class` + приватный конструктор.

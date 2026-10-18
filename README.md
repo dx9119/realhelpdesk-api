@@ -16,7 +16,7 @@ REST API системы управления заявками. Предоста�
 
 | Слой | Технологии                                                             |
 |---|------------------------------------------------------------------------|
-| Язык / сборка | Java 21, Maven                                                         |
+| Язык / сборка | Java 25, Maven                                                         |
 | Фреймворк | Spring Boot 4, Spring Security, Spring Data JPA, Spring Validation     |
 | БД / миграции | PostgreSQL 18, Liquibase (`ddl-auto=validate`)                         |
 | Аутентификация | Keycloak (OAuth2 Resource Server) либо внутренний JWT в http-only cookies; refresh-токен хранится как SHA-256 хеш |
@@ -26,7 +26,7 @@ REST API системы управления заявками. Предоста�
 
 ## Запуск
 
-Стек поднимается в Docker; Java 21 и Maven нужны только для разработки.
+Стек поднимается в Docker; Java 25 и Maven нужны только для разработки.
 
 ```
 Подготовка → .env (make env) → секреты в .env

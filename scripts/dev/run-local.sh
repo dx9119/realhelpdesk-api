@@ -52,7 +52,7 @@ export SSL_ENABLED=false
 # требует KC_JWK_SET_URI на 127.0.0.1 — задайте его в env при необходимости.
 export SPRING_PROFILES_ACTIVE=dev,host
 
-# --- JDK: если задан JAVA_HOME (например, JDK 21), используем его ---
+# --- JDK: если задан JAVA_HOME (например, JDK 25), используем его ---
 if [[ -n "${JAVA_HOME:-}" ]]; then
   echo "JAVA_HOME=$JAVA_HOME"
 fi

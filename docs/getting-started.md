@@ -123,7 +123,7 @@ make up-deps    # один раз: поднять infra + local-tools
 # Debug в IDEA (конфиг RealHelpDeskApplication, профили dev,host) —
 # при отсутствии стека инфру поднимет spring-boot-docker-compose сам;
 # либо CLI:
-make run-local  # spring-boot:run на хосте (нужен JDK 21+)
+make run-local  # spring-boot:run на хосте (нужен JDK 25+)
 ```
 
 Правка кода → Hot-reload Spring Boot DevTools (секунды).
@@ -360,7 +360,7 @@ make restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
 ### 10.1 CI (на push в main / PR)
 
 ```
-job: build — Maven (JDK 21)
+job: build — Maven (JDK 25)
   └─► spotless:check + checkstyle:check + verify (юнит + Testcontainers IT)
 
 job: docker
@@ -368,7 +368,7 @@ job: docker
   └─► при push в main: login ghcr.io + push :sha-<git_sha> и :latest
       (на PR пуш образа не выполняется)
 
-job: e2e — compose-стек (JDK 21)
+job: e2e — compose-стек (JDK 25)
   └─► make env → make up → wait health (app) → wait Keycloak
   └─► make e2e-all
   └─► при провале — ps + logs всех контейнеров в CI-вывод
