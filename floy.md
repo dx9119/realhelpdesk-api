@@ -213,7 +213,7 @@ make openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (нуже�
   на хост не публикуются (override не подключён).
 - `TRUST_PROXY_HEADERS=true` — Spring читает `X-Forwarded-For`.
 - Сборка на сервере **запрещена** — только `pull` из ghcr.io
-  (`up-prod` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk:${IMAGE_TAG}`).
+  (`up-prod` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG}`).
 - Все различия prod-контура (пароли SMTP, домены, профиль `prod` или
   `prod,keycloak`) — в секции «Рабочий контур» файла `infrastructure/.env`
   на сервере.

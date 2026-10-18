@@ -13,5 +13,5 @@ services:
   app:
     # Сборка на сервере запрещена: образ приходит из ghcr.io
     build: !reset null
-    image: "ghcr.io/dx9119/realhelpdesk:${IMAGE_TAG:-latest}"
+    image: "ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG:-latest}"
     pull_policy: always
