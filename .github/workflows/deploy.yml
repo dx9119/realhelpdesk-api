@@ -28,11 +28,11 @@ env:
 jobs:
   deploy:
     name: Деплой на VPS
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Нужны: GHCR_TOKEN (packages:write для pull образа) и SSH ключ VPS
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Определить тег образа
         id: tag
