@@ -1,0 +1,104 @@
+# Деплой на VPS по SSH: тег `v*` или ручной запуск (workflow_dispatch).
+# Поэтапно (см. infra18.md §19.3):
+#   1) записывает IMAGE_TAG в серверный infrastructure/.env;
+#   2) docker compose pull app + make up-prod (без сборки);
+#   3) ждёт до 90 секунд 200 OK от http://127.0.0.1:8081/actuator/health;
+#   4) при провале healthcheck — авто-откат на предыдущий IMAGE_TAG.
+
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Тег образа из ghcr.io (sha-<git_sha> или latest)"
+        required: true
+        default: latest
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: Деплой на VPS
+    runs-on: ubuntu-latest
+    # Нужны: GHCR_TOKEN (packages:write для pull образа) и SSH ключ VPS
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Определить тег образа
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Подключиться к VPS и задеплоить
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          # Скрипт деплоя: пишет IMAGE_TAG, pull, up-prod, health-gate, авто-откат
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.VPS_APP_DIR || '/opt/realhelpdesk' }}"
+
+            NEW_TAG="${{ steps.tag.outputs.value }}"
+            ENV_FILE=infrastructure/.env
+
+            # Предыдущий тег — для авто-отката
+            PREV_TAG="$(grep -E '^IMAGE_TAG=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)"
+
+            echo "==> Деплой IMAGE_TAG=$NEW_TAG (предыдущий: ${PREV_TAG:-нет})"
+            # Записать/заменить IMAGE_TAG
+            if grep -qE '^#?IMAGE_TAG=' "$ENV_FILE"; then
+              sed -i -E "s|^#?IMAGE_TAG=.*|IMAGE_TAG=$NEW_TAG|" "$ENV_FILE"
+            else
+              printf '\nIMAGE_TAG=%s\n' "$NEW_TAG" >> "$ENV_FILE"
+            fi
+
+            echo "==> pull + up-prod"
+            docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml \
+              --profile infra --profile app pull app
+            make up-prod
+
+            echo "==> Health-gate: ждём 200 OK от /actuator/health (до 90 сек)"
+            HEALTH_OK=0
+            for i in $(seq 1 18); do
+              if curl -sf http://127.0.0.1:8081/actuator/health >/dev/null 2>&1; then
+                HEALTH_OK=1
+                echo "health OK (попытка $i)"
+                break
+              fi
+              echo "waiting... ($i/18)"
+              sleep 5
+            done
+
+            if [ "$HEALTH_OK" = "1" ]; then
+              echo "==> Деплой успешен: IMAGE_TAG=$NEW_TAG"
+              exit 0
+            fi
+
+            echo "==> Healthcheck не прошёл — авто-откат"
+            if [ -n "$PREV_TAG" ]; then
+              sed -i -E "s|^#?IMAGE_TAG=.*|IMAGE_TAG=$PREV_TAG|" "$ENV_FILE"
+            else
+              sed -i -E "s|^IMAGE_TAG=.*|#IMAGE_TAG=|" "$ENV_FILE" || true
+            fi
+            docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml \
+              --profile infra --profile app pull app || true
+            make up-prod || true
+            echo "==> Откат на IMAGE_TAG=${PREV_TAG:-<default>} выполнен"
+            exit 1
