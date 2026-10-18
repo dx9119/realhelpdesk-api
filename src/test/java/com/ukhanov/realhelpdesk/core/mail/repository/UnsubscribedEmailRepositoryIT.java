@@ -10,17 +10,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.model.UnsubscribedEmail;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DataJpaTest
 @DisplayName("Стоп-лист в БД: UnsubscribedEmailRepository")
-class UnsubscribedEmailRepositoryIT {
+class UnsubscribedEmailRepositoryIT extends PostgresIntegrationTest {
 
     private static final String EMAIL = "user@example.com";
 
@@ -71,7 +74,7 @@ class UnsubscribedEmailRepositoryIT {
         UnsubscribedEmail saved = repository.saveAndFlush(new UnsubscribedEmail(EMAIL, NotificationEvent.NEW_TICKET));
 
         UnsubscribedEmail record = repository.findById(saved.getId()).orElseThrow();
-        // H2 хранит timestamp с точностью до микросекунд — усекаем ожидаемое значение
+        // PostgreSQL хранит timestamp с точностью до микросекунд — усекаем ожидаемое значение
         Instant refreshedAt = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.MICROS);
         record.setMuteEvent(NotificationEvent.CHANGE_TICKET);
         record.setInStopListAt(refreshedAt);

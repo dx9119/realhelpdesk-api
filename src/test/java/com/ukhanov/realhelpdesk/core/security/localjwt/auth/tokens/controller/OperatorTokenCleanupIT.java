@@ -19,6 +19,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.TokenStatus;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.repository.JwtRefreshTokenRepository;
@@ -38,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test",
         "jwt.revoked-token-retention-seconds=86400"})
 @DisplayName("Операторская очистка отозванных токенов (HTTP)")
-class OperatorTokenCleanupIT {
+class OperatorTokenCleanupIT extends PostgresIntegrationTest {
 
     private static final String PATH = "/api/v1/operator/tokens/cleanup";
     private static final HttpClient CLIENT = HttpClient.newHttpClient();

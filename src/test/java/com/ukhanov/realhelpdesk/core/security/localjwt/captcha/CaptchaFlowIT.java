@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.ChallengeResponse;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
 
@@ -33,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test",
         "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com"})
 @DisplayName("PoW-капча: полный поток challenge → solve → register (HTTP)")
-class CaptchaFlowIT {
+class CaptchaFlowIT extends PostgresIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
     private static final ObjectMapper JSON = new ObjectMapper();

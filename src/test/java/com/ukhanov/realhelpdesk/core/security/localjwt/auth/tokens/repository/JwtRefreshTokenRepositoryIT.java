@@ -11,17 +11,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.data.domain.PageRequest;
 
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.TokenStatus;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DataJpaTest
 @DisplayName("Батч-очистка jwt_tokens (JwtRefreshTokenRepository)")
-class JwtRefreshTokenRepositoryIT {
+class JwtRefreshTokenRepositoryIT extends PostgresIntegrationTest {
 
     private static final Instant NOW = Instant.now();
     private static final Instant CUTOFF = NOW.minusSeconds(3600);

@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.ChallengeResponse;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
 
@@ -43,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com",
         "client-ip.trust-proxy-headers=true", "captcha.risk-subnet-offender-threshold=2"})
 @DisplayName("Эмодзи-капча: эскалация по риску, wrong_answer и полный поток (HTTP)")
-class CaptchaEmojiFlowIT {
+class CaptchaEmojiFlowIT extends PostgresIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
     private static final ObjectMapper JSON = new ObjectMapper();

@@ -6,15 +6,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.model.EmailLog;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DataJpaTest
 @DisplayName("Журнал писем в БД: EmailLogRepository")
-class EmailLogRepositoryIT {
+class EmailLogRepositoryIT extends PostgresIntegrationTest {
 
     private static final String RECIPIENT = "user@example.com";
 

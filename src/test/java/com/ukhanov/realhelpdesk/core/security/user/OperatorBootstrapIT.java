@@ -12,6 +12,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserRole;
 import com.ukhanov.realhelpdesk.core.security.user.repository.UserRepository;
@@ -24,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
 @DisplayName("Оператор-бутстрап на старте контекста")
-class OperatorBootstrapIT {
+class OperatorBootstrapIT extends PostgresIntegrationTest {
 
     @DynamicPropertySource
     static void operatorBootstrapEmails(DynamicPropertyRegistry registry) {

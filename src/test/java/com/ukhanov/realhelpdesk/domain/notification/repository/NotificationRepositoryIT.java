@@ -11,17 +11,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.data.domain.PageRequest;
 
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.domain.notification.model.NotificationModel;
 import com.ukhanov.realhelpdesk.domain.notification.model.UserNotificationPreferencesModel;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DataJpaTest
 @DisplayName("Запросы оповещений (NotificationRepository)")
-class NotificationRepositoryIT {
+class NotificationRepositoryIT extends PostgresIntegrationTest {
 
     private static final Long USER_ID = 1L;
     private static final Long OTHER_USER_ID = 2L;

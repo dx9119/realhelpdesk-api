@@ -28,6 +28,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -51,7 +52,7 @@ import io.micrometer.observation.ObservationRegistry;
         "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com"})
 @ExtendWith(OutputCaptureExtension.class)
 @DisplayName("Tracing smoke: общий traceId и дочерние спаны сервисного слоя")
-class TracingSmokeIT {
+class TracingSmokeIT extends PostgresIntegrationTest {
 
     private static final String SERVER_OBSERVATION = "http.server.requests";
 

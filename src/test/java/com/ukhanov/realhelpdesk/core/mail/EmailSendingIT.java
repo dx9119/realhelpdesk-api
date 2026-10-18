@@ -18,6 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
+import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.config.EmailProperties;
 import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
 import com.ukhanov.realhelpdesk.core.mail.model.EmailLog;
@@ -53,9 +55,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
-@DisplayName("Реальная отправка email по SMTP (GreenMail + H2)")
-class EmailSendingIT {
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DataJpaTest
+@DisplayName("Реальная отправка email по SMTP (GreenMail + PostgreSQL)")
+class EmailSendingIT extends PostgresIntegrationTest {
 
     private static final String RECIPIENT = "user@example.com";
     private static final String FROM = "noreply@example.com";
