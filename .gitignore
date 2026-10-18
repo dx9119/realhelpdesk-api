@@ -12,10 +12,8 @@ bin/
 .DS_Store
 
 # Файлы сборки Maven
-mvnw
-mvnw.cmd
-.mvn/wrapper/maven-wrapper.jar
-.mvn/wrapper/maven-wrapper.properties
+# Maven Wrapper (mvnw, mvnw.cmd, .mvn/wrapper/) — коммитятся: гарантирует
+# одинаковую версию Maven в CI и на хостах разработчиков
 
 # Файлы сборки Gradle (если используется Gradle)
 .gradle/

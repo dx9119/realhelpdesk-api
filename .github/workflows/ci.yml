@@ -20,7 +20,7 @@ jobs:
           java-version: "21"
           cache: maven
       - name: Стиль, юнит- и интеграционные тесты
-        run: mvn -B spotless:check checkstyle:check verify
+        run: ./mvnw -B spotless:check checkstyle:check verify
 
   docker:
     name: Образ (hadolint, trivy, gitleaks)

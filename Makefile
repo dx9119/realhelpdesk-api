@@ -1,7 +1,7 @@
 # RealHelpDesk — быстрые команды разработки.
 # Запуск: make help
 
-MVN ?= mvn
+MVN ?= ./mvnw
 IMAGE ?= realhelpdesk:latest
 APP_JAR ?= target/realhelpdesk-0.0.1-SNAPSHOT.jar
 E2E_DIR ?= scripts
