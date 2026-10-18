@@ -1,0 +1,28 @@
+# Конфигурация Gitleaks (v8) для CI: дефолтный ruleset + allowlist
+# тестовых/демо-фикстур. Скан истории (gitleaks detect) находит и удалённые
+# файлы, поэтому исключения покрывают и текущее дерево, и историю.
+#
+# Значения в списках — фейковые: base64 от «test-secret-for-hunkoro-…»,
+# протухшие тестовые JWT (exp 2025) и test-UUID. Реальных секретов нет,
+# история из 175 коммитов переписывалась не будет.
+
+title = "RealHelpDesk"
+
+[extend]
+# Важно: без useDefault кастомный конфиг ЗАМЕНЯЕТ дефолтный ruleset,
+# скан станет пустым и бессмысленным. useDefault = дефолтные правила + наш allowlist.
+useDefault = true
+
+[allowlist]
+description = "Тестовые фикстуры и удалённые историей демо-файлы"
+paths = [
+  # Тестовый Spring-конфиг: jwt.secret-for-gen-jwt и прочие test-значения
+  '''src/test/resources/application-test\.properties''',
+  # Удалённые из дерева, остались в истории: demo-токены/UUID
+  '''postman_collection\.json''',
+  '''help-utils/.*''',
+]
+regexes = [
+  # README (только история): base64 от test-UUID 7034ec83-800e-41ed-b210-1e744270c60f
+  '''NzAzNGVjODMtODAwZS00MWVkLWIyMTAtMWU3NDQyNzBjNjBm''',
+]
