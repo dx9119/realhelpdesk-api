@@ -22,13 +22,14 @@ PROFILES_ALL ?= --profile infra --profile dev --profile app --profile monitoring
 .DEFAULT_GOAL := help
 
 .PHONY: help build clean compile package test verify format check run \
-        dev-run dev-test \
+        dev-run dev-test run-local up-infra \
         env apply-config docker-build up up-prod up-load down down-volumes logs ps restart shell check-image \
         profile-local profile-keycloak \
         obs-up obs-down obs-open obs-reload obs-alerts \
         load load-smoke \
         migrate db-seed \
         openapi openapi-types \
+        e2e-reset-limits \
         e2e-portal-access e2e-ratelimit e2e-jwt e2e-notifications e2e-portal-transfer e2e-token-cleanup e2e-keycloak e2e-all
 
 help: ## Показать список команд
@@ -63,6 +64,9 @@ check: ## Проверки стиля (spotless:check + checkstyle)
 run: ## Запустить приложение локально (spring-boot:run)
 	$(MVN) spring-boot:run
 
+run-local: env ## Приложение на хосте против dockerized-инфры (нужен make up-infra; JDK 21 через JAVA_HOME)
+	bash scripts/dev/run-local.sh
+
 dev-run: env ## Dev-среда: compose up в foreground (логи всех сервисов, Ctrl+C — стоп)
 	$(COMPOSE) $(PROFILES_DEV) up --build
 
@@ -84,6 +88,9 @@ docker-build: ## Собрать docker-образ приложения (с ме�
 
 up: env ## Поднять локальный стек (профили infra+dev+app, сборка образа, в фоне)
 	$(COMPOSE) $(PROFILES_DEV) up --build -d
+
+up-infra: env ## Поднять только инфраструктуру (infra+dev, без app) — для make run-local
+	$(COMPOSE) --profile infra --profile dev up -d
 
 up-prod: env ## Поднять рабочий стек (профили infra+app; настройки — секция «Рабочий контур» в .env)
 	$(COMPOSE) $(PROFILES_PROD) up --build -d
@@ -188,33 +195,51 @@ openapi-types: openapi ## Сгенерировать TypeScript-типы из с
 # Сценарии ходят в cookie-эндпоинты /api/v1/auth/* — это внутренний JWT-контур,
 # поэтому перед прогоном приложение переводится на профиль dev (без keycloak).
 # Контур Keycloak проверяет отдельный сценарий e2e-keycloak (профиль dev,keycloak).
+# Перед сценариями сбрасываются in-memory бакеты рейт-лимитов
+# (POST /api/v1/dev/ratelimit-reset, @Profile("dev")) — без make restart.
 
-e2e-portal-access: profile-local ## E2E: права на портал
+e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпоинт; стек запущен, профиль dev)
+	@code=$$(curl -sk -o /dev/null -w '%{http_code}' -X POST \
+	  -H 'X-Requested-With: XMLHttpRequest' \
+	  https://localhost:8443/api/v1/dev/ratelimit-reset); \
+	if [ "$$code" = "204" ] || [ "$$code" = "200" ]; then \
+	  echo "rate-limit бакеты сброшены"; \
+	else \
+	  echo "предупреждение: сброс лимитов не прошёл (HTTP $$code) — стек запущен? профиль dev?"; \
+	fi
+
+e2e-portal-access: profile-local e2e-reset-limits ## E2E: права на портал
 	bash $(E2E_DIR)/e2e-portal-access.sh
 
-e2e-ratelimit: profile-local ## E2E: рейт-лимиты
+e2e-ratelimit: profile-local e2e-reset-limits ## E2E: рейт-лимиты
 	bash $(E2E_DIR)/e2e-ratelimit.sh
 
-e2e-jwt: profile-local ## E2E: JWT-поток аутентификации
+e2e-jwt: profile-local e2e-reset-limits ## E2E: JWT-поток аутентификации
 	bash $(E2E_DIR)/e2e-jwt-flow.sh
 
-e2e-notifications: profile-local ## E2E: in-app оповещения (long polling)
+e2e-notifications: profile-local e2e-reset-limits ## E2E: in-app оповещения (long polling)
 	bash $(E2E_DIR)/e2e-notifications.sh
 
-e2e-portal-transfer: profile-local ## E2E: передача владения порталом
+e2e-portal-transfer: profile-local e2e-reset-limits ## E2E: передача владения порталом
 	bash $(E2E_DIR)/e2e-portal-transfer.sh
 
-e2e-token-cleanup: profile-local ## E2E: очистка отозванных и протухших refresh-токенов (пересоздаёт app)
+e2e-token-cleanup: profile-local e2e-reset-limits ## E2E: очистка отозванных и протухших refresh-токенов (пересоздаёт app)
 	bash $(E2E_DIR)/e2e-token-cleanup.sh
 
-e2e-keycloak: profile-keycloak ## E2E: вход через Keycloak (нужен сервис keycloak профиля dev)
+e2e-keycloak: profile-keycloak e2e-reset-limits ## E2E: вход через Keycloak (нужен сервис keycloak профиля dev)
 	bash $(E2E_DIR)/e2e-keycloak.sh
 
-e2e-all: profile-local ## E2E: все сценарии подряд (тратит рейт-лимиты!)
+e2e-all: profile-local ## E2E: все сценарии подряд (лимиты сбрасываются перед каждым)
+	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-portal-access.sh
+	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-ratelimit.sh
+	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-jwt-flow.sh
+	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-notifications.sh
+	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-portal-transfer.sh
+	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-token-cleanup.sh
 	$(MAKE) e2e-keycloak

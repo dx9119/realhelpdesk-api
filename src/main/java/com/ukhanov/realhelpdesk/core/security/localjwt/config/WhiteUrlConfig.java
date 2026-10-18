@@ -14,6 +14,8 @@ public class WhiteUrlConfig {
             // (MANAGEMENT_PORT) и обслуживается ManagementSecurityConfiguration, а не этой
             // цепочкой: правила на /actuator/** здесь не нужны, иначе белый список отдал бы
             // метрики без аутентификации на основном порту.
-            "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**");
+            "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**",
+            // Dev-only сброс рейт-лимитов для e2e (DevOpsController, @Profile("dev"): в prod эндпоинта нет)
+            "/api/v1/dev/ratelimit-reset");
 
 }
