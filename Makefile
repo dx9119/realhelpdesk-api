@@ -183,9 +183,11 @@ check-dockerfile: ## hadolint: линтер Dockerfile (как в CI)
 ci-image: ## Собрать образ $(CI_IMAGE) для trivy (как в CI)
 	docker build --build-arg GIT_SHA=$(GIT_SHA) -t $(CI_IMAGE) .
 
+# --timeout выше дефолтных 5м: разбор вложенных jar внутри Spring Boot fat-jar
+# (javadb) на локальной машине идёт заметно дольше, чем в CI.
 check-image-vuln: ci-image ## trivy: уязвимости образа CRITICAL/HIGH с исправлением (как в CI)
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-	  aquasec/trivy:0.58.2 image --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $(CI_IMAGE)
+	  aquasec/trivy:0.58.2 image --timeout 15m --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $(CI_IMAGE)
 
 check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
 
