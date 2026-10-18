@@ -10,9 +10,8 @@
 make env
 ```
 
-Создаёт `infrastructure/.env` из шаблона: недостающие ключи дописываются,
-пустые секреты генерируются `openssl rand -base64 32`, заданные вручную
-значения не затираются. Полный список целей Makefile — `make help`.
+Создаёт `infrastructure/.env` из шаблона и генерирует пустые секреты
+случайными значениями. Существующий `.env` скрипт не меняет.
 
 Заполнить секреты в `infrastructure/.env` — в шаблоне это пустые строки,
 без них стек не поднимется:
@@ -73,7 +72,9 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
   Пока email не подтверждён, создание портала отвечает `403`.
 
 Переключение контуров: `make profile-local` / `make profile-keycloak` —
-меняют `SPRING_PROFILES_ACTIVE` в `.env` и пересоздают контейнер `app`.
+передают `SPRING_PROFILES_ACTIVE` инлайном и пересоздают только контейнер
+`app` (файлы не меняются; подробности — в
+[`configuration.md`](configuration.md#профили-spring)).
 
 ### 2.2 Повседневная разработка
 
@@ -274,9 +275,12 @@ make openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (нуже�
 - `TRUST_PROXY_HEADERS=true` — Spring читает `X-Forwarded-For`.
 - Сборка на сервере **запрещена** — только `pull` из ghcr.io
   (`up-prod` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG}`).
-- Все различия prod-контура (пароли SMTP, домены, профиль `prod` или
-  `prod,keycloak`) — в секции «Рабочий контур» файла `infrastructure/.env`
-  на сервере.
+- Все различия prod-контура (пароли SMTP, домены, адреса внешнего Keycloak) —
+  в секции «Рабочий контур» файла `infrastructure/.env` на сервере.
+  Профиль `prod` подставляет сам `docker-compose.prod.yaml`
+  (`${SPRING_PROFILES_ACTIVE:-prod}`): забытый на сервере ключ не поднимет
+  dev-режим. Для внешнего Keycloak задайте `SPRING_PROFILES_ACTIVE=prod,keycloak`
+  в `.env` сервера.
 
 ### 9.2 Ручной деплой
 
@@ -394,8 +398,7 @@ tag v* / workflow_dispatch
 | Скрипт | Назначение | Вызывается из |
 |---|---|---|
 | `entrypoint.sh` | Точка входа контейнера: генерирует keystore при старте (если не смонтирован извне) и запускает JVM. Пароль не попадает в слои образа и `docker history`, смена пароля не требует пересборки | `Dockerfile` (`ENTRYPOINT`) |
-| `sync-env.sh` | Синхронизирует `infrastructure/.env` с `.env.example`: создаёт файл, дописывает новые ключи, обновляет ранее дефолтные значения. Секреты и значения, заданные вручную, не трогает | `make env`, `make apply-config` |
-| `set-profile.sh` | Меняет `SPRING_PROFILES_ACTIVE` в `.env` и пересоздаёт контейнер `app`, дожидаясь health. `NO_RESTART=1` — только записать профиль | `make profile-local`, `make profile-keycloak`, `make up-load` |
+| `init-secrets.sh` | Создаёт `infrastructure/.env` из шаблона (если файла нет) и заполняет пустые секреты случайными значениями. Существующий `.env` не меняет — только предупреждает о ключах, которых в нём нет | `make env` |
 | `check-image.sh` | Гигиена собранного образа: нет ли секретов в слоях, лишней ФС на пути к jar, цел ли сам jar | `make check-image` |
 | `backup.sh` | `pg_dump -Fc` + `mc mirror` бакета MinIO в `./backups/`, ротация старше `BACKUP_RETENTION_DAYS` (14) | `make backup` |
 
@@ -425,7 +428,7 @@ Makefile, поэтому запускать их напрямую не след�
 | `e2e-jwt-flow.sh` | полный жизненный цикл внутреннего JWT: регистрация, подтверждение email, вход, refresh, выход |
 | `e2e-notifications.sh` | доставку in-app оповещений long polling (повторы — только под `E2E_REPEATS=1`) |
 | `e2e-portal-transfer.sh` | передачу владения порталом и историю передач |
-| `e2e-token-cleanup.sh` | фоновое расписание очистки refresh-токенов (единственное, что нельзя проверить юнит-тестами) |
+| `e2e-token-cleanup.sh` | фоновое расписание очистки refresh-токенов: занижает сроки JWT и cron инлайном, пересоздаёт `app`, по завершении возвращает штатный конфиг (`infrastructure/.env` не меняется) |
 | `e2e-keycloak.sh` | вход через Keycloak: realm, обмен кода на токены, работу профиля `dev,keycloak` |
 | `e2e-ratelimit.sh` | бакеты рейт-лимитов, `429` и `Retry-After`; в `e2e-all` не входит — логика покрыта `RateLimitServiceTest` |
 

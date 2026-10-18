@@ -16,9 +16,9 @@
 проверяет подпись по JWK и читает из токена email и realm-роли. Роль для
 проверки прав приложение всегда читает из БД — блокировка пользователя и
 понижение роли действуют сразу, не дожидаясь истечения токена. Переключение
-контура: `make profile-local` / `make profile-keycloak` (меняют
-`SPRING_PROFILES_ACTIVE` в `infrastructure/.env` и пересоздают контейнер
-`app`).
+контура: `make profile-local` / `make profile-keycloak` (передают
+`SPRING_PROFILES_ACTIVE` инлайном и пересоздают контейнер `app`, ничего не
+записывая в файлы — см. [`configuration.md`](configuration.md#профили-spring)).
 
 ## Внутренний JWT-контур
 
@@ -87,7 +87,8 @@ realm-роли `ROLE_USER`/`ROLE_OPERATOR` повышают роль в БД.
 только в профиль `local-tools`. Укажите в `.env` адреса внешнего Keycloak
 (`KC_JWK_SET_URI` — внутренний адрес для проверки подписи, `KC_ISSUER_URI` и
 `KC_HOSTNAME` — адрес, который видит браузер) и включите профиль
-`SPRING_PROFILES_ACTIVE=prod,keycloak`.
+`prod,keycloak` — например, строкой `SPRING_PROFILES_ACTIVE=prod,keycloak`
+в `.env` сервера или инлайном при запуске стека.
 
 ## Защита от CSRF
 

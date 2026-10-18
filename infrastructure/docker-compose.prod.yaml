@@ -15,3 +15,10 @@ services:
     build: !reset null
     image: "ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG:-latest}"
     pull_policy: always
+    environment:
+      # Дефолт рабочего контура — prod (в базовом файле dev,keycloak): этот
+      # оверлей подключается только make up-prod, и забытый на сервере
+      # SPRING_PROFILES_ACTIVE не должен поднимать dev-режим (отладочные логи,
+      # самоподписанный keystore, выключенная капча). Внешний Keycloak — явно:
+      # SPRING_PROFILES_ACTIVE=prod,keycloak в infrastructure/.env сервера.
+      SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-prod}"

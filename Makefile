@@ -88,12 +88,15 @@ dev-test: ## Dev-среда: mvn verify + e2e-сценарии (нужен по�
 
 ## --- Docker ---
 
-env: ## Синхронизировать infrastructure/.env с шаблоном (создать, дописать/обновить ключи)
-	bash scripts/docker/sync-env.sh
+env: ## Создать infrastructure/.env и сгенерировать пустые локальные секреты
+	bash scripts/docker/init-secrets.sh
 
-apply-config: ## Быстро применить конфиги/лимиты к запущенному стеку: sync .env + пересоздать app без сборки
-	bash scripts/docker/sync-env.sh
-	$(COMPOSE) $(PROFILES_ALL) up -d --force-recreate --no-deps app
+apply-config: ## Применить изменения .env к запущенному стеку (профиль app сохраняется)
+	@# Профиль задаётся не в .env, а инлайном (profile-local/keycloak): без переноса
+	@# значения из работающего контейнера пересоздание вернуло бы .env/дефолт и
+	@# молча сменило контур. Пустой profile (app не запущен) даст compose-дефолт.
+	@profile=$($(COMPOSE) $(PROFILES_ALL) exec -T app printenv SPRING_PROFILES_ACTIVE 2>/dev/null | tr -d ''); 
+	SPRING_PROFILES_ACTIVE="${profile}" $(COMPOSE) $(PROFILES_ALL) up -d --force-recreate --no-deps app
 
 docker-build: ## Собрать docker-образ приложения (с меткой GIT_SHA)
 	$(COMPOSE) $(PROFILES_LOCAL) build --build-arg GIT_SHA=$(GIT_SHA)
@@ -153,11 +156,19 @@ ps: ## Статус контейнеров (все профили)
 restart: ## Перезапустить только приложение
 	$(COMPOSE) $(PROFILES_ALL) restart app
 
-profile-local: ## Переключить приложение на внутренний JWT-контур (профиль dev) и пересоздать app
-	bash scripts/docker/set-profile.sh dev
+# Переключение контура — инлайном: SPRING_PROFILES_ACTIVE объявлен в
+# services.app.environment compose-файла (${SPRING_PROFILES_ACTIVE:-dev,keycloak}),
+# поэтому переменная окружения хоста перекрывает infrastructure/.env и ничего
+# на диск не пишется. Compose сравнивает конфигурацию контейнера: при смене
+# профиля app пересоздаётся сам, при том же значении команда — no-op (не
+# перезапускает стек зря). --wait дожидается healthcheck, чтобы следующая
+# команда (e2e-сценарий) не била в ещё поднимающийся app. Если стек был
+# остановлен, up поднимает его целиком с нужным профилем.
+profile-local: env ## Переключить приложение на внутренний JWT-контур (профиль dev) и пересоздать app
+	SPRING_PROFILES_ACTIVE=dev $(COMPOSE) $(PROFILES_LOCAL) up -d --wait
 
-profile-keycloak: ## Переключить приложение на контур Keycloak (профиль dev,keycloak) и пересоздать app
-	bash scripts/docker/set-profile.sh dev,keycloak
+profile-keycloak: env ## Переключить приложение на контур Keycloak (профиль dev,keycloak) и пересоздать app
+	SPRING_PROFILES_ACTIVE=dev,keycloak $(COMPOSE) $(PROFILES_LOCAL) up -d --wait
 
 shell: ## Shell внутри контейнера app
 	$(COMPOSE) $(PROFILES_ALL) exec app sh
@@ -192,12 +203,13 @@ check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-пров�
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это
 # внутренний JWT-контур, поэтому up-load переводит приложение на профиль dev.
 
-up-load: env ## Поднять стек для нагрузки (TRUST_PROXY_HEADERS=true инлайном; только локально)
-	# Внутренний JWT-контур: пул сидируется через /api/v1/auth/register.
-	# NO_RESTART=1 — app пересоздаст сам up ниже, лишний перезапуск не нужен.
-	NO_RESTART=1 bash scripts/docker/set-profile.sh dev
+up-load: env ## Поднять стек для нагрузки (профиль dev и TRUST_PROXY_HEADERS=true инлайном; только локально)
+	# Внутренний JWT-контур (пул сидируется через /api/v1/auth/register) и
+	# доверие X-Forwarded-For (каждой VU — свой bucket рейт-лимита) задаются
+	# инлайном: .env не меняется.
+	SPRING_PROFILES_ACTIVE=dev \
 	TRUST_PROXY_HEADERS=true OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces \
-	$(COMPOSE) $(PROFILES_LOCAL) up --build -d
+	$(COMPOSE) $(PROFILES_LOCAL) up --build -d --wait
 
 load: up-load ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
 	bash scripts/load/run.sh

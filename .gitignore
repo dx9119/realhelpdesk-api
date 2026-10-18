@@ -45,8 +45,6 @@ ssl/
 
 # Локальные секреты (шаблон хранится в infrastructure/.env.example)
 infrastructure/.env
-# Снимок дефолтов для sync-env.sh (создаётся на месте, не коммитится)
-infrastructure/.env.defaults
 
 # Файлы Docker (если не коммитите образы)
 # Dockerfile.local

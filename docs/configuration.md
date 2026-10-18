@@ -10,14 +10,19 @@
 
 | Файл | Что это | Когда менять |
 |---|---|---|
-| `infrastructure/.env.example` | Шаблон из git: несекретные переменные с дефолтами для локальной разработки (рейт-лимиты, капча, сроки JWT, почта, MinIO, домены) и пустые строки секретов. Закомментированная секция «Рабочий контур» — значения для продакшена | Общий дефолт для всех разработчиков, новая несекретная переменная |
-| `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` синхронизирует его с шаблоном: создаёт при отсутствии, дописывает недостающие ключи, обновляет не изменённые вручную дефолты (сверка по снимку `infrastructure/.env.defaults`). Его читают compose (интерполяция `${VAR}`) и приложение (`env_file`) | Локальные значения и секреты |
-| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск; здесь же динамические ключи с дефолтами (`OTLP_TRACING_ENDPOINT`, `TRUST_PROXY_HEADERS`, `CLIENT_IP_FORWARDED_INDEX`) | Новая секретная переменная |
+| `infrastructure/.env.example` | Шаблон из git: несекретные переменные с дефолтами для локальной разработки (рейт-лимиты, капча, почта, MinIO, домены) и пустые строки секретов. Закомментированная секция «Рабочий контур» — значения для продакшена | Общий дефолт для всех разработчиков, новая несекретная переменная |
+| `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` создаёт его из шаблона (если файла нет) и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет: у несекретных ключей источник один — шаблон, а секреты после генерации ваши. Его читают compose (интерполяция `${VAR}`) и приложение (`env_file`) | Локальные значения и секреты |
+| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск; здесь же динамические ключи с дефолтами `${VAR:-...}` — профиль, сроки ротации JWT, `OTLP_TRACING_ENDPOINT`, `TRUST_PROXY_HEADERS`, `CLIENT_IP_FORWARDED_INDEX`. Их переопределяют инлайном (`make profile-local`, `up-load`, e2e-сценарии), не трогая файлы | Новая секретная переменная или новый динамический ключ |
 
 Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,
 `KEY_STORE_PASS`, `MAIL_PASSWORD` (только для внешнего SMTP),
 `KEYCLOAK_ADMIN_PASSWORD` (если стенд Keycloak доступен не только вам).
+
+Смена секрета у уже поднятого стека: `DB_PASSWORD` фиксируется при первой
+инициализации тома PostgreSQL, поэтому его правка в `.env` рассогласует
+приложение и БД. Меняйте вместе с пересозданием данных:
+`make down-volumes && make up`.
 
 ## Как поменять настройку
 
@@ -25,10 +30,11 @@
    (или `application-domains.properties`).
 2. Задайте значение: в `infrastructure/.env` — локально;
    в `infrastructure/.env.example` — общий дефолт;
-   в `services.app.environment` compose — новый секрет.
-3. Примените: `make apply-config` — синхронизирует `.env` с шаблоном
-   и пересоздаёт контейнер `app` без пересборки образа. Если `.env`
-   заполнен вручную — достаточно `make restart`.
+   в `services.app.environment` compose — секрет или динамический ключ.
+3. Примените: `make apply-config` — пересоздаёт контейнер `app` без
+   пересборки образа (для `SPRING_PROFILES_ACTIVE` есть `make profile-local` /
+   `profile-keycloak`). Если `.env` заполнен вручную — достаточно
+   `make restart`.
 
 Каждая переменная схемы объявлена ровно в одном месте — `.env.example`
 (несекретные) или `services.app.environment` compose (секреты и динамические
@@ -45,7 +51,7 @@
 |---|---|
 | `infrastructure/docker-compose.yaml` | База: сервисы, профили, `services.app.environment` (секреты через `${VAR:?}`) |
 | `infrastructure/docker-compose.override.yaml` | Локальная разработка: порты postgres/minio на `127.0.0.1` + сеть `backend` для приложения на хосте. Подключают только локальные цели make |
-| `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make up-prod`): без портов БД наружу; override не подключён |
+| `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make up-prod`): pull из ghcr.io, дефолт профиля `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`), без портов БД наружу; override не подключён |
 | `infrastructure/docker-compose.host.yaml` | Одностраничная сборка через top-level `include:` для spring-boot-docker-compose (модуль Boot принимает только один файл) |
 
 Почему порты нельзя переключить профилем: профиль не может сказать «в dev
@@ -70,9 +76,23 @@
 
 ## Профили Spring
 
-Профиль задаётся `SPRING_PROFILES_ACTIVE` в `infrastructure/.env` — это
-единственное место, где он живёт (`env_file` контейнера перекрывает переменные
-окружения хоста).
+Профиль задаётся переменной `SPRING_PROFILES_ACTIVE`. Она объявлена в
+`services.app.environment` compose-файла с дефолтом `${SPRING_PROFILES_ACTIVE:-dev,keycloak}`,
+поэтому переключается инлайном — переменная окружения хоста имеет приоритет
+над `infrastructure/.env`, и на диск ничего не пишется:
+
+```bash
+make profile-local     # SPRING_PROFILES_ACTIVE=dev          (внутренний JWT-контур)
+make profile-keycloak  # SPRING_PROFILES_ACTIVE=dev,keycloak (токены выпускает Keycloak)
+```
+
+Compose сравнивает конфигурацию контейнера: при смене значения `app`
+пересоздаётся сам, при том же — команда ничего не делает. Постоянное значение,
+если нужно, можно задать в `infrastructure/.env` (переменная окружения хоста
+всё равно перекрывает файл). В рабочем контуре дефолт другой:
+`docker-compose.prod.yaml` подставляет `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`) —
+чтобы забытый ключ не поднял dev-режим на сервере. Для запуска на хосте
+профиль задаёт `.run/`-конфигурация IDEA или `make run-local` (`dev,host`).
 
 | Профиль | Файл | Что включает |
 |---|---|---|

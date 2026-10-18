@@ -13,10 +13,12 @@
 # батчи, идемпотентность и разнесение двух сроков покрыты
 # OperatorTokenCleanupIT и RefreshTokenCleanupServiceTest — здесь не повторяются.
 #
-# Сроки жизни токенов задаются в секундах, поэтому прогон переписывает
-# infrastructure/.env: сроки занижаются до секунд (хранение отозванных 10 с,
-# refresh 15 с), расписание — каждые 5 секунд. Контейнер app пересоздаётся,
-# а .env восстанавливается по завершении, включая Ctrl+C.
+# Измерительный конфиг передаётся инлайном при пересоздании контейнера app
+# (переменные окружения хоста перекрывают infrastructure/.env, а сроки и cron
+# объявлены в services.app.environment compose-файла с дефолтами): файл .env
+# скрипт не читает на запись и не меняет вовсе, поэтому прерванный прогон
+# (Ctrl+C, kill -9) не оставляет сломанной конфигурации. По завершении app
+# пересоздаётся без инлайн-переменных — возвращается штатное расписание.
 #
 # Требования: поднятый стек (make up), капча выключена (по умолчанию), docker
 # для psql. Тратит рейт-лимиты /auth/register и /auth/login (по 10 на 5 мин);
@@ -46,7 +48,6 @@ WAIT_SCHEDULED=${WAIT_SCHEDULED:-45}
 TMP=$(mktemp -d)
 JAR_USER="$TMP/user.jar"
 BODY="$TMP/body.txt"
-ENV_BACKUP="$TMP/env.backup"
 LAST_COUNT=""
 sql() { $PSQL "$1" | tail -1; }
 
@@ -65,14 +66,6 @@ check() {
   fi
 }
 code() { curl -sk -H 'X-Requested-With: XMLHttpRequest' -o "$BODY" -w "%{http_code}" "$@"; }
-read_env() { grep "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2-; }
-env_set() {
-  if grep -q "^$1=" "$ENV_FILE"; then
-    sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"
-  else
-    printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
-  fi
-}
 register() { # register <email>
   local c
   c=$(code -X POST "$BASE/auth/register" -H 'Content-Type: application/json' \
@@ -111,12 +104,21 @@ wait_both() {
   done
   return 1
 }
-restart_app() {
-  # Старый контейнер продолжает отвечать до полного пересоздания — ждём сначала
-  # смены id контейнера, иначе health=200 от старого app провалит проверку ниже.
-  local old_id
+# up_app <переменные окружения...> — пересоздать только контейнер app и дождаться
+# health. Переданные переменные действуют в рамках команды: compose подставляет их
+# в интерполяцию, infrastructure/.env не меняется.
+# Профиль приложения переносится из работающего контейнера: SPRING_PROFILES_ACTIVE
+# задаётся не в .env, а инлайном вызывающей make-целью (profile-local → dev), и
+# без этого пересоздание вернуло бы compose-дефолт (dev,keycloak) — сценарий
+# работает во внутреннем JWT-контуре и на нём бы упал.
+up_app() {
+  local old_id profile
+  profile=$(current_profile)
   old_id=$($APP_COMPOSE ps -q app 2>/dev/null || true)
-  $APP_COMPOSE up -d --force-recreate --no-deps app >/dev/null 2>&1 || return 1
+  env "SPRING_PROFILES_ACTIVE=$profile" "$@" \
+    $APP_COMPOSE up -d --force-recreate --no-deps app >/dev/null 2>&1 || return 1
+  # Старый контейнер продолжает отвечать до полного пересоздания — ждём сначала
+  # смены id, иначе health=200 от старого app провалит проверку ниже.
   for _ in $(seq 1 30); do
     [ -n "$old_id" ] && [ "$($APP_COMPOSE ps -q app 2>/dev/null)" = "$old_id" ] && sleep 1 && continue
     break
@@ -127,28 +129,32 @@ restart_app() {
   done
   return 1
 }
+# current_profile — SPRING_PROFILES_ACTIVE запущенного контейнера app (внутри
+# контейнера переменная уже развёрнута из инлайн-значения или compose-дефолта).
+current_profile() {
+  $APP_COMPOSE exec -T app printenv SPRING_PROFILES_ACTIVE 2>/dev/null | tr -d '\r' || true
+}
+# Измерительные тайминги: те же ключи, что объявлены в services.app.environment
+# compose-файла, — переменные хоста перекрывают значения из infrastructure/.env.
+MEASURE_ENV=(
+  "JWT_ACCESS_TOKEN_EXPIRATION_SECONDS=$ACCESS_SECONDS"
+  "JWT_REFRESH_TOKEN_EXPIRATION_SECONDS=$REFRESH_SECONDS"
+  "JWT_REVOKED_TOKEN_RETENTION_SECONDS=$RETENTION_SECONDS"
+)
+# restart_measured <cron> — app с измерительными сроками и заданным расписанием
+restart_measured() { up_app "${MEASURE_ENV[@]}" "JWT_TOKEN_CLEANUP_CRON=$1"; }
+# restore_app — app со штатным конфигом (без инлайн-переменных)
+restore_app() { up_app; }
 
-ENV_PATCHED=0
-patch_env() {
-  cp "$ENV_FILE" "$ENV_BACKUP"
-  env_set JWT_ACCESS_TOKEN_EXPIRATION_SECONDS "$ACCESS_SECONDS"
-  env_set JWT_REFRESH_TOKEN_EXPIRATION_SECONDS "$REFRESH_SECONDS"
-  env_set JWT_REVOKED_TOKEN_RETENTION_SECONDS "$RETENTION_SECONDS"
-  env_set JWT_TOKEN_CLEANUP_CRON "$NEVER_CRON"
-  ENV_PATCHED=1
-}
-restore_env() {
-  [ "$ENV_PATCHED" = "1" ] || return 0
-  ENV_PATCHED=0
-  cp "$ENV_BACKUP" "$ENV_FILE"
-  echo "  $ENV_FILE восстановлен, пересоздаю контейнер app..."
-  restart_app || echo "  ВНИМАНИЕ: app не поднялся сам — проверьте 'make ps' и $ENV_FILE"
-}
+# Прогон оставляет app с измерительным конфигом — на выходе возвращаем штатный
+# (пересоздание контейнера; сам infrastructure/.env не менялся).
+FINISHED=0
 finish() {
-  restore_env
   rm -rf "$TMP"
+  [ "$FINISHED" = "1" ] && return 0
+  echo "  Пересоздаю app со штатным конфигом..."
+  restore_app || echo "  ВНИМАНИЕ: app не поднялся сам — проверьте 'make ps' и выполните 'make restart'"
 }
-# restore_env пересоздаёт контейнер app, поэтому ловим и Ctrl+C, и штатное завершение
 trap finish EXIT
 
 echo "═══ Фоновая очистка refresh-токенов по расписанию ═══"
@@ -170,9 +176,8 @@ step "Измерительный конфиг: хранение ${RETENTION_SECO
 register "$USER_EMAIL"
 USER_ID=$(sql "select id from users where email='$USER_EMAIL';")
 echo "  user id=$USER_ID"
-patch_env
-if ! restart_app; then
-  echo "  FAIL app не поднялся с измерительным конфигом — $ENV_FILE будет восстановлен"
+if ! restart_measured "$NEVER_CRON"; then
+  echo "  FAIL app не поднялся с измерительным конфигом"
   exit 1
 fi
 login_as "$JAR_USER" "$USER_EMAIL" "пользователь вошёл"
@@ -182,9 +187,8 @@ step "Расписание включено (каждые 5 с): отозван�
 # (пересоздание app занимает больше), свежий выход даёт отозванную строку.
 # Один тик cron чистит обе категории, поэтому ждём их одновременно — это и
 # быстрее, и строже отдельного ожидания (снимок БД в один момент).
-env_set JWT_TOKEN_CLEANUP_CRON "$EVERY_5S_CRON"
-if ! restart_app; then
-  echo "  FAIL app не поднялся с расписанием каждые 5 с — $ENV_FILE будет восстановлен"
+if ! restart_measured "$EVERY_5S_CRON"; then
+  echo "  FAIL app не поднялся с расписанием каждые 5 с"
   exit 1
 fi
 login_as "$JAR_USER" "$USER_EMAIL" "пользователь вошёл"
@@ -219,7 +223,8 @@ fi
 
 echo
 echo "── Восстановление штатного конфига"
-restore_env
+restore_app
+FINISHED=1
 
 echo
 if [ "$FAIL" -eq 0 ]; then
