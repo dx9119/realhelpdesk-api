@@ -14,6 +14,8 @@ GIT_SHA ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 # compose не сам включает профили зависимостей (depends_on на сервис с
 # непривязанным профилем — ошибка валидации).
 COMPOSE ?= docker compose -f infrastructure/docker-compose.yaml
+# Рабочий контур: override без сборки на сервере (pull из ghcr.io)
+COMPOSE_PROD ?= docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml
 PROFILES_DEV ?= --profile infra --profile dev --profile app
 PROFILES_PROD ?= --profile infra --profile app
 PROFILES_OBS ?= $(PROFILES_DEV) --profile monitoring
@@ -24,6 +26,7 @@ PROFILES_ALL ?= --profile infra --profile dev --profile app --profile monitoring
 .PHONY: help build clean compile package test verify format check run \
         dev-run dev-test run-local up-infra \
         env apply-config docker-build up up-prod up-load down down-volumes logs ps restart shell check-image \
+        backup restore \
         profile-local profile-keycloak \
         obs-up obs-down obs-open obs-reload obs-alerts \
         load load-smoke \
@@ -92,14 +95,31 @@ up: env ## Поднять локальный стек (профили infra+dev+
 up-infra: env ## Поднять только инфраструктуру (infra+dev, без app) — для make run-local
 	$(COMPOSE) --profile infra --profile dev up -d
 
-up-prod: env ## Поднять рабочий стек (профили infra+app; настройки — секция «Рабочий контур» в .env)
-	$(COMPOSE) $(PROFILES_PROD) up --build -d
+up-prod: env ## Поднять рабочий стек (infra+app, pull из ghcr.io; настройки — «Рабочий контур» в .env)
+	$(COMPOSE_PROD) $(PROFILES_PROD) up -d --no-build
 
 down: ## Остановить стек (все профили)
 	$(COMPOSE) $(PROFILES_ALL) down
 
 down-volumes: ## Остановить стек и удалить тома (данные БД/MinIO)
 	$(COMPOSE) $(PROFILES_ALL) down -v
+
+## --- Бэкапы (PostgreSQL + MinIO; артефакты — ./backups/) ---
+
+backup: env ## Бэкап БД (pg_dump -Fc) и MinIO в ./backups/ + ротация старше 14 дней
+	bash scripts/docker/backup.sh
+
+restore: env ## Восстановить БД из дампа: make restore BACKUP_FILE=backups/db_....dump
+	@test -n "$(BACKUP_FILE)" || (echo "Укажите BACKUP_FILE=path/to/db_....dump" && exit 1)
+	@test -f "$(BACKUP_FILE)" || (echo "Файл не найден: $(BACKUP_FILE)" && exit 1)
+	@echo "==> Останавливаю app"
+	$(COMPOSE) $(PROFILES_PROD) stop app
+	@echo "==> Восстанавливаю $(BACKUP_FILE) в БД"
+	docker compose -f infrastructure/docker-compose.yaml --profile infra exec -T postgres \
+	  pg_restore -U "$${POSTGRES_USER:-user}" -d "$${POSTGRES_DB:-desk}" --clean --if-exists < "$(BACKUP_FILE)"
+	@echo "==> Поднимаю app"
+	$(COMPOSE) $(PROFILES_PROD) up -d --no-build app
+	@echo "==> Восстановление завершено"
 
 ## --- Наблюдаемость (подробности: docs/observability/overview.md) ---
 

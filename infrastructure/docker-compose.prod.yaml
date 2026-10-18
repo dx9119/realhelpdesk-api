@@ -1,0 +1,17 @@
+# Override для рабочего контура (deploy с CI/CD): запрет сборки на сервере,
+# только pull immutable-образа из ghcr.io.
+#
+# Подключается вторым -f после infrastructure/docker-compose.yaml:
+#   docker compose -f infrastructure/docker-compose.yaml \
+#     -f infrastructure/docker-compose.prod.yaml \
+#     --profile infra --profile app up -d --no-build
+#
+# IMAGE_TAG задаёт деплой-workflow (записывает в infrastructure/.env на сервере);
+# локально/up-prod без тега берёт :latest.
+
+services:
+  app:
+    # Сборка на сервере запрещена: образ приходит из ghcr.io
+    build: !reset null
+    image: "ghcr.io/dx9119/realhelpdesk:${IMAGE_TAG:-latest}"
+    pull_policy: always
