@@ -248,6 +248,11 @@ openapi-types: openapi ## Сгенерировать TypeScript-типы из с
 # Контур Keycloak проверяет отдельный сценарий e2e-keycloak (профиль dev,keycloak).
 # Перед сценариями сбрасываются in-memory бакеты рейт-лимитов
 # (POST /api/v1/dev/ratelimit-reset, @Profile("dev")) — без make restart.
+#
+# e2e-ratelimit в e2e-all не входит: логика бакетов/429/Retry-After целиком
+# покрыта RateLimitServiceTest, а e2e-прогон тратит 56 последовательных
+# запросов и всегда идёт последним по лимитам. Отдельная цель ниже — для
+# ручного прогона после изменений в рейт-лимитах.
 
 e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпоинт; стек запущен, профиль dev)
 	@code=$$(curl -sk -o /dev/null -w '%{http_code}' -X POST \
@@ -280,11 +285,9 @@ e2e-token-cleanup: profile-local e2e-reset-limits ## E2E: очистка ото�
 e2e-keycloak: profile-keycloak e2e-reset-limits ## E2E: вход через Keycloak (нужен сервис keycloak профиля dev)
 	bash $(E2E_DIR)/e2e-keycloak.sh
 
-e2e-all: profile-local ## E2E: все сценарии подряд (лимиты сбрасываются перед каждым)
+e2e-all: profile-local ## E2E: базовые сценарии подряд (лимиты сбрасываются перед каждым)
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-portal-access.sh
-	$(MAKE) e2e-reset-limits
-	bash $(E2E_DIR)/e2e-ratelimit.sh
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-jwt-flow.sh
 	$(MAKE) e2e-reset-limits

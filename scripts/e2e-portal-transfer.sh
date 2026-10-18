@@ -43,8 +43,8 @@ register() { # email last first jar
 }
 confirm_email() { # email jar -> код из письма (ретраи, письмо приходит не мгновенно)
   local email="$1" jar="$2" msg="" code="" i
-  for i in 1 2 3 4 5 6; do
-    sleep 2
+  for i in 1 2 3; do
+    sleep 1
     msg=$(curl -s "$SMTP/api/Messages?limit=50" | python3 -c "
 import sys,json
 r=json.load(sys.stdin).get('results',[])

@@ -11,11 +11,11 @@
 # по таймауту); чужое уведомление не читается (404); неизвестное событие
 # в настройках — 400; без токена — 401.
 #
-# Повторы: без сохранённой строки настроек повтор включён на 30 минут;
-# с интервалом 1 минута непрочитанная NEW_TICKET получает напоминание
-# (проверка занимает до ~2.5 минут: интервал + период обхода раз в минуту),
-# прочтение напоминания гасит всю группу; выключенный повтор напоминаний
-# не даёт (проверка ~2 минуты ожидания).
+# Повторы: проверяются только настройки (дефолт и сохранение). Фактическая
+# доставка напоминаний — это планировщик с интервалом в минуту: он покрыт
+# юнит-тестами, а в e2e добавлял ~5 минут ожидания без нового покрытия
+# (механизм доставки тот же long polling/SSE, что проверяется выше).
+# Прогон с планировщиком: E2E_REPEATS=1 bash scripts/e2e-notifications.sh
 #
 # Требования: поднятый стек (make up), капча выключена (по
 # умолчанию), docker для запросов к postgres. Регистрирует двух
@@ -57,7 +57,8 @@ last_id() {
   curl -sk -H 'X-Requested-With: XMLHttpRequest' -b "$1" "$BASE/notifications?size=50" | grep -o '"id":[0-9]*' | cut -d: -f2 | sort -n | tail -1
 }
 # цикл long polling до появления оповещения новее afterId: $1 jar, $2 afterId,
-# $3 итераций по 30 сек (5 × 30 = 150 сек > интервал 1 мин + обход 1 мин).
+# $3 итераций по 30 сек (4 × 30 = 120 сек > интервал 1 мин + обход 1 мин).
+# Используется только в ветке E2E_REPEATS=1 (проверка планировщика повторов).
 # Печатает 1, если появилось, иначе 0; последний ответ — в $TMP/waitloop.json.
 wait_new() {
   local jar=$1 after=$2 tries=${3:-5} i=0 code
@@ -221,33 +222,39 @@ else
   echo "  FAIL настройки повтора не сохранились: $PREFS"
   FAIL=1
 fi
-check "$(unread "$JAR_B")" "0" "у B нет непрочитанных перед повтором"
-check "$(code -b "$JAR_A" -X POST "$BASE/portals/$PORTAL/tickets" -H 'Content-Type: application/json' \
-  --data-binary "$(body '{"title":"Заявка для повтора","body":"напоминание"}')")" "201" "A создал заявку для повтора"
-check "$(unread "$JAR_B")" "1" "B получил исходное оповещение"
-AFTER=$(last_id "$JAR_B")
-check "$(wait_new "$JAR_B" "$AFTER" 5)" "1" "напоминание пришло по long polling"
-check "$(unread "$JAR_B")" "2" "непрочитанных стало 2: исходное + напоминание"
-REMINDER_ID=$(last_id "$JAR_B")
-check "$(code -b "$JAR_B" -X PUT "$BASE/notifications/$REMINDER_ID/read")" "204" "напоминание отмечено прочитанным"
-check "$(unread "$JAR_B")" "0" "прочтение одной строки погасило всю группу"
+# Доставка напоминаний планировщиком (интервал 1 мин + обход раз в минуту)
+# покрыта юнит-тестами; в e2e добавляла ~5 минут ожидания без нового покрытия
+# (канал доставки тот же, что проверен выше). Прогон с планировщиком:
+# E2E_REPEATS=1 bash scripts/e2e-notifications.sh
+if [ "${E2E_REPEATS:-0}" = "1" ]; then
+  check "$(unread "$JAR_B")" "0" "у B нет непрочитанных перед повтором"
+  check "$(code -b "$JAR_A" -X POST "$BASE/portals/$PORTAL/tickets" -H 'Content-Type: application/json' \
+    --data-binary "$(body '{"title":"Заявка для повтора","body":"напоминание"}')")" "201" "A создал заявку для повтора"
+  check "$(unread "$JAR_B")" "1" "B получил исходное оповещение"
+  AFTER=$(last_id "$JAR_B")
+  check "$(wait_new "$JAR_B" "$AFTER" 4)" "1" "напоминание пришло по long polling"
+  check "$(unread "$JAR_B")" "2" "непрочитанных стало 2: исходное + напоминание"
+  REMINDER_ID=$(last_id "$JAR_B")
+  check "$(code -b "$JAR_B" -X PUT "$BASE/notifications/$REMINDER_ID/read")" "204" "напоминание отмечено прочитанным"
+  check "$(unread "$JAR_B")" "0" "прочтение одной строки погасило всю группу"
 
-step "Повтор выключен — напоминания нет"
-check "$(code -b "$JAR_B" -X PUT "$BASE/notifications/preferences" -H 'Content-Type: application/json' \
-  -d "{\"events\":$ALL_EVENTS,\"repeatEnabled\":false,\"repeatIntervalMinutes\":1}")" "200" "повтор выключен"
-PREFS=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -b "$JAR_B" "$BASE/notifications/preferences")
-if echo "$PREFS" | grep -q '"repeatEnabled":false'; then
-  echo "  OK   выключение сохранилось"
-else
-  echo "  FAIL выключение не сохранилось: $PREFS"
-  FAIL=1
+  step "Повтор выключен — напоминания нет"
+  check "$(code -b "$JAR_B" -X PUT "$BASE/notifications/preferences" -H 'Content-Type: application/json' \
+    -d "{\"events\":$ALL_EVENTS,\"repeatEnabled\":false,\"repeatIntervalMinutes\":1}")" "200" "повтор выключен"
+  PREFS=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -b "$JAR_B" "$BASE/notifications/preferences")
+  if echo "$PREFS" | grep -q '"repeatEnabled":false'; then
+    echo "  OK   выключение сохранилось"
+  else
+    echo "  FAIL выключение не сохранилось: $PREFS"
+    FAIL=1
+  fi
+  check "$(code -b "$JAR_A" -X POST "$BASE/portals/$PORTAL/tickets" -H 'Content-Type: application/json' \
+    --data-binary "$(body '{"title":"Заявка без повтора","body":"проверка"}')")" "201" "A создал заявку"
+  check "$(unread "$JAR_B")" "1" "B получил исходное оповещение"
+  AFTER=$(last_id "$JAR_B")
+  check "$(wait_new "$JAR_B" "$AFTER" 4)" "0" "напоминание не пришло за 2 минуты (повтор выключен)"
+  check "$(unread "$JAR_B")" "1" "осталось только исходное оповещение"
 fi
-check "$(code -b "$JAR_A" -X POST "$BASE/portals/$PORTAL/tickets" -H 'Content-Type: application/json' \
-  --data-binary "$(body '{"title":"Заявка без повтора","body":"проверка"}')")" "201" "A создал заявку"
-check "$(unread "$JAR_B")" "1" "B получил исходное оповещение"
-AFTER=$(last_id "$JAR_B")
-check "$(wait_new "$JAR_B" "$AFTER" 5)" "0" "напоминание не пришло за 2.5 минуты (повтор выключен)"
-check "$(unread "$JAR_B")" "1" "осталось только исходное оповещение"
 
 step "Права и валидация"
 check "$(code "$BASE/notifications")" "401" "без токена — 401"

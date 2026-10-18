@@ -716,20 +716,25 @@ E2E-сценарии идут по живому стеку (`make up`) — вс�
 | Команда | Сценарий | Скрипт |
 |---|---|---|
 | `make e2e-portal-access` | Права доступа к порталу | `scripts/e2e-portal-access.sh` |
-| `make e2e-ratelimit` | Рейт-лимиты | `scripts/e2e-ratelimit.sh` |
+| `make e2e-ratelimit` | Рейт-лимиты (ручной прогон; логика покрыта `RateLimitServiceTest`) | `scripts/e2e-ratelimit.sh` |
 | `make e2e-jwt` | JWT-поток аутентификации | `scripts/e2e-jwt-flow.sh` |
 | `make e2e-notifications` | In-app оповещения (long polling) | `scripts/e2e-notifications.sh` |
 | `make e2e-portal-transfer` | Передача владения порталом | `scripts/e2e-portal-transfer.sh` |
-| `make e2e-token-cleanup` | Очистка отозванных и протухших refresh-токенов | `scripts/e2e-token-cleanup.sh` |
+| `make e2e-token-cleanup` | Очистка отозванных и протухших refresh-токенов (только фоновое расписание; доступ и батчи покрыты `OperatorTokenCleanupIT`) | `scripts/e2e-token-cleanup.sh` |
 | `make e2e-keycloak` | Вход через Keycloak (профиль `keycloak`) | `scripts/e2e-keycloak.sh` |
-| `make e2e-all` | Все сценарии подряд | `scripts/e2e-*.sh` |
+| `make e2e-all` | Базовые сценарии подряд | `scripts/e2e-*.sh` |
 
-Сценарии `e2e-portal-access`, `e2e-ratelimit`, `e2e-jwt`, `e2e-notifications`,
+Сценарии `e2e-portal-access`, `e2e-jwt`, `e2e-notifications`,
 `e2e-portal-transfer` и `e2e-token-cleanup` ходят в cookie-эндпоинты
 `/api/v1/auth/*`, то есть во внутренний JWT-контур: цели `make` перед прогоном
 переключают приложение на профиль `dev` (без `keycloak`). Контур Keycloak
 проверяет `e2e-keycloak` — он переключает профиль обратно на
 `dev,keycloak` и работает с Bearer-токеном, выпущенным Keycloak.
+
+В `e2e-all` не входит `e2e-ratelimit`: логика бакетов, 429 и `Retry-After`
+целиком покрыта `RateLimitServiceTest`, а прогон тратит 56 последовательных
+запросов. Цель `make e2e-ratelimit` остаётся для ручного прогона после
+изменений в рейт-лимитах.
 
 Скрипты создают тестовых пользователей и тратят рейт-лимиты — при повторных
 прогонах может потребоваться `make restart`. `e2e-token-cleanup` дополнительно
