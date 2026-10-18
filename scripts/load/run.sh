@@ -31,7 +31,7 @@ TARGET_VUS=${TARGET_VUS:-10}
 DURATION=${DURATION:-5m}
 PASSWORD=${PASSWORD:-Password123!}
 BASE=${BASE:-https://localhost:8443}
-COMPOSE="docker compose -f infrastructure/docker-compose.yaml --profile infra --profile dev --profile app --profile load"
+COMPOSE="docker compose -f infrastructure/docker-compose.yaml --profile infra --profile local-tools --profile app --profile load"
 
 if [ "$POOL_SIZE" -gt 10 ]; then
   echo "POOL_SIZE=$POOL_SIZE > 10: лимит регистрации 10/300с на IP, пул не засеивается за один проход." >&2
