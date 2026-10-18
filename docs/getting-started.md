@@ -7,10 +7,12 @@
 ## 1. Подготовка (однократно)
 
 ```bash
-# Создать infrastructure/.env из шаблона (недостающие ключи дописываются,
-# пустые секреты генерируются openssl rand -base64 32; свои значения не затираются)
 make env
 ```
+
+Создаёт `infrastructure/.env` из шаблона: недостающие ключи дописываются,
+пустые секреты генерируются `openssl rand -base64 32`, заданные вручную
+значения не затираются. Полный список целей Makefile — `make help`.
 
 Заполнить секреты в `infrastructure/.env` — в шаблоне это пустые строки,
 без них стек не поднимется:
@@ -84,6 +86,7 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 | Перезапустить только app (быстрый цикл) | `make restart` |
 | Применить изменения `.env` к запущенному стеку | `make apply-config` |
 | Логи app / статус контейнеров | `make logs` / `make ps` |
+| Shell внутри контейнера app (осмотреть ФС, keystore, дампы) | `make shell` |
 | Остановить стек | `make down` |
 | Полная очистка (с удалением томов) | `make down-volumes` |
 
@@ -145,12 +148,38 @@ make verify      # юнит + интеграционные *IT (failsafe; Testco
 make check       # spotless:check + checkstyle:check
 make format      # spotless:apply
 make dev-test    # verify + все e2e-сценарии (нужен поднятый стек)
-make check-ci    # CI-проверки локально: gitleaks + hadolint + trivy
+make check-ci    # CI-проверки локально: gitleaks + hadolint + trivy (полный прогон)
+```
+
+Сборка артефактов, если нужен jar без запуска стека:
+
+```bash
+make compile     # компиляция main и test
+make build       # jar без тестов (package -DskipTests)
+make package     # полная сборка: тесты + jar
+make clean       # очистить target/
+make run         # spring-boot:run против локальных настроек (без dockerized-инфры)
 ```
 
 Отдельно: `ApplicationConfigSchemaTest` сверяет парность ключей между
 `application*.properties` (`${VAR}` без дефолтов), `services.app.environment`
 compose и `.env.example` — сломали схему → упал `make test`.
+
+### Проверки образа
+
+Те же шаги, что выполняет job `docker` в CI, по отдельности — чтобы
+поймать проблему до полного `check-ci` (он гоняет их подряд и самый
+долгий шаг выполняет последним):
+
+```bash
+make docker-build      # собрать образ приложения с меткой GIT_SHA
+make check-image       # образ собран и пригоден: секреты, ФС, содержимое jar
+make check-secrets     # gitleaks: секреты в дереве и истории коммитов
+make check-dockerfile  # hadolint: линтер Dockerfile
+make ci-image          # собрать образ realhelpdesk:ci как в CI (нужен trivy)
+make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15m — разбор
+                       # вложенных jar в fat-jar дольше дефолтных 5 минут
+```
 
 ### E2E-тесты
 
@@ -169,6 +198,7 @@ in-memory рейт-лимиты.
 | `make e2e-token-cleanup` | очистка отозванных/протухших refresh-токенов |
 | `make e2e-keycloak` | вход через Keycloak (профиль `dev,keycloak`) |
 | `make e2e-all` | все сценарии подряд (лимиты сбрасываются перед каждым) |
+| `make e2e-reset-limits` | сбросить in-memory рейт-лимиты вручную (dev-эндпоинт) |
 
 Подробности, список сценариев и нагрузочное тестирование (k6) —
 в [`testing.md`](testing.md).
@@ -198,6 +228,7 @@ make obs-down    # остановить стек (томы целы)
 ```bash
 make load-smoke   # smoke: 2 VU, 1 минута
 make load         # user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
+make up-load      # только стек для нагрузки, без прогона k6
 ```
 
 `up-load` переводит приложение на внутренний JWT-контур (пул сидируется
