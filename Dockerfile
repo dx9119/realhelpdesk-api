@@ -45,9 +45,13 @@ RUN groupadd -r -g 10001 spring-group && \
             -c "Spring Boot application user" \
             spring-user
 
+# /usr/bin/pebble (init из базового Ubuntu-образа) приложением не используется:
+# entrypoint — наша обёртка над java, PID1 не нужен. Бинарник собран на старой
+# Go и даёт 3 уязвимости HIGH в trivy — удаляем на этапе сборки.
 # Директория для SSL: keystore.p12 появляется здесь при старте контейнера,
 # если свой файл не смонтирован volume (см. scripts/docker/entrypoint.sh)
-RUN mkdir -p /app/ssl && chown spring-user:spring-group /app /app/ssl
+RUN rm -f /usr/bin/pebble && \
+    mkdir -p /app/ssl && chown spring-user:spring-group /app /app/ssl
 
 # Точка входа: поднимает keystore (пароль берёт из окружения, не из сборки)
 # и запускает приложение. --chown/--chmod задаются здесь же, чтобы не делать
