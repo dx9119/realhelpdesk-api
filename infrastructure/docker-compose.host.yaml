@@ -1,0 +1,18 @@
+# Compose-файл для spring-boot-docker-compose (профиль host, IDEA-запуск).
+# Модуль Boot принимает только ОДИН файл (spring.docker.compose.file), а локальные
+# порты БД/MinIO живут в docker-compose.override.yaml — поэтому здесь они
+# собираются через top-level include (compose v2.20+).
+#
+# Итог для модуля: docker compose up поднимает infra+local-tools (профили задаёт
+# application-host.properties) с портами на 127.0.0.1; жизненный цикл — start-only,
+# стек не останавливается вместе с приложением. Если стек уже поднят make up-deps,
+# up становится no-op, а service connection'ы привязываются к запущенным контейнерам.
+
+include:
+  - docker-compose.yaml
+  - docker-compose.override.yaml
+
+# name в included-файлах compose игнорирует: без него проект получил бы имя
+# корневого файла ("infrastructure"), второй набор томов и конфликт портов с
+# уже поднятым make up-deps. Имя дублируется, чтобы up шёл в тот же проект.
+name: realhelpdesk

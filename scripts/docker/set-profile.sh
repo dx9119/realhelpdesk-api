@@ -20,7 +20,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 ENV_FILE="infrastructure/.env"
-COMPOSE="docker compose -f infrastructure/docker-compose.yaml --profile infra --profile dev --profile app"
+COMPOSE="docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app"
 HEALTH_URL="http://localhost:8081/actuator/health"
 
 PROFILES=${1:-}

@@ -113,9 +113,11 @@ com.ukhanov.realhelpdesk
 3. **Поднять стек** — на выбор:
 
    - `make up` — в фоне: сборка образа и запуск всего
-     (`docker compose up --build -d`, профили `infra`+`dev`+`app`);
+     (`docker compose up --build -d`, профили `infra`+`local-tools`+`app`);
    - `make dev-run` — в foreground: логи всех сервисов одним потоком,
-     `Ctrl+C` — остановка.
+     `Ctrl+C` — остановка;
+   - `make up-deps` — только инфраструктура (БД, MinIO, smtp4dev, Keycloak)
+     — для запуска приложения из IDEA на хосте (раздел «Запуск из IDEA»).
 
 4. **Проверить, что работает:**
 
@@ -126,8 +128,8 @@ com.ukhanov.realhelpdesk
      ящик на `http://localhost:3000` (письма с кодами, зачем — раздел
      «Почта»), Keycloak — `http://localhost:8180` (тестовые пользователи и
      клиент — раздел «Профили»), PostgreSQL `127.0.0.1:5432` и MinIO
-     `127.0.0.1:9000` — порты публикует `db-gateway` профилем `dev`, сама
-     БД наружу не проброшена.
+     `127.0.0.1:9000` — порты публикует `infrastructure/docker-compose.override.yaml`
+     (локальные цели make), сама БД наружу не проброшена.
 
 5. **Попробовать API.** По умолчанию стек работает с Keycloak, поэтому
    получите токен в Keycloak и передайте его заголовком:
@@ -196,8 +198,37 @@ com.ukhanov.realhelpdesk
 (`make test`).
 
 Один compose-файл (`infrastructure/docker-compose.yaml`) делится профилями
-`infra`/`dev`/`app`/`monitoring`/`load` — набор задаёт Makefile, различия
-сред живут в `.env`, а не в отдельных compose-файлах.
+`infra`/`local-tools`/`app`/`monitoring`/`load` — это выбор *какие сервисы*
+запускать; набор задаёт Makefile, различия конфигурации сред живут в `.env`.
+
+#### Почему несколько compose-файлов, а не только профили
+
+Профиль включает/выключает сервис, но не может изменить его конфигурацию —
+поэтому средовые различия, которые нельзя выразить переменной `.env`,
+вынесены в отдельные файлы, собираемые цепочкой `-f`:
+
+| Файл | Зачем |
+|---|---|
+| `infrastructure/docker-compose.yaml` | База: сервисы, профили, `services.app.environment` (мост compose → приложение, секреты через `${VAR:?}`) |
+| `infrastructure/docker-compose.override.yaml` | Локальная разработка: порты postgres/minio на `127.0.0.1` + сеть `backend`, чтобы приложение на хосте (IDEA/CLI) ходило на loopback. Подключают только локальные цели make |
+| `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make up-prod`): без портов БД наружу; override физически не подключён |
+| `infrastructure/docker-compose.host.yaml` | Одностраничная сборка через top-level `include:` для spring-boot-docker-compose — модуль Boot принимает только один файл (`spring.docker.compose.file`) |
+
+Почему не одним файлом с профилями:
+
+1. **Порты нельзя переключить профилем.** Профиль не может сказать «в dev
+   публикуй 5432 на loopback, в prod не публикуй вообще» — пришлось бы
+   дублировать сервисы под разными именами (`postgres`/`postgres-dev`),
+   ломая `depends_on`, hostname и конфиг приложения.
+2. **Безопасность прода.** Прод собирается как `-f base -f prod`: случайный
+   `--profile` не может выбросить порты БД наружу — override не подключён.
+3. **Ограничение Boot-модуля.** `spring-boot-docker-compose` не умеет
+   `-f a -f b`, отсюда `docker-compose.host.yaml` с `include:`.
+4. **Override — идиоматичный compose-механизм** для таких дельт: заменяются
+   только изменённые ключи, а не весь сервис.
+
+Цепочки `-f` инкапсулированы в Makefile (`COMPOSE`, `COMPOSE_PROD`) —
+обычный запуск идёт через `make up-deps`/`make up`/`make up-prod`.
 
 ### Клиентский IP
 
@@ -218,8 +249,8 @@ com.ukhanov.realhelpdesk
 единственное место, где он живёт (`env_file` контейнера перекрывает
 переменные окружения хоста). В шаблоне `infrastructure/.env.example` по
 умолчанию `dev,keycloak`: токены выпускает и подписывает Keycloak
-(сервис `keycloak` профиля `dev`), приложение только проверяет подпись по
-JWK и читает из токена email и realm-роли. Рабочий контур — `prod`
+(сервис `keycloak` профиля compose `local-tools`), приложение только проверяет
+подпись по JWK и читает из токена email и realm-роли. Рабочий контур — `prod`
 (при внешнем Keycloak — `prod,keycloak`), секция «Рабочий контур» в
 `infrastructure/.env`.
 
@@ -233,7 +264,33 @@ JWK и читает из токена email и realm-роли. Рабочий к
 |---|---|---|
 | `dev` | `application-dev.properties` | Локальная отладка: DEBUG по приложению, SQL-логи Hibernate без значений параметров |
 | `prod` (рабочий контур) | `application-prod.properties` | Рабочий контур: INFO/WARN, пошаговая трассировка и SQL выключены, инварианты рабочего контура |
+| `host` (запуск на хосте) | `application-host.properties` | Включается поверх `dev` при запуске из IDEA/CLI: loopback-адреса БД/MinIO/почты и spring-boot-docker-compose (инфра поднимается/подхватывается сама). Контейнерное приложение этот профиль не видит |
 | `keycloak` | `application-keycloak.properties` | Внешний выпуск токенов: OAuth2 Resource Server, адрес JWK и issuer, синхронизация ролей и автосоздание пользователей |
+
+### Запуск из IDEA (Debug одной кнопкой)
+
+Приложение на хосте против dockerized-инфраструктуры — без `make run-local`
+и без переименований переменных окружения (`DB_PASSWORD`/`MINIO_ROOT_*`
+читаются напрямую из `infrastructure/.env`):
+
+1. `make up-deps` — поднять БД, MinIO, smtp4dev и Keycloak (или не поднимать:
+   профиль `host` сделает это сам через spring-boot-docker-compose).
+2. Открыть проект в IntelliJ IDEA (2025.2+): конфигурация
+   `RealHelpDeskApplication` (`.run/RealHelpDeskApplication.run.xml`)
+   уже настроена — профили `dev,host`, путь к `infrastructure/.env` в поле
+   Environment variables и инлайн-переменные: `SSL_ENABLED=false` (HTTP без
+   keystore на хосту), `MINIO_ENDPOINT=http://127.0.0.1:9000` (loopback
+   вместо контейнерного имени `minio` — OS-env перекрывает
+   `application-host.properties`) и дефолты compose-интерполяции
+   `OTLP_TRACING_ENDPOINT`/`TRUST_PROXY_HEADERS`/`CLIENT_IP_FORWARDED_INDEX`
+   (в `.env` они закомментированы).
+3. Нажать **Debug**: приложение стартует за 2–3 секунды, подключаясь к
+   `127.0.0.1:5432`/`9000`/`25` (оверрайды — `application-host.properties`).
+4. Тесты: `mvn test`/`mvn verify` в IDEA работают как есть — стек не нужен
+   (юнит-тесты на H2, интеграционные — на Testcontainers).
+
+Если IDEA старше 2025.2 — установите плагин EnvFile и укажите
+`infrastructure/.env` на его вкладке в конфигурации запуска.
 
 **Переключение контура аутентификации.** Профиль `keycloak` — второй, а не
 самостоятельный: он добавляет свои ключи к базовому `dev`/`prod`. Без него
@@ -265,8 +322,8 @@ Keycloak, а приложение получает уже выпущенный a
 в БД. Роль для проверки прав приложение всегда читает из БД — блокировка
 пользователя и понижение роли действуют сразу, не дожидаясь истечения токена.
 
-Локальный контур Keycloak поднимается сервисом `keycloak` (профиль `dev`,
-`quay.io/keycloak/keycloak:26.6`, хостовый порт `127.0.0.1:8180`). Realm
+Локальный контур Keycloak поднимается сервисом `keycloak` (профиль compose
+`local-tools`, `quay.io/keycloak/keycloak:26.6`, хостовый порт `127.0.0.1:8180`). Realm
 `realhelpdesk` импортируется из `infrastructure/keycloak/realhelpdesk-realm.json`
 при первом старте (`--import-realm`): клиент `realhelpdesk-api` (Authorization
 Code + PKCE, direct access grant для отладки и e2e) и тестовые пользователи
@@ -277,7 +334,7 @@ Code + PKCE, direct access grant для отладки и e2e) и тестовы
 Контур проверяет `make e2e-keycloak`.
 
 В рабочем контуре Keycloak разворачивается отдельно: сервис `keycloak` входит
-только в профиль `dev`, поэтому `make up-prod` поднимает приложение без него.
+только в профиль `local-tools`, поэтому `make up-prod` поднимает приложение без него.
 Укажите в `.env` адреса внешнего Keycloak (`KC_JWK_SET_URI` — внутренний адрес
 для проверки подписи, `KC_ISSUER_URI` и `KC_HOSTNAME` — тот адрес, который
 видит браузер) и включите профиль: `SPRING_PROFILES_ACTIVE=prod,keycloak`.
@@ -286,7 +343,7 @@ Code + PKCE, direct access grant для отладки и e2e) и тестовы
 
 Почта уходит во внешний SMTP-сервер: встроенного SMTP нет. В dev-среде при
 этом работает smtp4dev — тестовый SMTP-сервис (контейнер `smtp`, UI на
-`http://localhost:3000`), который поднимается только профилем `dev`
+`http://localhost:3000`), который поднимается только профилем `local-tools`
 (`make up`); в рабочем контуре (`make up-prod`, профили `infra`+`app`) его нет.
 
 **Зачем в проекте smtp4dev.** Регистрация, подтверждение email и восстановление

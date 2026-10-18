@@ -1,0 +1,33 @@
+# Локальный оверлей: проброс портов БД/MinIO на loopback хоста — вместо
+# прежнего контейнера db-gateway (socat). Docker Compose подхватывает этот файл
+# автоматически при запуске без -f; Makefile подключает его явно
+# (-f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml)
+# для локальных целей (up-deps/up/dev-run/...).
+#
+# Рабочий контур (make up-prod: -f docker-compose.yaml -f docker-compose.prod.yaml)
+# оверлей НЕ подключает — на хост публикуется ровно ничего.
+#
+# postgres/minio в базовом файле нарочно без ports: БД и хранилище не должны
+# светиться на хост в проде. Здесь они дополнительно подключаются к сети
+# backend: на internal-сети data Docker не публикует порты, а backend даёт
+# и публикацию, и outbound. Секреты и healthcheck не трогаются.
+
+services:
+  postgres:
+    ports:
+      # Фиксированный 5432 — spring.datasource.url профиля host и psql/migrate
+      # по умолчанию ходят на 127.0.0.1:5432.
+      - "127.0.0.1:5432:5432"
+    networks:
+      - data
+      - backend
+
+  minio:
+    ports:
+      # API MinIO на хосту (MINIO_API_PORT из infrastructure/.env, дефолт 9000),
+      # UI контейнера — 127.0.0.1:9001.
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:9001:9001"
+    networks:
+      - data
+      - backend

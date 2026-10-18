@@ -154,6 +154,18 @@
             <artifactId>spring-boot-starter-opentelemetry</artifactId>
         </dependency>
 
+        <!-- Development-time: при хостовом запуске (профиль host, IDEA/CLI) модуль
+             сам поднимает/подхватывает инфру по spring.docker.compose.*
+             (см. application-host.properties). optional — чтобы не тянуться
+             транзитивно; spring-boot-maven-plugin исключает модуль из fat-jar
+             по умолчанию, поэтому в production-образе его нет вовсе. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-docker-compose</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Hibernate Validator -->
         <dependency>
             <groupId>org.hibernate.validator</groupId>

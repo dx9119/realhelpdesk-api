@@ -99,8 +99,8 @@ jobs:
       - name: Логи стека (при падении)
         if: failure()
         run: |
-          docker compose -f infrastructure/docker-compose.yaml --profile infra --profile dev --profile app ps || true
-          docker compose -f infrastructure/docker-compose.yaml --profile infra --profile dev --profile app logs --no-color || true
+          docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app ps || true
+          docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app logs --no-color || true
       - name: Остановить стек
         if: always()
         run: make down

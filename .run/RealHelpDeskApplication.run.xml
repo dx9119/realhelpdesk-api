@@ -1,0 +1,23 @@
+<!--
+  Запуск приложения на хосте против dockerized-инфраструктуры (Debug/Run в IDEA).
+  Переменные окружения — infrastructure/.env (нативная поддержка .env-файлов в
+  Environment variables, IDEA 2025.2+; для более старых версий — плагин EnvFile).
+  Профили: dev (логи/отладка) + host (loopback-адреса инфры и
+  spring-boot-docker-compose: модуль сам поднимет infra+local-tools, если стек
+  не запущен). SSL_ENABLED=false — HTTP без keystore на хосту; Secure-куки и
+  HTTPS остаются в контейнерном стеке (make up). Инлайн-переменные после .env
+  продублированы сознательно: OTLP/TRUST_PROXY/CLIENT_IP — дефолты
+  compose-интерполяции (:-), MINIO_ENDPOINT — loopback вместо контейнерного
+  имени minio (OS-env перекрывает application-host.properties).
+-->
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="RealHelpDeskApplication" type="Spring Boot" factoryName="Spring Boot">
+    <option name="MAIN_CLASS_NAME" value="com.ukhanov.realhelpdesk.RealHelpDeskApplication" />
+    <option name="ACTIVE_PROFILES" value="dev,host" />
+    <option name="ENVIRONMENT_VARIABLES" value="$PROJECT_DIR$/infrastructure/.env;SSL_ENABLED=false;OTLP_TRACING_ENDPOINT=http://localhost:4317;TRUST_PROXY_HEADERS=false;CLIENT_IP_FORWARDED_INDEX=0;MINIO_ENDPOINT=http://127.0.0.1:9000" />
+    <module name="realhelpdesk" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

@@ -26,8 +26,8 @@ set -u
 
 BASE=${BASE:-https://localhost:8443/api/v1}
 ENV_FILE=${ENV_FILE:-infrastructure/.env}
-COMPOSE="docker compose -f infrastructure/docker-compose.yaml"
-APP_COMPOSE="$COMPOSE --profile infra --profile dev --profile app"
+COMPOSE="docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml"
+APP_COMPOSE="$COMPOSE --profile infra --profile local-tools --profile app"
 PSQL="$COMPOSE --profile infra exec -T postgres psql -U user -d desk -tA -c"
 
 # Измерительный конфиг: сроки в секундах, батч 1 (число батчей равно числу удалённых строк),

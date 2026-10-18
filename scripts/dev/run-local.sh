@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Запуск приложения на хосте против dockerized-инфраструктуры (make run-local).
 #
-# Предпосылка: make up-infra — postgres/minio/db-gateway/smtp/keycloak подняты,
-# порты 5432/9000/8180/25 проброшены на 127.0.0.1 через db-gateway.
+# Предпосылка: make up-deps — postgres/minio/smtp/keycloak подняты, порты
+# 5432/9000/25/8180 проброшены на 127.0.0.1 (docker-compose.override.yaml).
+# Если стек не поднят, профиль host поднимет его сам при старте
+# (spring-boot-docker-compose, start-only).
 #
 # Что делает:
-#   1. подгружает infrastructure/.env;
-#   2. переименовывает ключи под схему приложения (DB_PASSWORD→DB_PASS и т.п.);
-#   3. переопределяет адреса сервисов на localhost (хостовые порты db-gateway);
-#   4. при отсутствии keystore генерирует самоподписанный в .cache/ssl/;
-#   5. запускает ./mvnw spring-boot:run (JAVA_HOME можно задать — JDK 21).
-#
-# Контур аутентификации: SPRING_PROFILES_ACTIVE из .env (по умолчанию dev,keycloak).
+#   1. подгружает infrastructure/.env — переименований ключей больше нет
+#      (DB_PASSWORD/MINIO_ROOT_* читаются приложением напрямую);
+#   2. выключает SSL (SSL_ENABLED=false): HTTP без keystore на хосту;
+#      HTTPS остаётся в контейнерном стеке (make up);
+#   3. запускает ./mvnw spring-boot:run с профилями dev,host
+#      (host — loopback-адреса инфры: application-host.properties).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -21,40 +22,40 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
+# infrastructure/.env — не shell-скрипт: значения с пробелами (APP_NAME=Real
+# help desk, STATIC_CACHE_CONTROL=private, no-store) ломают shell-источникование,
+# поэтому файл загружается построчно как KEY=VALUE — так же, как читают его
+# docker (env_file) и IDEA (EnvFile).
+while IFS= read -r line || [[ -n "$line" ]]; do
+  case "$line" in
+    '' | '#'*) continue ;;
+    [A-Za-z_]*=*) export "$line" ;;
+  esac
+done < "$ENV_FILE"
 
-# --- Переименования под схему application.properties (см. services.app.environment) ---
-export DB_PASS="${DB_PASSWORD:?DB_PASSWORD не задан — make env}"
-export MINIO_ACCESS_KEY="${MINIO_ROOT_USER:?}"
-export MINIO_SECRET_KEY="${MINIO_ROOT_PASSWORD:?}"
+# Дефолты compose-интерполяции (:-) из infrastructure/docker-compose.yaml:
+# в контейнере их подставляет compose, на хосте — этот скрипт или конфиг IDEA,
+# иначе схема ${VAR} в application.properties не резолвится.
+export OTLP_TRACING_ENDPOINT="${OTLP_TRACING_ENDPOINT:-http://localhost:4317}"
+export TRUST_PROXY_HEADERS="${TRUST_PROXY_HEADERS:-false}"
+export CLIENT_IP_FORWARDED_INDEX="${CLIENT_IP_FORWARDED_INDEX:-0}"
 
-# --- Адреса на хостовые порты db-gateway / smtp / keycloak ---
-export DB_URL="jdbc:postgresql://127.0.0.1:5432/${POSTGRES_DB:-desk}?reWriteBatchedInserts=true"
+# MINIO_ENDPOINT из .env (http://minio:9000) перекрывает profile-файл
+# (application-host.properties): OS-env имеет приоритет над application-*.properties.
+# Принудительно указываем loopback, как и в host-профиле.
 export MINIO_ENDPOINT="http://127.0.0.1:${MINIO_API_PORT:-9000}"
-export KC_JWK_SET_URI="http://127.0.0.1:${KEYCLOAK_PORT:-8180}/realms/realhelpdesk/protocol/openid-connect/certs"
-# Кейс KC_ISSUER_URI/KC_HOSTNAME остаётся из .env (localhost:8180 — уже loopback)
-export MAIL_HOST=127.0.0.1
 
-# --- Keystore: самоподписанный для локального HTTPS ---
-SSL_DIR=.cache/ssl
-KEYSTORE="$SSL_DIR/keystore.p12"
-if [[ ! -f "$KEYSTORE" ]]; then
-  mkdir -p "$SSL_DIR"
-  keytool -genkeypair -alias tomcat -keyalg RSA -keysize 2048 \
-    -storetype PKCS12 -keystore "$KEYSTORE" \
-    -storepass:env KEY_STORE_PASS -keypass:env KEY_STORE_PASS \
-    -dname "CN=localhost" -validity 3650 2>/dev/null
-  echo "Сгенерирован локальный keystore: $KEYSTORE"
-fi
-export KEY_STORE_PATH="file:$(pwd)/$KEYSTORE"
+# HTTP без keystore на хосту (иначе нужен KEY_STORE_PATH с существующим p12)
+export SSL_ENABLED=false
+# Профили хостового запуска: dev (логи/отладка) + host (loopback-адреса инфры).
+# Значение из .env (dev,keycloak) перекрывается здесь: контур keycloak из хоста
+# требует KC_JWK_SET_URI на 127.0.0.1 — задайте его в env при необходимости.
+export SPRING_PROFILES_ACTIVE=dev,host
 
 # --- JDK: если задан JAVA_HOME (например, JDK 21), используем его ---
 if [[ -n "${JAVA_HOME:-}" ]]; then
   echo "JAVA_HOME=$JAVA_HOME"
 fi
 
-echo "Старт: profiles=${SPRING_PROFILES_ACTIVE:-<из .env>}, DB=$DB_URL, MinIO=$MINIO_ENDPOINT"
+echo "Старт: profiles=$SPRING_PROFILES_ACTIVE, SSL_ENABLED=false (HTTP)"
 exec ./mvnw -q spring-boot:run

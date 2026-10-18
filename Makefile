@@ -9,22 +9,28 @@ E2E_DIR ?= scripts
 # Ревизия git для LABEL образа (org.opencontainers.image.revision)
 GIT_SHA ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 
-# Единый compose-файл + профили (infra/dev/app/monitoring/load — см. шапку
+# Единый compose-файл + профили (infra/local-tools/app/monitoring/load — см. шапку
 # infrastructure/docker-compose.yaml). Наборы профилей передаются явно:
 # compose не сам включает профили зависимостей (depends_on на сервис с
 # непривязанным профилем — ошибка валидации).
-COMPOSE ?= docker compose -f infrastructure/docker-compose.yaml
+#
+# Локальные цели подключают docker-compose.override.yaml (порты БД/MinIO на
+# loopback хоста — для IDEA/psql/MinIO-консоли); рабочий контур (COMPOSE_PROD)
+# состоит только из base + prod: оверлей не участвует, на хост не публикуется
+# ничего.
+COMPOSE ?= docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml
 # Рабочий контур: override без сборки на сервере (pull из ghcr.io)
 COMPOSE_PROD ?= docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml
-PROFILES_DEV ?= --profile infra --profile dev --profile app
+PROFILES_DEPS ?= --profile infra --profile local-tools
+PROFILES_LOCAL ?= $(PROFILES_DEPS) --profile app
 PROFILES_PROD ?= --profile infra --profile app
-PROFILES_OBS ?= $(PROFILES_DEV) --profile monitoring
-PROFILES_ALL ?= --profile infra --profile dev --profile app --profile monitoring --profile load
+PROFILES_OBS ?= $(PROFILES_LOCAL) --profile monitoring
+PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile monitoring --profile load
 
 .DEFAULT_GOAL := help
 
 .PHONY: help build clean compile package test verify format check run \
-        dev-run dev-test run-local up-infra \
+        dev-run dev-test run-local up-deps \
         env apply-config docker-build up up-prod up-load down down-volumes logs ps restart shell check-image \
         backup restore \
         profile-local profile-keycloak \
@@ -67,11 +73,11 @@ check: ## Проверки стиля (spotless:check + checkstyle)
 run: ## Запустить приложение локально (spring-boot:run)
 	$(MVN) spring-boot:run
 
-run-local: env ## Приложение на хосте против dockerized-инфры (нужен make up-infra; JDK 21 через JAVA_HOME)
+run-local: env ## Приложение на хосте против dockerized-инфры (профили dev,host; инфру поднимает spring-boot-docker-compose или make up-deps)
 	bash scripts/dev/run-local.sh
 
 dev-run: env ## Dev-среда: compose up в foreground (логи всех сервисов, Ctrl+C — стоп)
-	$(COMPOSE) $(PROFILES_DEV) up --build
+	$(COMPOSE) $(PROFILES_LOCAL) up --build
 
 dev-test: ## Dev-среда: mvn verify + e2e-сценарии (нужен поднятый стек: dev-run/up)
 	$(MVN) verify
@@ -87,13 +93,13 @@ apply-config: ## Быстро применить конфиги/лимиты к 
 	$(COMPOSE) $(PROFILES_ALL) up -d --force-recreate --no-deps app
 
 docker-build: ## Собрать docker-образ приложения (с меткой GIT_SHA)
-	$(COMPOSE) $(PROFILES_DEV) build --build-arg GIT_SHA=$(GIT_SHA)
+	$(COMPOSE) $(PROFILES_LOCAL) build --build-arg GIT_SHA=$(GIT_SHA)
 
-up: env ## Поднять локальный стек (профили infra+dev+app, сборка образа, в фоне)
-	$(COMPOSE) $(PROFILES_DEV) up --build -d
+up: env ## Поднять локальный стек (профили infra+local-tools+app, сборка образа, в фоне)
+	$(COMPOSE) $(PROFILES_LOCAL) up --build -d
 
-up-infra: env ## Поднять только инфраструктуру (infra+dev, без app) — для make run-local
-	$(COMPOSE) --profile infra --profile dev up -d
+up-deps: env ## Поднять только инфраструктуру (infra+local-tools: БД, MinIO, smtp4dev, Keycloak) — для запуска app из IDEA/CLI
+	$(COMPOSE) $(PROFILES_DEPS) up -d
 
 up-prod: env ## Поднять рабочий стек (infra+app, pull из ghcr.io; настройки — «Рабочий контур» в .env)
 	$(COMPOSE_PROD) $(PROFILES_PROD) up -d --no-build
@@ -168,7 +174,7 @@ up-load: env ## Поднять стек для нагрузки (TRUST_PROXY_HEA
 	# NO_RESTART=1 — app пересоздаст сам up ниже, лишний перезапуск не нужен.
 	NO_RESTART=1 bash scripts/docker/set-profile.sh dev
 	TRUST_PROXY_HEADERS=true OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces \
-	$(COMPOSE) $(PROFILES_DEV) up --build -d
+	$(COMPOSE) $(PROFILES_LOCAL) up --build -d
 
 load: up-load ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
 	bash scripts/load/run.sh
@@ -176,7 +182,8 @@ load: up-load ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m 
 load-smoke: up-load ## Короткий smoke-прогон user journey (2 VU, 1 минута)
 	TARGET_VUS=2 DURATION=1m bash scripts/load/run.sh
 
-## --- Миграции схемы (Liquibase с хоста; порт 127.0.0.1:5432 публикует db-gateway) ---
+## --- Миграции схемы (Liquibase с хоста; порт 127.0.0.1:5432 публикует
+## docker-compose.override.yaml — нужен make up-deps) ---
 # Миграции также применяет само приложение при старте (DB_MIGRATIONS_ENABLED).
 # Цели ниже — для чистого/ручного прогона без контейнера приложения.
 

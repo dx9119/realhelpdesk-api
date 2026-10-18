@@ -45,10 +45,12 @@ class ApplicationConfigSchemaTest {
      * Ключи, которым позволено содержать литерал: {@code spring.config.import} подключает application-domains.properties — значение это
      * адрес файла, а не переменная окружения. {@code spring.jpa.hibernate.ddl-auto} закреплён в коде (validate): режим, изменяющий схему,
      * нельзя оставить на откуп окружения — им управляют только миграции Liquibase; исключение отдельно охраняется
-     * {@link #ddlAutoIsPinnedToValidateAndNeverDestructive()}. Остальные — константы, одинаковые для всех окружений: пул Hikari, батчи
-     * Hibernate, graceful shutdown и actuator (их меняют правкой файла с ревью, а не подменой env).
+     * {@link #ddlAutoIsPinnedToValidateAndNeverDestructive()}. {@code server.ssl.enabled=${SSL_ENABLED:true}} — HTTPS включён по умолчанию
+     * (контейнер/рабочий контур), дефолт после двоеточия позволяет выключить его инлайном (IDEA-запуск: SSL_ENABLED=false), не добавляя
+     * ключ в infrastructure/.env. Остальные — константы, одинаковые для всех окружений: пул Hikari, батчи Hibernate, graceful shutdown и
+     * actuator (их меняют правкой файла с ревью, а не подменой env).
      */
-    private static final Set<String> NON_SCHEMA_KEYS = Set.of("spring.config.import", "spring.jpa.hibernate.ddl-auto",
+    private static final Set<String> NON_SCHEMA_KEYS = Set.of("spring.config.import", "spring.jpa.hibernate.ddl-auto", "server.ssl.enabled",
             // Пул соединений
             "spring.datasource.hikari.maximum-pool-size", "spring.datasource.hikari.minimum-idle",
             "spring.datasource.hikari.connection-timeout", "spring.datasource.hikari.max-lifetime",
@@ -88,6 +90,7 @@ class ApplicationConfigSchemaTest {
     private static final List<Path> ENVIRONMENT_FILES = List.of(Path.of("src", "main", "resources", "application.properties"),
             Path.of("src", "main", "resources", "application-domains.properties"),
             Path.of("src", "main", "resources", "application-dev.properties"),
+            Path.of("src", "main", "resources", "application-host.properties"),
             Path.of("src", "main", "resources", "application-prod.properties"), DOCKER_COMPOSE, ENV_EXAMPLE);
 
     /** Любой ddl-auto в конфигурации среды: имя ключа и режим после {@code =}/{@code :}, кавычки опциональны. */

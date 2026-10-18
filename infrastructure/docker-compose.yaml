@@ -2,31 +2,37 @@
 # секреты живут в infrastructure/.env (шаблон — infrastructure/.env.example).
 #
 # Профили (запуск — только через make, набор профилей передаётся явно):
-#   infra      — postgres, minio: внутренняя сеть data (internal), портов на хост нет
-#   dev        — smtp4dev, db-gateway и keycloak (хостовые 127.0.0.1:5432/9000/9001/8180)
-#   app        — приложение
-#   monitoring — mimir, grafana, tempo, loki, otel-collector, alloy
-#   load       — k6
+#   infra       — postgres, minio: внутренняя сеть data (internal), портов на хост нет
+#   local-tools — smtp4dev и keycloak (локальные сервисы разработки)
+#   app         — приложение
+#   monitoring  — mimir, grafana, tempo, loki, otel-collector, alloy
+#   load        — k6
 #
-# make up          → infra + dev + app          (локальная разработка)
-# make up-prod     → infra + app                (рабочий контур: без dev/monitoring)
-# make obs-up      → infra + dev + app + monitoring
+# make up-deps     → infra + local-tools        (зависимости для запуска app из IDEA)
+# make up          → infra + local-tools + app  (локальная разработка)
+# make up-prod     → infra + app                (рабочий контур: без local-tools/monitoring)
+# make obs-up      → infra + local-tools + app + monitoring
 # make down        → все профили (останавливает что угодно)
+#
+# Порты БД/MinIO на loopback хоста (для IDEA/psql/MinIO-консоли) публикует
+# infrastructure/docker-compose.override.yaml — локальный оверлей, который
+# make подключает явно (-f) для локальных целей; make up-prod (base + prod)
+# его игнорирует, поэтому в рабочем контуре на хост не выходит ничего.
 #
 # Профиль приложения (SPRING_PROFILES_ACTIVE в infrastructure/.env) — dev/prod,
 # по умолчанию + keycloak: токены выпускает сервис keycloak, приложение только
 # проверяет подпись по JWK. Без keycloak работает внутренний JWT-контур
 # приложения (cookie, /api/v1/auth/*) — им пользуются сценарии scripts/e2e-*.sh.
-# Сервис keycloak живёт в профиле dev, поэтому make up-prod поднимает приложение
-# без него: в рабочем контуре Keycloak разворачивается отдельно (см. README).
+# Сервис keycloak живёт в профиле local-tools, поэтому make up-prod поднимает
+# приложение без него: в рабочем контуре Keycloak разворачивается отдельно (см. README).
 #
 # Сети:
-#   data    — internal: true: postgres, minio + app + db-gateway; наружу не ходит,
+#   data    — internal: true: postgres, minio + app; наружу не ходит,
 #             портов на хост не имеет — изолированы БД и хранилище файлов
-#   backend — обычная: app (в т.ч. наружу — SMTP/прокси), smtp, шлюз и
+#             (в локальном оверлее postgres/minio дополнительно подключаются
+#             к backend — только так Docker публикует их порты на хост)
+#   backend — обычная: app (в т.ч. наружу — SMTP/прокси), smtp, keycloak и
 #             наблюдаемость; k6 ходит в app по ней
-# db-gateway публикует порты БД/MinIO только на loopback хоста и работает только
-# с профилем dev — в рабочем контуре на хосту не пробрасывается ничего.
 #
 # Секреты и настройки среды: только ${VAR} из infrastructure/.env — compose
 # валит старт при пустом обязательном секрете (?-синтаксис). Три динамических
@@ -87,14 +93,17 @@ services:
     env_file:
       - ./.env
     environment:
-      # Секреты: несекретные ключи — в infrastructure/.env.example/.env
+      # Секреты: несекретные ключи — в infrastructure/.env.example/.env.
+      # Имена совпадают с переменными .env (переименований DB_PASSWORD→DB_PASS
+      # и т.п. больше нет): env_file передал бы их и сам, но environment с
+      # ?-синтаксисом даёт fail-fast на старте compose при пустом секрете.
       KEY_STORE_PASS: "${KEY_STORE_PASS:?KEY_STORE_PASS is required - copy infrastructure/.env.example to infrastructure/.env}"
-      DB_PASS: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required - copy infrastructure/.env.example to infrastructure/.env}"
       CAPTCHA_HMAC_SECRET: "${CAPTCHA_HMAC_SECRET:?CAPTCHA_HMAC_SECRET is required - copy infrastructure/.env.example to infrastructure/.env}"
       MAIL_PASSWORD: "${MAIL_PASSWORD-}"
-      MINIO_ACCESS_KEY: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required - copy infrastructure/.env.example to infrastructure/.env}"
-      MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required - copy infrastructure/.env.example to infrastructure/.env}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
       METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
       # Динамические ключи (дефолт + переопределение из infrastructure/.env
       # или инлайном из make obs-up / make up-load) — см. шапку файла.
@@ -181,44 +190,10 @@ services:
     logging: *default-logging
 
   # ==========================================================================
-  # Профиль dev: доступ к БД/MinIO с хоста и локальная почта
+  # Профиль local-tools: локальная почта (порты — только loopback хоста)
   # ==========================================================================
-  # Хостовый шлюз вместо ports у postgres/minio: стандарт требует, чтобы БД и
-  # хранилище не пробрасывали портов на хост, а разработке нужен доступ с хоста
-  # (IDE-запуск приложения, psql, MinIO-консоль). Публикуется только loopback;
-  # в make up-prod (без профиля dev) шлюза нет — на хосту не выходит ничего.
-  db-gateway:
-    profiles: [dev]
-    image: alpine/socat:1.8.0.0
-    mem_limit: 32m
-    ports:
-      # Фиксированный 5432 — DB_URL=localhost из IDE/psql по умолчанию
-      - "127.0.0.1:5432:5432"
-      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
-      - "127.0.0.1:9001:9001"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    # У образа alpine/socat entrypoint — сам socat, поэтому шелл задаётся явно
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        socat TCP-LISTEN:5432,fork,reuseaddr TCP:postgres:5432 &
-        socat TCP-LISTEN:9000,fork,reuseaddr TCP:minio:9000 &
-        socat TCP-LISTEN:9001,fork,reuseaddr TCP:minio:9001 &
-        wait
-    restart: unless-stopped
-    networks:
-      # backend — чтобы опубликованные порты работали (на internal-сети
-      # docker их не пробрасывает), data — чтобы достучаться до postgres/minio
-      - backend
-      - data
-    logging: *default-logging
-
   smtp:
-    profiles: [dev]
+    profiles: [local-tools]
     # Локальный SMTP: smtp4dev без аутентификации, UI — http://localhost:3000.
     # Порты привязаны к loopback, как и остальные сервисы на хосту.
     image: rnwood/smtp4dev:3.15.0
@@ -232,7 +207,7 @@ services:
     logging: *default-logging
 
   # ==========================================================================
-  # Профиль dev: Keycloak (внешний выпуск токенов)
+  # Профиль local-tools: Keycloak (внешний выпуск токенов)
   # ==========================================================================
   # Приложение по умолчанию стартует с профилем keycloak
   # (SPRING_PROFILES_ACTIVE=dev,keycloak в infrastructure/.env): токены
@@ -246,7 +221,7 @@ services:
   # grant для отладки и e2e) и два тестовых пользователя (user@example.com,
   # operator@example.com).
   keycloak-db-init:
-    profiles: [dev]
+    profiles: [local-tools]
     # Отдельная БД под Keycloak: его схема живёт в том же PostgreSQL, но в
     # своей базе — миграции Liquibase приложения её не касаются.
     # init-скрипты docker-entrypoint-initdb.d здесь не годятся: они выполняются
@@ -275,7 +250,7 @@ services:
     logging: *default-logging
 
   keycloak:
-    profiles: [dev]
+    profiles: [local-tools]
     # Версия закреплена: обновление — осознанная правка с ревью, не latest.
     # start-dev: HTTP без TLS и кэш в памяти — локальный стенд; в рабочем
     # контуре Keycloak разворачивается отдельно (см. README).
@@ -288,7 +263,7 @@ services:
     environment:
       # Начальный администратор создаётся только при пустой БД (bootstrap).
       # Пароль необязателен (как GRAFANA_ADMIN_PASSWORD): сервис живёт только в
-      # профиле dev и слушает loopback, а пустое значение поднимает стенд с
+      # профиле local-tools и слушает loopback, а пустое значение поднимает стенд с
       # дефолтным admin — заполните, если стенд доступен не только вам.
       KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN:-admin}"
       KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:-admin}"
