@@ -23,9 +23,9 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Prod-preflight: при профиле {@code prod} старт валится, если рабочий контур собран с отладочными значениями — выключенная капча,
- * {@code SameSite=None} без домена cookie, {@code localhost} в CORS, отключённые миграции, самоподписанный keystore {@code CN=localhost}
- * или почта, наведённая на локальный SMTP dev-стека. Приём повторяет закрепление {@code ddl-auto=validate}: опасная конфигурация не может
- * «тихо» доехать до прода.
+ * {@code SameSite=None} без домена cookie, {@code localhost} в CORS, отключённые миграции или их seed-контекст, самоподписанный keystore
+ * {@code CN=localhost} или почта, наведённая на локальный SMTP dev-стека. Приём повторяет закрепление {@code ddl-auto=validate}: опасная
+ * конфигурация не может «тихо» доехать до прода.
  *
  * <p>
  * Проверки читают финальный {@link Environment} (env-файлы + profile-файлы), то есть ловят и забытый override, и подмену в
@@ -74,6 +74,7 @@ public class ProdPreflightValidator {
         if (!"true".equalsIgnoreCase(env.getProperty("spring.liquibase.enabled"))) {
             violations.add("spring.liquibase.enabled=false — миграции схемы в рабочем контуре обязательны");
         }
+        checkMigrationContexts(violations);
 
         checkMail(violations);
 
@@ -84,6 +85,19 @@ public class ProdPreflightValidator {
                     "Prod-preflight: рабочий контур запущен с небезопасной конфигурацией:\n - " + String.join("\n - ", violations));
         }
         logger.info("Prod-preflight пройден: капча включена, миграции обязательны, keystore не самоподписанный, почта на внешнем SMTP");
+    }
+
+    /**
+     * Контексты Liquibase: в рабочем контуре недопустим {@code seed} — он наполняет базу демо-пользователями и заявками из
+     * {@code db/changelog/seed}. Пустое значение безопасно: changeset'ы без контекста (весь DDL) выполняются, фикстуры — нет.
+     */
+    private void checkMigrationContexts(List<String> violations) {
+        String contexts = property("spring.liquibase.contexts");
+        boolean seedRequested = List.of(contexts.split(",")).stream().map(String::trim).anyMatch("seed"::equalsIgnoreCase);
+        if (seedRequested) {
+            violations.add("spring.liquibase.contexts содержит 'seed' — рабочие данные нельзя подменять фикстурами (DB_MIGRATIONS_CONTEXTS="
+                    + contexts + ")");
+        }
     }
 
     /**

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Локальные фикстуры (данные, не структура): демо-пользователи, портал,
+  заявка с диалогом. Единственный place для DML в changelog.
+
+  changeset помечен context="seed" и применяется только когда контекст seed
+  запрошен явно (DB_MIGRATIONS_CONTEXTS=schema,seed или make db-seed). Контур
+  по умолчанию (schema) оставляет базу пустой — dev и prod стартуют с чистой
+  схемы без тестовых заявок и фейковых пользователей.
+
+  Чистоту структурных миграций охраняет LiquibaseChangelogGuardTest.
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="100-demo-data" author="ukhanov" context="seed">
+        <!-- Путь от корня classpath, как в changes/: фикстуры лежат рядом со своим XML. -->
+        <sqlFile path="db/changelog/seed/100-demo-data.sql"
+                 encoding="UTF-8"
+                 splitStatements="true"
+                 endDelimiter=";"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -108,6 +108,24 @@ class ProdPreflightValidatorTest {
     }
 
     @Test
+    @DisplayName("Контекст seed в миграциях — старт валится: рабочий контур нельзя наполнять фикстурами")
+    void seedMigrationContext_fails() {
+        env.withProperty("spring.liquibase.contexts", "schema,seed").withProperty("server.ssl.key-store",
+                "file:" + keystore("CN=example.com"));
+
+        assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("seed");
+    }
+
+    @Test
+    @DisplayName("Контекст schema (дефолт) — preflight проходит")
+    void schemaMigrationContext_passes() {
+        env.withProperty("spring.liquibase.contexts", "schema").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
+
+        assertThatCode(() -> new ProdPreflightValidator(env).validate()).doesNotThrowAnyException();
+    }
+
+    @Test
     @DisplayName("Самоподписанный keystore CN=localhost — старт валится")
     void localhostKeystore_fails() {
         env.withProperty("server.ssl.key-store", "file:" + keystore("CN=localhost"));

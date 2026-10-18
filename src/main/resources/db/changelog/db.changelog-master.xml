@@ -10,7 +10,10 @@
       от корня classpath (db/changelog/sql/NNN-<slug>.sql);
     * applied changesets не редактируются (контрольная сумма меняется — Liquibase упадёт),
       правка только через новый changeset;
-    * изменения enum-значений в колонках с CHECK — отдельный changeset с пересозданием ограничения.
+    * изменения enum-значений в колонках с CHECK — отдельный changeset с пересозданием ограничения;
+    * changes/ — только DDL (структура). Любые данные (INSERT/UPDATE/DELETE) —
+      только в seed/ и только с context="seed": при DB_MIGRATIONS_CONTEXTS=schema
+      (дефолт) база остаётся чистой, сид — make db-seed.
 -->
 <databaseChangeLog
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
@@ -23,5 +26,9 @@
     <include file="changes/003-portal-transfer-history.xml" relativeToChangelogFile="true"/>
     <include file="changes/004-jwt-tokens-created-at-index.xml" relativeToChangelogFile="true"/>
     <include file="changes/005-user-platform-source-keycloak.xml" relativeToChangelogFile="true"/>
+
+    <!-- Фикстуры вне контекста schema: подключены, но применяются только при
+         DB_MIGRATIONS_CONTEXTS=schema,seed (make db-seed). -->
+    <include file="seed/100-demo-data.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

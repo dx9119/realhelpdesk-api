@@ -27,7 +27,7 @@ PROFILES_ALL ?= --profile infra --profile dev --profile app --profile monitoring
         profile-local profile-keycloak \
         obs-up obs-down obs-open obs-reload obs-alerts \
         load load-smoke \
-        migrate \
+        migrate db-seed \
         openapi openapi-types \
         e2e-portal-access e2e-ratelimit e2e-jwt e2e-notifications e2e-portal-transfer e2e-token-cleanup e2e-keycloak e2e-all
 
@@ -153,12 +153,28 @@ load-smoke: up-load ## Короткий smoke-прогон user journey (2 VU, 1
 # Миграции также применяет само приложение при старте (DB_MIGRATIONS_ENABLED).
 # Цели ниже — для чистого/ручного прогона без контейнера приложения.
 
+# Контекст передаёт и migrate: Liquibase без -Dliquibase.contexts применяет
+# ВСЕ changeset'ы, включая помеченные context="seed" — без него «чистая»
+# миграция незаметно наполнила бы базу фикстурами.
 migrate: env ## Миграции Liquibase на основную БД (localhost:5432)
 	@set -a && . infrastructure/.env && set +a && \
 	$(MVN) -q liquibase:update \
 	  -Dliquibase.url=jdbc:postgresql://127.0.0.1:5432/desk \
 	  -Dliquibase.username=user \
-	  -Dliquibase.password="$$DB_PASSWORD"
+	  -Dliquibase.password="$$DB_PASSWORD" \
+	  -Dliquibase.contexts="$${DB_MIGRATIONS_CONTEXTS:-schema}"
+
+# Сид отличается от migrate контекстом: фикстуры помечены context="seed" и не
+# применяются при DB_MIGRATIONS_CONTEXTS=schema (чистая dev-база по умолчанию).
+# Повторный прогон безопасен — seed-INSERT'ы идемпотентны. Чистая схема взамен:
+# make down-volumes && make up.
+db-seed: env ## Локальные фикстуры (Liquibase context=seed) на основную БД (localhost:5432)
+	@set -a && . infrastructure/.env && set +a && \
+	$(MVN) -q liquibase:update \
+	  -Dliquibase.url=jdbc:postgresql://127.0.0.1:5432/desk \
+	  -Dliquibase.username=user \
+	  -Dliquibase.password="$$DB_PASSWORD" \
+	  -Dliquibase.contexts=schema,seed
 
 ## --- OpenAPI (нужен поднятый стек: make up) ---
 
