@@ -8,7 +8,7 @@
 # 1. Создать .env из шаблона (секреты сгенерируются автоматически, если пусты)
 make env
 
-# 2. Поднять полный стек (infra + dev + app, сборка образа)
+# 2. Поднять полный стек (infra + local-tools + app, сборка образа)
 make up
 ```
 
@@ -18,7 +18,25 @@ make up
 - Actuator: `http://localhost:8081/actuator/health`
 - Grafana (если поднят): `http://localhost:3001`
 
-### 1.2 Повседневная разработка
+### 1.2 Compose-файлы и профили
+
+Профиль compose (`infra`/`local-tools`/`app`/`monitoring`/`load`) — выбор
+*какие сервисы* запускать; средовые различия конфигурации — в отдельных
+файлах, собираемых цепочкой `-f`:
+
+| Файл | Зачем |
+|---|---|
+| `infrastructure/docker-compose.yaml` | База: сервисы, профили, env-мост `services.app.environment` |
+| `infrastructure/docker-compose.override.yaml` | Локально: порты postgres/minio на `127.0.0.1` + сеть `backend` (для app на хосте). Только локальные цели make |
+| `infrastructure/docker-compose.prod.yaml` | Рабочий контур: без портов БД наружу; override не подключается |
+| `infrastructure/docker-compose.host.yaml` | `include:`-сборка base+override одним файлом — spring-boot-docker-compose принимает только один `-f` |
+
+Порты нельзя переключить профилем (пришлось бы дублировать сервисы), а
+отдельный prod-файл гарантирует, что случайный `--profile` не выбросит
+БД наружу. Цепочки `-f` инкапсулированы в Makefile (`COMPOSE`,
+`COMPOSE_PROD`) — вручную их указывают только в CI/документации.
+
+### 1.3 Повседневная разработка
 
 | Сценарий | Команда | Время |
 |---|---|---|
@@ -30,7 +48,7 @@ make up
 | Остановить стек | `make down` | секунды |
 | Полная очистка (с удалением томов) | `make down-volumes` | секунды |
 
-### 1.3 Inner loop: правка Java-кода
+### 1.4 Inner loop: правка Java-кода
 
 **Вариант A — в контейнере** (штатный):
 ```bash
@@ -44,11 +62,14 @@ make up-deps    # один раз: поднять infra + local-tools
 # Debug в IDEA (конфиг RealHelpDeskApplication, профили dev,host) —
 # при отсутствии стека инфру поднимет spring-boot-docker-compose сам;
 # либо CLI:
-make run-local  # spring-boot:run на хосте (нужен JDK 21)
+make run-local  # spring-boot:run на хосте (нужен JDK 21+)
 ```
 Правка кода → Hot-reload Spring Boot DevTools (секунды).
+Контур Keycloak на хосту не поднят по умолчанию: при необходимости задайте
+`KC_JWK_SET_URI=http://127.0.0.1:8180/realms/realhelpdesk/protocol/openid-connect/certs`
+инлайном в env запуска (см. комментарий в `application-host.properties`).
 
-### 1.4 Тесты
+### 1.5 Тесты
 
 ```bash
 make test        # юнит-тесты (H2, быстро)
@@ -57,14 +78,14 @@ make check       # spotless:check + checkstyle:check
 make format      # spotless:apply
 ```
 
-### 1.5 E2E-тесты
+### 1.6 E2E-тесты
 
 ```bash
 make e2e-all     # все сценарии (требует поднятого стека)
 make e2e-jwt     # конкретный сценарий
 ```
 
-### 1.6 Профили аутентификации
+### 1.7 Профили аутентификации
 
 ```bash
 make profile-local    # внутренний JWT (cookie) — по умолчанию
@@ -167,6 +188,7 @@ job: docker
 
 job: e2e
   └─► make env → make up → make e2e-all
+       └─► при провале — ps + logs всех контейнеров в CI-вывод
 ```
 
 ### 3.2 Deploy (по тегу)
@@ -194,6 +216,8 @@ tag v*
   `MINIO_ENDPOINT=http://127.0.0.1:9000` и дефолты
   `OTLP_TRACING_ENDPOINT`/`TRUST_PROXY_HEADERS`/`CLIENT_IP_FORWARDED_INDEX`
   (OS-env из `.env` перекрывает профильные файлы).
+- Схему ключей и парность `.env.example`/compose сверяет
+  `ApplicationConfigSchemaTest` (`make test`).
 
 ---
 
