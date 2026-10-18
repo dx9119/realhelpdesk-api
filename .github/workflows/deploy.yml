@@ -1,5 +1,5 @@
 # Деплой на VPS по SSH: тег `v*` или ручной запуск (workflow_dispatch).
-# Поэтапно (см. infra18.md §19.3):
+# Порядок шагов:
 #   1) записывает IMAGE_TAG в серверный infrastructure/.env;
 #   2) docker compose pull app + make up-prod (без сборки);
 #   3) ждёт до 90 секунд 200 OK от http://127.0.0.1:8081/actuator/health;
