@@ -24,8 +24,8 @@ Cookie-аутентификация (внутренний JWT-контур, пр
 Контур Keycloak (профиль `keycloak`, включён по умолчанию): токен выпускает
 Keycloak, приложение ожидает `Authorization: Bearer <access_token>` и проверяет
 подпись по JWK. Эндпоинты `/auth/*` в этом профиле не создаются, cookie не
-используются, `credentials: 'include'` не нужен — сравнение контуров в README,
-раздел «Профили».
+используются, `credentials: 'include'` не нужен — сравнение контуров в
+[`authentication.md`](authentication.md).
 
 ## Служебные
 
