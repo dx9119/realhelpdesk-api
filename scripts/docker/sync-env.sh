@@ -10,7 +10,11 @@
 #      шаблоне появилось новое значение — строка заменяется;
 #   4. пользовательские значения (в т.ч. секреты) не трогает, только
 #      предупреждает, если дефолт в шаблоне изменился;
-#   5. обновляет снимок дефолтов .env.defaults.
+#   5. обновляет снимок дефолтов .env.defaults;
+#   6. заполняет пустые обязательные секреты (JWT_SECRET, CAPTCHA_HMAC_SECRET,
+#      DB_PASSWORD, MINIO_ROOT_PASSWORD, METRICS_PASSWORD) случайными
+#      значениями через openssl rand — локальный стенд поднимается без
+#      ручного заполнения. На сервере/в проде секреты задаются вручную.
 #
 # Так можно быстро менять конфиги/лимиты в .env.example и одной командой
 # безопасно применять их, не затирая реальные секреты.
@@ -124,13 +128,37 @@ trap - EXIT
 
 : > "$SNAPSHOT"
 for key in "${example_keys[@]}"; do
-    printf '%s=%s\n' "$key" "${example_values[$key]}" >> "$SNAPSHOT"
+  printf '%s=%s\n' "$key" "${example_values[$key]}" >> "$SNAPSHOT"
+done
+
+# --- Автогенерация локальных секретов ---
+# Пустые обязательные секреты заполняются одноразово: локальный dev-стенд
+# поднимается без ручного заполнения. Значения — случайные, только для этой
+# машины; на сервере/в проде секреты задаются вручную (или через CI), сюда
+# их переносить не нужно. MINIO_ROOT_USER — фиксированное имя (не секрет).
+gen_secret() { # gen_secret KEY [LENGTH_HEX]
+  local key="$1" len="${2:-32}" val
+  val=$(openssl rand -hex "$len")
+  # sed -i с | как разделителем: hex не содержит |, безопасно
+  sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+  log "Секрет сгенерирован: $key"
+}
+
+if grep -q '^MINIO_ROOT_USER=$' "$ENV_FILE"; then
+  sed -i 's|^MINIO_ROOT_USER=$|MINIO_ROOT_USER=minioadmin|' "$ENV_FILE"
+  log "Сгенерировано: MINIO_ROOT_USER=minioadmin"
+fi
+
+for key in JWT_SECRET CAPTCHA_HMAC_SECRET DB_PASSWORD MINIO_ROOT_PASSWORD METRICS_PASSWORD; do
+  if grep -q "^${key}=$" "$ENV_FILE"; then
+    gen_secret "$key"
+  fi
 done
 
 if ((created)); then
-    log "Готово. Заполните секреты в infrastructure/.env и запустите стек."
+  log "Готово. Локальные секреты сгенерированы — можно запускать стек (make up)."
 elif ((updated > 0 || ${#missing[@]} > 0)); then
-    log "infrastructure/.env синхронизирован с шаблоном."
+  log "infrastructure/.env синхронизирован с шаблоном."
 else
-    log "infrastructure/.env уже соответствует шаблону."
+  log "infrastructure/.env уже соответствует шаблону."
 fi
