@@ -10,7 +10,8 @@
 
 ## Диагностика
 
-1. **Дашборд**: «Аутентификация: попытки» — `type` (login/refresh): всплеск login
+1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=rate(auth_attempts_total[5m])`
+   — `type` (login/refresh): всплеск login
    — внешний перебор; refresh — сломанный клиент/интеграция.
 2. **Логи** (без ПДн — email в логи не пишем): `{...="app"} |= "auth" |= "WARN"`
    — IP из access-лога прокси/алгоритма login; смотреть гео-разнобой.

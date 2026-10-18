@@ -23,7 +23,7 @@ groups:
           severity: critical
         annotations:
           summary: "Доля ошибок 5xx выше 2% ({{ $value | humanizePercentage }})"
-          description: "У {{ $labels.instance }} более 2% HTTP-ответов — 5xx на протяжении 5 минут. Смотрите панель «Ошибки 5xx» дашборда RealHelpDesk — Обзор."
+          description: "У {{ $labels.instance }} более 2% HTTP-ответов — 5xx на протяжении 5 минут. См. docs/runbooks/api-high-error-rate.md."
           runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/api-high-error-rate.md"
 
       - alert: ApiHighLatencyP99

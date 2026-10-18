@@ -11,12 +11,13 @@
 
 ## Диагностика
 
-1. **Дашборд**: «p95/p99 по эндпоинтам» — какой uri деградировал.
-2. **БД**: панель «Пул соединений БД» — `jdbc_connections_active` у пульта максимума
+1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=histogram_quantile(0.95,rate(http_server_requests_seconds_bucket[5m]))`
+   — какой uri деградировал.
+2. **БД**: `jdbc_connections_active` у потолка максимума
    (ждут соединения → латентность растёт); `hibernate_query_executions_total` —
    взрыв запросов (N+1 после правки в репозитории).
 3. **JVM**: heap/GC — если GC-паузы подскочили, латентность пойдёт по всем uri.
-4. **Трейсы** (Tempo → Search, сортировка по duration): медленные trace'ы — смотрите,
+4. **Трейсы** (`curl -s localhost:3200/traceql/search`, сортировка по duration): медленные trace'ы — смотрите,
    какой спан доминирует (sql, external HTTP, scheduler lock).
 5. **Фоновые задачи**: `tasks_scheduled_execution_seconds` — @Scheduled-повторы
    оповещений могут забирать пул taskScheduler и блокировать HTTP-потоки через БД.

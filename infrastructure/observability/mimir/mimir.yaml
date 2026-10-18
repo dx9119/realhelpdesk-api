@@ -3,7 +3,7 @@
 #
 # Скрейп делает alloy: prometheus.scrape app:8081/actuator/prometheus по HTTP Basic
 # (METRICS_USER/METRICS_PASSWORD — те же креды, что проверяет ActuatorSecurityTest)
-# и шлёт remote_write в distributor Mimir (/api/v1/push). Запросы Grafana и curl
+# и шлёт remote_write в distributor Mimir (/api/v1/push). Запросы curl и PromQL
 # идут в Prometheus-совместимый префикс /prometheus.
 #
 # Однопользовательский локальный стенд: multitenancy_enabled=false, хранилище —

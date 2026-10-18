@@ -13,5 +13,5 @@
 - [ ] У новой фичи есть метрика (`BusinessMetrics`/`AuthMetrics`) или `Observation` — см. `docs/observability/overview.md`
 - [ ] Логи с контекстом (uri, role, traceId/spanId из паттерна) без ПДн в теле
 - [ ] Для критичного пути добавлен/обновлён алерт (`infrastructure/observability/mimir/rules/anonymous/realhelpdesk.yml` + runbook)
-- [ ] Сводный дашборд (`realhelpdesk-overview`) обновлён при появлении новых показателей
+- [ ] Правила алертов (`mimir/rules/anonymous/realhelpdesk.yml`) и runbook обновлены при появлении новых показателей
 - [ ] Тест на метрику/Observation (SimpleMeterRegistry или `TracingSmokeIT`-подход)

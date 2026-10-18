@@ -8,9 +8,9 @@
 
 | Сигнал | Что | Куда | Доступ |
 |---|---|---|---|
-| Метрики | Micrometer → `/actuator/prometheus` (management-порт 8081, HTTP Basic) | Prometheus | Grafana, `curl -u … localhost:8081/actuator/prometheus` |
-| Трейсы | Micrometer Tracing (OTel-мост) → OTLP → Collector → Tempo | Tempo | Grafana → Explore → Tempo |
-| Логи | Logback-паттерн с `traceId`/`spanId` → stdout → Alloy → Loki | Loki | Grafana → Explore → Loki |
+| Метрики | Micrometer → `/actuator/prometheus` (management-порт 8081, HTTP Basic) | Mimir | `curl -u … localhost:9090/prometheus` |
+| Трейсы | Micrometer Tracing (OTel-мост) → OTLP → Collector → Tempo | Tempo | `curl -s localhost:3200/traceql/search` (TraceQL) |
+| Логи | Logback-паттерн с `traceId`/`spanId` → stdout → Alloy → Loki | Loki | `curl -s localhost:3100/loki/api/v1/query` (LogQL) |
 
 Приложение не зависит от стека: без `obs-up` экспорта трейсов нет (соединение отклоняется), метрики
 живут на management-порту, логи пишутся в stdout как обычно.
@@ -46,7 +46,7 @@
    входов; для инкремента на вызове — тест сервиса.
 6. **Документация.** Строка в таблицу [metrics.md](metrics.md).
 7. **Критичный путь?** Алерт в `infrastructure/observability/mimir/rules/anonymous/realhelpdesk.yml` + runbook в
-   `docs/runbooks/` + панель на дашборде `realhelpdesk-overview`.
+   `docs/runbooks/` с готовым PromQL-запросом к Mimir.
 
 ## Правила кардинальности
 
@@ -64,8 +64,8 @@
 ## Как отлаживать по traceId
 
 1. Возьмите `traceId` (32 hex) из строки лога: колонки `… | <traceId> | <spanId> | <logger> | <msg>`.
-2. **Grafana → Explore → Tempo** (источник Tempo): Search/TraceQL → вставить traceId → waterfall спанов.
-3. Или **Explore → Loki** → `{container_label_com_docker_compose_service="app"} |= "<traceId>"` →
+2. **Трейсы** — `curl -s localhost:3200/traceql/search` (TraceQL): вставить traceId → waterfall спанов.
+3. Или **Логи** — `curl -s "localhost:3100/loki/api/v1/query?query={container_label_com_docker_compose_service=\"app\"} |= \"<traceId>\""` →
    ссылка **TraceID** в колонке слева → переход к трейсу.
 4. Из трейса — «Logs for this span» (tracesToLogs настроен на тот же traceId).
 
@@ -109,8 +109,8 @@ curl -s localhost:9090/prometheus/api/v1/alerts
   SLO-бакеты TTFR/решения, gauge открытых заявок; защита кардинальности (155 → 56 семейств).
 - Observation-конвенции HTTP, трейсы сервисного слоя (`ticket.*`, `mail.send`, `attachment.*`),
   Micrometer Tracing + OTel-мост, маскирование ПДн в логах, колонки `traceId`/`spanId`.
-- Полный стек `make obs-up`: Mimir, Grafana, Tempo, OTel Collector, Loki, Alloy; сводный
-  дашборд «RealHelpDesk — Обзор» (23 панели); 8 алертов, 8 runbooks, 3 SLO.
+- Полный стек `make obs-up`: Mimir, Tempo, OTel Collector, Loki, Alloy;
+  8 алертов, 8 runbooks, 3 SLO.
 - Тесты: `HttpObservabilityTest`, `DbObservabilityTest`, `ObservabilityConfigurationTest`,
   `ActuatorSecurityTest`, `LogCorrelationAndMaskingTest`, `ObservabilityContextTest`,
   `TracingSmokeIT`; всего 569 (`mvn verify`), юнит-часть — 544 (`mvn test`).
@@ -146,10 +146,10 @@ curl -s localhost:9090/prometheus/api/v1/alerts
 1. **Tail sampling в прод-оверлее** — подключить `infrastructure/observability/otel-collector/config-prod.yaml`
    монтированием поверх `config.yaml`: ошибки и трейсы > 1 s целиком, остальное 10%.
 2. **Exemplars** — после стабилизации OTel-моста: `publishPercentileHistogram` + exemplars на
-   `http.server.requests`, переход «метрика → trace» из Grafana.
+   `http.server.requests`, переход «метрика → trace» из Mimir.
 3. **Профилирование** — JFR в контейнере (`-XX:StartFlightRecording`) для CPU/alloc, async-profiler
    для flame graphs на инцидентах высокой латентности.
 4. **Burn-rate алерты по SLO** — многоволновые (fast/slow burn) вместо простых порогов
    `ApiHighLatencyP99`; recording rules для error budget.
-5. **Аннотации деплоев** — Grafana annotations по запросу к Mimir или метрике `process.uptime`
+5. **Аннотации деплоев** — запрос к Mimir или метрике `process.uptime`
    (рестарт = deploy) для корреляции регрессий с релизами.

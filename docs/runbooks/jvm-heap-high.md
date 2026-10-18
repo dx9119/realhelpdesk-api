@@ -10,7 +10,9 @@ Heap почти заполнен. Дальше — частые Full GC (лат�
 
 ## Диагностика
 
-1. **Дашборд**: «JVM heap» (used vs max), «GC паузы» — растёт ли frequency/длительность.
+1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=jvm_memory_used_bytes{area="heap"}`
+   — «JVM heap» (used vs max), `rate(jvm_gc_pause_seconds_sum[1m])` —
+   растёт ли frequency/длительность GC-пауз.
 2. **Логи**: `OutOfMemoryError`, «GC overhead limit exceeded», частые Full GC.
 3. **Локально**: `jcmd <pid> GC.heap_info` / `jmap -histo` в контейнере
    (`docker exec <app> jcmd 1 GC.heap_info`) — топ-классы по retention.

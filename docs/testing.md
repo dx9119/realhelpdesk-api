@@ -84,8 +84,8 @@ e2e — только на поднятом dev-стеке (`make dev-run` или
   этого ключа экспорт трейсов откатился бы на `localhost:4317` (дефолт
   compose-интерполяции), сломав связку с запущенным obs-стеком
   (`make obs-up`). Прогон метрик/трейсов во время load-теста: поднимите
-  `make obs-up`, затем `make load-smoke` — смотрите Grafana и
-  `make obs-alerts`.
+  `make obs-up`, затем `make load-smoke` — смотрите метрики в Mimir
+  (`localhost:9090/prometheus`) и `make obs-alerts`.
 - **Cookie jar** — явная per-VU jar (k6 сбрасывает встроенную между
   итерациями): access-token из логина живёт между витками, re-login
   происходит только по 401.

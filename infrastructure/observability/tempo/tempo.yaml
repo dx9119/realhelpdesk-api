@@ -1,7 +1,6 @@
 # Tempo: приём трейсов от OTel Collector по OTLP (gRPC 4317 / HTTP 4318),
 # локальное хранилище (filesystem + WAL). Выбран вместо Jaeger: нативный OTLP-приёмник,
-# первоклассная интеграция с Grafana (serviceMap, tracesToLogs) и хвостовой сэмплинг на стороне
-# Collector, а не отдельного агента. Метрики из трейсов (metrics_generator) не включены —
+# serviceMap и tracesToLogs на стороне Collector, а не отдельного агента. Метрики из трейсов (metrics_generator) не включены —
 # http.server.requests уже даёт RED-метрики, дубль не нужен.
 
 server:

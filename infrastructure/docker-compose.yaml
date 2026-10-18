@@ -5,7 +5,7 @@
 #   infra       — postgres, minio: внутренняя сеть data (internal), портов на хост нет
 #   local-tools — smtp4dev и keycloak (локальные сервисы разработки)
 #   app         — приложение
-#   monitoring  — mimir, grafana, tempo, loki, otel-collector, alloy
+#   monitoring  — mimir, tempo, loki, otel-collector, alloy
 #   load        — k6
 #
 # make up-deps     → infra + local-tools        (зависимости для запуска app из IDEA)
@@ -262,7 +262,7 @@ services:
       - "127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"
     environment:
       # Начальный администратор создаётся только при пустой БД (bootstrap).
-      # Пароль необязателен (как GRAFANA_ADMIN_PASSWORD): сервис живёт только в
+      # Пароль необязателен: сервис живёт только в
       # профиле local-tools и слушает loopback, а пустое значение поднимает стенд с
       # дефолтным admin — заполните, если стенд доступен не только вам.
       KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN:-admin}"
@@ -311,12 +311,14 @@ services:
     logging: *default-logging
 
   # ==========================================================================
-  # Профиль monitoring: Mimir, Grafana, Tempo, OTel Collector, Loki, Alloy
+  # ==========================================================================
+  # Профиль monitoring: Mimir, Tempo, OTel Collector, Loki, Alloy
+  # ==========================================================================
   # ==========================================================================
   # Топология: приложение шлёт трейсы OTLP → otel-collector → tempo; логи
   # (stdout json-file приложения) тянет alloy → loki; метрики alloy скрейпит
-  # с app:8081 и шлёт remote_write в mimir; grafana прокидывает datasources
-  # через provisioning (см. observability/grafana/).
+  # с app:8081 и шлёт remote_write в mimir; Mimir отдаёт метрики по
+  # Prometheus-совместимому API (localhost:9090/api/v1/query и /prometheus).
   mimir:
     profiles: [monitoring]
     # Mimir (monolithic): хранение метрик, Prometheus-совместимый API, ruler.
@@ -437,43 +439,6 @@ services:
       - backend
     logging: *default-logging
 
-  grafana:
-    profiles: [monitoring]
-    # UI наблюдаемости: datasources и dashboards provisioning (observability/grafana/).
-    image: grafana/grafana:12.4.13
-    mem_limit: 256m
-    ports:
-      # Только loopback. 3001, а не 3000: 3000 обычно занят dev-сервером фронтенда.
-      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
-      # Пароль администратора — секрет infrastructure/.env (задайте GRAFANA_ADMIN_PASSWORD).
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      # Anonymous off: дашборды приватны, вход — админом из .env.
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-    volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      mimir:
-        condition: service_started
-      tempo:
-        condition: service_healthy
-      loki:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/api/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
-    restart: unless-stopped
-    networks:
-      - backend
-    logging: *default-logging
-
   # ==========================================================================
   # Профиль load: нагрузочный прогон (scripts/load/, k6)
   # ==========================================================================
@@ -511,5 +476,4 @@ volumes:
   mimir_data:
   tempo_data:
   loki_data:
-  grafana_data:
   alloy_data:

@@ -17,7 +17,8 @@
 
 ## Диагностика
 
-1. **Дашборд**: «Пул соединений БД» (active/idle/max), «Hibernate queries/s».
+1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=jdbc_connections_active`
+   — active/idle/max, `hibernate_query_executions_total` (queries/s).
 2. **Медленные запросы**: приложение логирует slow query (порог `hibernate.log_slow_query`,
    1000 мс): `{container_label_com_docker_compose_service="app"} |= "slow query"`.
 3. **Трейсы**: медленные sql-спаны покажут запрос и caller (контроллер/фоновая задача).

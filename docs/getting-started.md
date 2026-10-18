@@ -53,7 +53,6 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 | MinIO Console | `http://127.0.0.1:9001` | те же cred |
 | smtp4dev UI | `http://127.0.0.1:3000` | письма dev-стенда; SMTP `127.0.0.1:25` |
 | Keycloak | `http://127.0.0.1:8180` | `admin`/`admin` (или `KEYCLOAK_ADMIN*`), realm из `infrastructure/keycloak/` |
-| Grafana | `http://localhost:3001` | только после `make obs-up`; `admin`/`GRAFANA_ADMIN_PASSWORD` |
 
 Первое обращение к API зависит от контура аутентификации:
 
@@ -208,9 +207,8 @@ in-memory рейт-лимиты.
 ## 5. Наблюдаемость
 
 ```bash
-make obs-up      # стек + monitoring: Grafana :3001, Mimir :9090,
-                 # Tempo :3200, Loki :3100
-make obs-open    # открыть Grafana
+make obs-up      # стек + monitoring: Mimir :9090, Tempo :3200, Loki :3100,
+                 # OTel Collector :4318, Alloy :12345
 make obs-alerts  # текущие состояния алертов Mimir
 make obs-reload  # перечитать правила алертов (mimir/rules/)
 make obs-down    # остановить стек (томы целы)

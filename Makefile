@@ -37,7 +37,7 @@ PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile mo
         check-ci check-secrets check-dockerfile ci-image check-image-vuln \
         backup restore \
         profile-local profile-keycloak \
-        obs-up obs-down obs-open obs-reload obs-alerts \
+        obs-up obs-down obs-reload obs-alerts \
         load load-smoke \
         migrate db-seed \
         openapi openapi-types \
@@ -132,14 +132,11 @@ restore: env ## Восстановить БД из дампа: make restore BACK
 
 ## --- Наблюдаемость (подробности: docs/observability/overview.md) ---
 
-obs-up: env ## Поднять стек + наблюдаемость (профили +monitoring; Grafana :3001, Mimir :9090)
+obs-up: env ## Поднять стек + наблюдаемость (профили +monitoring; Mimir :9090, Loki :3100, Tempo :3200)
 	OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces $(COMPOSE) $(PROFILES_OBS) up --build -d --remove-orphans
 
 obs-down: ## Остановить стек с наблюдаемостью (все профили, томы целы)
 	$(COMPOSE) $(PROFILES_ALL) down
-
-obs-open: ## Открыть Grafana в браузере (нужен obs-up; порт GRAFANA_PORT, дефолт 3001)
-	@xdg-open http://localhost:3001 >/dev/null 2>&1 || open http://localhost:3001 >/dev/null 2>&1 || echo "Grafana: http://localhost:3001"
 
 obs-reload: ## Перечитать правила алертов Mimir (нужен obs-up; mimir/rules/anonymous/realhelpdesk.yml)
 	$(COMPOSE) $(PROFILES_OBS) restart mimir && echo "Mimir перезапущен — правила перечитаны"

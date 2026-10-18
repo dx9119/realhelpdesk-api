@@ -3,8 +3,8 @@
 //
 // Логи: наследник Promtail — тянет только контейнер сервиса app (фильтр по compose-метке),
 // чтобы postgres/mimir/k6 не засоряли индекс. Логи приложения — текстовый паттерн
-// logback-spring.xml c колонками traceId/spanId (шаг 7), поэтому ссылка на трейс в Grafana
-// строится регуляркой по 32-символьному traceId.
+// logback-spring.xml c колонками traceId/spanId (шаг 7), поэтому ссылка на трейс
+// строится по 32-символьному traceId в LogQL-запросах.
 //
 // Метрики: скрейпит управляющий порт приложения (management.server.port, HTTP Basic
 // сервисной учёткой METRICS_USER/METRICS_PASSWORD — те же креды, что проверяются

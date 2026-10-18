@@ -10,12 +10,11 @@
 
 ## Диагностика
 
-1. **Дашборд**: RealHelpDesk — Обзор → панели «Ошибки 5xx, %», «Статусы ответов»,
-   «RPS по эндпоинтам» — локализуйте uri с ошибками.
-2. **Логи** (Grafana → Explore → Loki):
-   `{container_label_com_docker_compose_service="app"} |= "ERROR"`
-   — в stacktrace ищите `exception` (NPE, constraint violation, таймаут БД/MinIO/SMTP).
-3. **Трейсы** (Explore → Tempo, фильтр critical errors): спаны с `status:error` —
+1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=rate(http_server_requests_seconds_count{status=~"5.."}[5m])`
+   — локализуйте uri с ошибками.
+2. **Логи** (`make logs` или `curl -s "localhost:3100/loki/api/v1/query?query={container_label_com_docker_compose_service=\"app\"} |= \"ERROR\""`):
+   ищите `exception` (NPE, constraint violation, таймаут БД/MinIO/SMTP).
+3. **Трейсы** (`curl -s localhost:3200/traceql/search`): спаны с `status:error` —
    видно, на каком слое (repository/service/http) падает запрос.
 4. **Зависимости**: `jdbc_connections_active` (БД), health-группа `/actuator/health/smtp`
    (почта), `/actuator/health/minio` (хранилище). Логи Alloy: таймауты connect.
