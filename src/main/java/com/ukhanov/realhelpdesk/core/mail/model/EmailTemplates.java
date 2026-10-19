@@ -153,6 +153,15 @@ public class EmailTemplates {
         return text("email.portal.transfer.expired.body", String.valueOf(portalId), projectName());
     }
 
+    /** Тема напоминания о непрочитанном оповещении: заголовок заявки/события делает письмо различимым в почтовом клиенте. */
+    public String notificationRepeatSubject(String title) {
+        return text("email.notification.repeat.subject", title);
+    }
+
+    public String notificationRepeatBody(String title, Long ticketId, Long portalId) {
+        return text("email.notification.repeat.body", title, domain(), String.valueOf(portalId), String.valueOf(ticketId), projectName());
+    }
+
     private String text(String code, Object... args) {
         return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
     }

@@ -14,8 +14,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.ukhanov.realhelpdesk.core.filter.LoggingFilter;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
+import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
+import com.ukhanov.realhelpdesk.core.security.user.service.UserDomainService;
 import com.ukhanov.realhelpdesk.domain.notification.model.NotificationModel;
 import com.ukhanov.realhelpdesk.domain.notification.model.UserNotificationPreferencesModel;
 import com.ukhanov.realhelpdesk.domain.notification.repository.NotificationRepository;
@@ -26,12 +32,14 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Повторы непрочитанных оповещений о новых заявках и сообщениях ({@link NotificationPublisher#REPEATABLE_EVENTS}): каждые
- * {@link UserNotificationPreferencesModel#getRepeatIntervalMinutes()} минут получателю создаётся новая строка-напоминание с той же группой,
- * пока он не прочитает ни одну из них. Повторяемость и интервал — настройки пользователя; выключённое событие не повторяется.
+ * {@link UserNotificationPreferencesModel#getRepeatIntervalMinutes()} минут получателю создаётся новая строка-напоминание с той же группой
+ * и уходит письмо-напоминание — пока он не прочитает ни одну из строк группы. Повторяемость и интервал — настройки пользователя;
+ * выключенное событие не повторяется ни in-app, ни по email.
  *
  * <p>
  * Обход раз в минуту: интервал задан в минутах, поэтому фактическая периодичность повтора — интервал плюс до одного периода обхода.
- * Пробуждение ожидающих long polling — после коммита, как у публикации.
+ * Пробуждение ожидающих long polling и письма — после коммита: SMTP-обмен не должен держать открытым соединение с БД, а письмо о
+ * напоминании не должно уйти при откате транзакции.
  * </p>
  */
 @Slf4j
@@ -51,6 +59,9 @@ public class NotificationRepeatService {
     private final NotificationRepository notificationRepository;
     private final UserNotificationPreferencesRepository preferencesRepository;
     private final NotificationPublisher notificationPublisher;
+    private final UserDomainService userDomainService;
+    private final EmailDeliveryService emailDeliveryService;
+    private final EmailTemplates emailTemplates;
 
     @Scheduled(fixedDelay = SCAN_PERIOD_MS, initialDelay = SCAN_PERIOD_MS)
     @Transactional
@@ -79,18 +90,23 @@ public class NotificationRepeatService {
 
         Instant now = Instant.now();
         List<Long> woken = new ArrayList<>();
+        List<NotificationModel> repeated = new ArrayList<>();
         for (NotificationModel source : candidates) {
             if (!repeatAllowed(source, preferencesByUser.get(source.getRecipientId()), now)) {
                 continue;
             }
-            woken.add(remind(source));
+            remind(source);
+            woken.add(source.getRecipientId());
+            repeated.add(source);
         }
 
-        if (!woken.isEmpty()) {
-            notificationPublisher.wakeAfterCommit(woken);
-            // INFO, а не DEBUG: в prod должно быть видно, что механика напоминаний работает (B6)
-            logger.info("Созданы повторные оповещения: получателей={}", woken.size());
+        if (woken.isEmpty()) {
+            return;
         }
+        notificationPublisher.wakeAfterCommit(woken);
+        emailRemindersAfterCommit(repeated);
+        // INFO, а не DEBUG: в prod должно быть видно, что механика напоминаний работает (B6)
+        logger.info("Созданы повторные оповещения: получателей={}", woken.size());
     }
 
     /** Нет строки настроек — повтор включён с интервалом по умолчанию; выключенное событие не повторяется. */
@@ -108,11 +124,91 @@ public class NotificationRepeatService {
         return !source.getCreatedAt().isAfter(now.minus(Duration.ofMinutes(intervalMinutes)));
     }
 
-    /** Создаёт строку-напоминание в группе источника и возвращает получателя для пробуждения. */
-    private Long remind(NotificationModel source) {
+    /** Создаёт строку-напоминание в группе источника — получатель тот же, что у in-app канала. */
+    private void remind(NotificationModel source) {
         Long groupId = source.getGroupId() != null ? source.getGroupId() : source.getId();
         notificationRepository.save(new NotificationModel(source.getRecipientId(), source.getEvent(), source.getTicketId(),
                 source.getPortalId(), source.getTitle(), groupId));
-        return source.getRecipientId();
+    }
+
+    /**
+     * Письма-напоминания — после коммита, как пробуждение long polling: письмо не должно уйти, если транзакция откатится, и
+     * SMTP-рукопожатие не должно занимать соединение с БД. Отписка от события учитывается внутри {@link EmailDeliveryService} (стоп-лист),
+     * поэтому повтор по email не приходит тем, кто от него отказался.
+     */
+    private void emailRemindersAfterCommit(List<NotificationModel> sources) {
+        List<NotificationModel> emailable = sources.stream().filter(source -> source.getTicketId() != null && source.getPortalId() != null)
+                .toList();
+        if (emailable.isEmpty()) {
+            return;
+        }
+        // Пользователи читаются ДО регистрации колбэка: вне транзакции сессия закрыта и ленивые поля недоступны
+        Map<Long, UserModel> recipients = userDomainService
+                .getUsersByIds(emailable.stream().map(NotificationModel::getRecipientId).collect(Collectors.toSet()));
+        Map<String, String> mdcContext = MDC.getCopyOfContextMap();
+
+        runAfterCommit(() -> {
+            Map<String, String> previous = MDC.getCopyOfContextMap();
+            if (mdcContext != null) {
+                MDC.setContextMap(mdcContext);
+            }
+            try {
+                sendEmailReminders(emailable, recipients);
+            } finally {
+                if (previous != null) {
+                    MDC.setContextMap(previous);
+                } else {
+                    MDC.clear();
+                }
+            }
+        });
+    }
+
+    private void sendEmailReminders(List<NotificationModel> sources, Map<Long, UserModel> recipients) {
+        int sent = 0;
+        for (NotificationModel source : sources) {
+            UserModel recipient = recipients.get(source.getRecipientId());
+            // Удалённый получатель — штатный случай (оповещения переживают пользователя): пропускаем, а не роняем обход
+            if (recipient == null) {
+                continue;
+            }
+            if (sendQuietly(recipient, source)) {
+                sent++;
+            }
+        }
+        if (sent > 0) {
+            logger.info("Отправлены письма-напоминания о непрочитанных оповещениях: {}", sent);
+        }
+    }
+
+    /**
+     * Одно письмо не должно обрывать рассылку остальным и валить фоновую задачу (в отличие от HTTP-контура, где ошибка SMTP — {@code 503}
+     * клиенту). Стоп-лист и квоты проверяет {@link EmailDeliveryService}.
+     */
+    private boolean sendQuietly(UserModel recipient, NotificationModel source) {
+        try {
+            emailDeliveryService.sendUserNotification(recipient.getEmail(), emailTemplates.notificationRepeatSubject(source.getTitle()),
+                    emailTemplates.notificationRepeatBody(source.getTitle(), source.getTicketId(), source.getPortalId()), source.getEvent(),
+                    recipient.getId());
+            return true;
+        } catch (Exception e) {
+            logger.warn("Не удалось отправить письмо-напоминание, userId={}, notification={}: {}", recipient.getId(), source.getId(),
+                    e.getMessage());
+            return false;
+        }
+    }
+
+    /** Тот же контракт, что у {@link NotificationPublisher#wakeAfterCommit}: вне транзакции действие выполняется сразу. */
+    private void runAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 }

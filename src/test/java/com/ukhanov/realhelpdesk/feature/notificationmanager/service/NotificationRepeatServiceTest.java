@@ -2,6 +2,7 @@ package com.ukhanov.realhelpdesk.feature.notificationmanager.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +16,11 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Pageable;
 
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
+import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
+import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
+import com.ukhanov.realhelpdesk.core.security.user.service.UserDomainService;
 import com.ukhanov.realhelpdesk.domain.notification.model.NotificationModel;
 import com.ukhanov.realhelpdesk.domain.notification.model.UserNotificationPreferencesModel;
 import com.ukhanov.realhelpdesk.domain.notification.repository.NotificationRepository;
@@ -24,9 +29,8 @@ import com.ukhanov.realhelpdesk.domain.notification.repository.UserNotificationP
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,9 +41,11 @@ import static org.mockito.Mockito.when;
 class NotificationRepeatServiceTest {
 
     private static final Long USER_ID = 42L;
+    private static final Long USER_2_ID = 43L;
     private static final Long SOURCE_ID = 77L;
     private static final Long SOURCE_GROUP_ID = 50L;
     private static final Long TICKET_ID = 11L;
+    private static final Long PORTAL_ID = 2L;
 
     @Mock
     private NotificationRepository notificationRepository;
@@ -50,11 +56,21 @@ class NotificationRepeatServiceTest {
     @Mock
     private NotificationPublisher notificationPublisher;
 
+    @Mock
+    private UserDomainService userDomainService;
+
+    @Mock
+    private EmailDeliveryService emailDeliveryService;
+
+    @Mock
+    private EmailTemplates emailTemplates;
+
     private NotificationRepeatService service;
 
     @BeforeEach
     void setUp() {
-        service = new NotificationRepeatService(notificationRepository, preferencesRepository, notificationPublisher);
+        service = new NotificationRepeatService(notificationRepository, preferencesRepository, notificationPublisher, userDomainService,
+                emailDeliveryService, emailTemplates);
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of());
         // как в JPA: save возвращает ту же строку с присвоенным id
         when(notificationRepository.save(any(NotificationModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -62,11 +78,12 @@ class NotificationRepeatServiceTest {
 
     @Test
     @DisplayName("Кандидатов нет — ни сохранений, ни пробуждения")
-    void noCandidates_noop() {
+    void noCandidates_noop() throws Exception {
         service.repeatDueNotifications();
 
         verify(notificationRepository, never()).save(any(NotificationModel.class));
-        verify(notificationPublisher, never()).wakeAfterCommit(anySet());
+        verify(notificationPublisher, never()).wakeAfterCommit(any());
+        verify(emailDeliveryService, never()).sendUserNotification(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -91,9 +108,9 @@ class NotificationRepeatServiceTest {
 
     @Test
     @DisplayName("Напоминание наследует group_id, если источник уже копия")
-    void reminderInheritsSourceGroup() {
+    void reminderInheritsSourceGroup() throws Exception {
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
-        doReturn(SOURCE_GROUP_ID).when(source).getGroupId();
+        source.setId(SOURCE_GROUP_ID);
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
 
         service.repeatDueNotifications();
@@ -112,7 +129,7 @@ class NotificationRepeatServiceTest {
         service.repeatDueNotifications();
 
         verify(notificationRepository, never()).save(any(NotificationModel.class));
-        verify(notificationPublisher, never()).wakeAfterCommit(anySet());
+        verify(notificationPublisher, never()).wakeAfterCommit(any());
     }
 
     @Test
@@ -127,7 +144,7 @@ class NotificationRepeatServiceTest {
         service.repeatDueNotifications();
 
         verify(notificationRepository, never()).save(any(NotificationModel.class));
-        verify(notificationPublisher, never()).wakeAfterCommit(anySet());
+        verify(notificationPublisher, never()).wakeAfterCommit(any());
     }
 
     @Test
@@ -141,7 +158,7 @@ class NotificationRepeatServiceTest {
         service.repeatDueNotifications();
 
         verify(notificationRepository, never()).save(any(NotificationModel.class));
-        verify(notificationPublisher, never()).wakeAfterCommit(anySet());
+        verify(notificationPublisher, never()).wakeAfterCommit(any());
     }
 
     @Test
@@ -158,9 +175,80 @@ class NotificationRepeatServiceTest {
         verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
     }
 
+    @Test
+    @DisplayName("Повтор: создаёт in-app напоминание и отправляет письмо-напоминание")
+    void repeat_sendsInAppReminderAndEmail() throws Exception {
+        NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
+        when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
+        UserModel recipient = new UserModel();
+        recipient.setId(USER_ID);
+        recipient.setEmail("user@example.com");
+        when(userDomainService.getUsersByIds(anySet())).thenReturn(Map.of(USER_ID, recipient));
+
+        service.repeatDueNotifications();
+
+        verify(notificationRepository, times(1)).save(any(NotificationModel.class));
+        verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
+        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user@example.com"), any(), any(), eq(NotificationEvent.NEW_TICKET),
+                eq(USER_ID));
+    }
+
+    @Test
+    @DisplayName("Повтор: без ticketId/portalId — email не отправляется, in-app — да")
+    void repeat_noTicketId_emailSkipped() throws Exception {
+        NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
+        source.setTicketId(null);
+        source.setPortalId(null);
+        when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
+
+        service.repeatDueNotifications();
+
+        verify(notificationRepository, times(1)).save(any(NotificationModel.class));
+        verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
+        verify(emailDeliveryService, never()).sendUserNotification(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Повтор: удалённый получатель — email не падает, in-app — да")
+    void repeat_deletedRecipient_emailSkipped() throws Exception {
+        NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
+        when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
+        when(userDomainService.getUsersByIds(anySet())).thenReturn(Map.of());
+
+        service.repeatDueNotifications();
+
+        verify(notificationRepository, times(1)).save(any(NotificationModel.class));
+        verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
+        verify(emailDeliveryService, never()).sendUserNotification(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Повтор: несколько получателей — все получают in-app и email")
+    void repeat_multipleRecipients() throws Exception {
+        NotificationModel source1 = source(Instant.now().minusSeconds(31 * 60));
+        source1.setRecipientId(USER_ID);
+        NotificationModel source2 = source(Instant.now().minusSeconds(31 * 60));
+        source2.setRecipientId(USER_2_ID);
+        when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source1, source2));
+        UserModel recipient1 = new UserModel();
+        recipient1.setId(USER_ID);
+        recipient1.setEmail("user1@example.com");
+        UserModel recipient2 = new UserModel();
+        recipient2.setId(USER_2_ID);
+        recipient2.setEmail("user2@example.com");
+        when(userDomainService.getUsersByIds(anySet())).thenReturn(Map.of(USER_ID, recipient1, USER_2_ID, recipient2));
+
+        service.repeatDueNotifications();
+
+        verify(notificationRepository, times(2)).save(any(NotificationModel.class));
+        verify(notificationPublisher).wakeAfterCommit(any());
+        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user1@example.com"), any(), any(), any(), eq(USER_ID));
+        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user2@example.com"), any(), any(), any(), eq(USER_2_ID));
+    }
+
     private NotificationModel source(Instant createdAt) {
-        NotificationModel source = spy(new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, TICKET_ID, 2L, "Проблема"));
-        doReturn(SOURCE_ID).when(source).getId();
+        NotificationModel source = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, TICKET_ID, PORTAL_ID, "Проблема");
+        source.setId(SOURCE_ID);
         source.setCreatedAt(createdAt);
         return source;
     }
