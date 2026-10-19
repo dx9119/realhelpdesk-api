@@ -112,7 +112,9 @@ services:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-dev,keycloak}"
       # Динамические ключи (дефолт + переопределение из infrastructure/.env
       # или инлайном из make obs-up / make up-load) — см. шапку файла.
-      OTLP_TRACING_ENDPOINT: "${OTLP_TRACING_ENDPOINT:-http://localhost:4317}"
+      # HTTP OTLP (дефолт Boot 4): порт 4318 Collector'а. Без obs-стека адрес
+      # недоступен — экспорт трейсов тихо отключается, приложение работает.
+      OTLP_TRACING_ENDPOINT: "${OTLP_TRACING_ENDPOINT:-http://localhost:4318/v1/traces}"
       TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-false}"
       CLIENT_IP_FORWARDED_INDEX: "${CLIENT_IP_FORWARDED_INDEX:-0}"
       # Сроки ротации refresh-токенов — тоже динамические: scripts/e2e-token-cleanup.sh

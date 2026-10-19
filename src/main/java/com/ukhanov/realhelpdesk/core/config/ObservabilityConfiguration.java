@@ -25,7 +25,9 @@ import io.micrometer.observation.ObservationPredicate;
  * <p>
  * В Boot 4 свойства {@code management.observations.http.server.requests.ignore-patterns} больше нет, поэтому исключения задаются
  * {@link ObservationPredicate}: бин подхватывается {@code ObservationRegistryPostProcessor} и гасит наблюдение целиком — ни метрики, ни
- * спана. То же относится и к управляющему порту: пробы health и скрейп метрик не должны раздувать список uri.
+ * спана. То же относится и к управляющему порту: пробы health и скрейп метрик не должны раздувать список uri. Поскольку заглушенное
+ * HTTP-наблюдение оставляло security-участки цепочки корнями (Tempo получал по два осколка-трейса на скрейп), тот же предикат подавляет
+ * security-наблюдения без родителя — детали в {@link #ignoreNoiseObservationPredicate()}.
  * </p>
  *
  * <p>
@@ -66,15 +68,37 @@ public class ObservabilityConfiguration {
      */
     private static final String[] NOISE_PREFIXES = {"/actuator", "/swagger-ui", "/v3/api-docs"};
 
+    /**
+     * Префикс наблюдений Spring Security: наблюдения цепочки фильтров и авторизации — по смыслу дети HTTP-наблюдения запроса. Как корни они
+     * всегда осколки: без обрамляющего span каждый участок security-цепочки создаёт свой трейс.
+     */
+    private static final String SECURITY_OBSERVATION_PREFIX = "spring.security.";
+
     @Bean
     ServerRequestObservationConvention serverRequestObservationConvention(
             @Value("${management.observations.http.server.requests.name:http.server.requests}") String observationName) {
         return new HttpServerRequestObservationConvention(observationName);
     }
 
+    /**
+     * Два правила одного предиката:
+     *
+     * <ol>
+     * <li>Шумные uri (см. {@link #NOISE_PREFIXES}) не порождают {@code http.server.requests} — ни метрики, ни спана.</li>
+     * <li>Security-наблюдения без родителя подавляются: если HTTP-наблюдение запроса заглушено (шумный uri) или его нет, security-участки
+     * стали бы отдельными корневыми трейсами — «security filterchain before/after» счислялись в Tempo осколками, по два на каждый скрейп.
+     * Micrometer ставит parent в контекст до вызова предиката, поэтому проверка надёжна: под активным HTTP-наблюдением security-спаны
+     * сохраняются и вкладываются как раньше.</li>
+     * </ol>
+     */
     @Bean
     ObservationPredicate ignoreNoiseObservationPredicate() {
-        return (name, context) -> !SERVER_REQUESTS.equals(name) || !isNoise(context);
+        return (name, context) -> {
+            if (SERVER_REQUESTS.equals(name)) {
+                return !isNoise(context);
+            }
+            return !name.startsWith(SECURITY_OBSERVATION_PREFIX) || context.getParentObservation() != null;
+        };
     }
 
     /**

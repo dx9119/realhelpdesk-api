@@ -1,5 +1,7 @@
 # OTel Collector: OTLP-приёмник → batch → Tempo.
-# Приложение шлёт трейсы на OTLP_TRACING_ENDPOINT (в оверлее — http://otel-collector:4317).
+# Приложение шлёт трейсы на OTLP_TRACING_ENDPOINT по HTTP (Boot 4, http/protobuf):
+# в оверлее make obs-up — http://otel-collector:4318/v1/traces. gRPC-приёмник 4317
+# открыт для внешних клиентов, штатный путь приложения — HTTP 4318.
 # Сэмплинг по умолчанию — только приём и батчинг: доля запросов решается management.tracing.sampling
 # в приложении. Прод-пример с хвостовым сэмплингом (ошибки и медленные трейсы целиком, остальное 10%)
 # — в config-prod.yaml рядом; подключается монтированием поверх config.yaml.

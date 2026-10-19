@@ -2,22 +2,33 @@ package com.ukhanov.realhelpdesk.core.config;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.server.observation.ServerRequestObservationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationPredicate;
+import io.micrometer.observation.ObservationRegistry;
 
 /**
- * MeterFilter'ы защитного слоя: deny неиспользуемых метрик, срез опасных тегов и потолок uri-значений. Проверяются на SimpleMeterRegistry
- * без контекста Spring — фильтры применяются в том же порядке, что и бинами в реестре приложения.
+ * Защитный слой наблюдаемости: MeterFilter'ы (deny, ignoreTags, потолок uri) и ObservationPredicate (шумные uri, security-наблюдения без
+ * родителя). MeterFilter'ы проверяются на SimpleMeterRegistry без контекста Spring — фильтры применяются в том же порядке, что и бинами в
+ * реестре приложения; предикат вызывается напрямую, как его вызывает ObservationRegistry при старте наблюдения (parent уже проставлен в
+ * контексте — тот же порядок, что в Observation.createNotStarted).
  */
-@DisplayName("MeterFilter'ы: deny, ignoreTags и потолок uri")
+@DisplayName("Наблюдаемость: MeterFilter'ы (deny, ignoreTags, uri) и предикат шумных/security-наблюдений")
 class ObservabilityConfigurationTest {
 
     private final ObservabilityConfiguration configuration = new ObservabilityConfiguration();
@@ -95,5 +106,48 @@ class ObservabilityConfigurationTest {
 
         long clientMeters = meterRegistry.find("http.client.requests").meters().size();
         assertThat(clientMeters).as("http.client.requests под тем же потолком uri").isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("Шумные uri (actuator, swagger) не порождают http.server.requests — ни метрики, ни спана")
+    void noiseUrisSuppressServerObservation() {
+        ObservationPredicate predicate = configuration.ignoreNoiseObservationPredicate();
+
+        assertThat(predicate.test("http.server.requests", serverContext("/actuator/health"))).as("health-пробы").isFalse();
+        assertThat(predicate.test("http.server.requests", serverContext("/actuator/prometheus"))).as("скрейп").isFalse();
+        assertThat(predicate.test("http.server.requests", serverContext("/swagger-ui.html"))).as("swagger").isFalse();
+        assertThat(predicate.test("http.server.requests", serverContext("/api/v1/tickets"))).as("API-запрос остаётся").isTrue();
+        assertThat(predicate.test("http.client.requests", serverContext("/actuator/health"))).as("шум только для server-цепочки").isTrue();
+    }
+
+    @Test
+    @DisplayName("Security-наблюдения без родителя подавляются: под HTTP-наблюдением — сохраняются")
+    void securityObservationIsSuppressedOnlyWithoutParent() {
+        ObservationPredicate predicate = configuration.ignoreNoiseObservationPredicate();
+        Observation.Context orphan = new Observation.Context();
+
+        assertThat(predicate.test("spring.security.filterchains", orphan)).as("корень-осколок подавлен").isFalse();
+        assertThat(predicate.test("spring.security.authorizations", orphan)).isFalse();
+        assertThat(predicate.test("spring.security.http.secured.requests", orphan)).isFalse();
+        assertThat(predicate.test("spring.security.http.unsecured.requests", orphan)).isFalse();
+        assertThat(predicate.test("spring.security.authentications", orphan)).isFalse();
+        assertThat(predicate.test("http.server.requests", orphan)).as("не-security корни (сам HTTP, задачи) не трогаем").isTrue();
+
+        ObservationRegistry registry = ObservationRegistry.create();
+        Observation http = Observation.start("http.server.requests", registry);
+        try {
+            Observation.Context child = new Observation.Context();
+            child.setParentObservation(http);
+            assertThat(predicate.test("spring.security.filterchains", child)).as("security-спаны под HTTP-наблюдением запроса сохраняются")
+                    .isTrue();
+        } finally {
+            http.stop();
+        }
+    }
+
+    private static Observation.Context serverContext(String uri) {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getRequestURI()).thenReturn(uri);
+        return new ServerRequestObservationContext(request, mock(HttpServletResponse.class));
     }
 }

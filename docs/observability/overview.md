@@ -132,6 +132,10 @@ curl -s localhost:9090/prometheus/api/v1/alerts
   pending/timeout в этом контуре отсутствуют — алерт DatabasePoolSaturation использует насыщение.
 - `Observation.Context.getParent()` отсутствует — parent доступен как `getParentObservation()`
   (`ObservationView`).
+- Запросы к управляющему порту (скрейп, пробы) трейсов не оставляют: HTTP-наблюдение шумных uri
+  гасится предикатом в `ObservabilityConfiguration`, а security-наблюдения без родителя — тем же
+  предикатом (иначе каждый скрейп давал два осколка-трейса «security filterchain before/after»
+  отдельными корнями). Под API-запросом security-спаны вкладываются в HTTP-корень как раньше.
 - В тестовом профиле `management.opentelemetry.enabled=false`: дерево наблюдений проверяется
   статическим `ObservationHandler`-коллектором (`TracingSmokeIT`), реальный OTLP-экспорт — только
   в `obs-up`-контуре.

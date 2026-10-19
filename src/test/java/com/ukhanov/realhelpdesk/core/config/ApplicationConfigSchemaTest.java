@@ -66,6 +66,12 @@ class ApplicationConfigSchemaTest {
             "management.tracing.sampling.probability", "management.opentelemetry.resource-attributes.service.name",
             "management.opentelemetry.resource-attributes.service.version",
             "management.opentelemetry.resource-attributes.deployment.environment", "management.opentelemetry.tracing.export.otlp.endpoint",
+            // OTLP-транспорт закреплён: Boot 4 шлёт http/protobuf (порт 4318 Collector'а);
+            // смена на grpc — осознанная правка с ревью, не подмена env
+            "management.opentelemetry.tracing.export.otlp.transport",
+            // OTLP-метрики выключены: метрики идут Prometheus scrape через alloy → Mimir,
+            // без флага starter-opentelemetry пушит их на localhost:4318 (connection refused)
+            "management.otlp.metrics.export.enabled",
             // Actuator / метрики
             "management.endpoints.web.exposure.include", "management.endpoint.health.probes.enabled",
             "management.endpoint.health.show-details", "management.endpoint.health.group.liveness.include",
