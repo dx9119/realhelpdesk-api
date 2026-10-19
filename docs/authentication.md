@@ -75,9 +75,10 @@ Refresh-токены лежат в БД хешами SHA-256. Ротация п�
 (`--import-realm`): клиент `realhelpdesk-api` (Authorization Code + PKCE,
 direct access grant для отладки и e2e) и тестовые пользователи
 `user@example.com` / `user-pass` (`ROLE_USER`), `operator@example.com` /
-`operator-pass` (`ROLE_OPERATOR`). Схема Keycloak хранится в отдельной базе
-`keycloak` того же PostgreSQL — её создаёт сервис `keycloak-db-init`,
-миграции Liquibase приложения этой базы не касаются.
+`operator-pass` (`ROLE_OPERATOR`). Схема Keycloak хранится в отдельном
+кластере PostgreSQL (сервис `keycloak-postgres`, свой том `keycloak_postgres_data`
+и креды `KEYCLOAK_DB_PASSWORD`), миграции Liquibase приложения этого кластера
+не касаются.
 
 При `keycloak.auto-create-users=true` (дефолт) неизвестный email из токена
 заводит пользователя с источником `KEYCLOAK`; при `keycloak.sync-roles=true`

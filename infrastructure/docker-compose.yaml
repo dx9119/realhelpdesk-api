@@ -234,31 +234,33 @@ services:
   # публичный клиент realhelpdesk-api (Authorization Code + PKCE, direct access
   # grant для отладки и e2e) и два тестовых пользователя (user@example.com,
   # operator@example.com).
-  keycloak-db-init:
+  keycloak-postgres:
     profiles: [local-tools]
-    # Отдельная БД под Keycloak: его схема живёт в том же PostgreSQL, но в
-    # своей базе — миграции Liquibase приложения её не касаются.
-    # init-скрипты docker-entrypoint-initdb.d здесь не годятся: они выполняются
-    # только при первой инициализации тома, а том postgres_data к этому моменту
-    # уже существует, поэтому база создаётся идемпотентно отдельным сервисом.
+    # Отдельный кластер PostgreSQL под схему Keycloak. Прежняя схема («та же
+    # БД, отдельная база») требовала сервиса-костыля keycloak-db-init: том
+    # postgres_data к моменту старта Keycloak уже инициализирован, и
+    # docker-entrypoint-initdb.d не отработал бы. Собственный том снимает
+    # проблему — базу создаёт штатный POSTGRES_DB при первой инициализации.
+    # Плюсы раздельных кластеров: миграции Keycloak физически не задевают
+    # данные приложения, том Keycloak выгружается/удаляется независимо,
+    # отказ одного кластера не роняет второй, креды разные.
+    # Тот же тег postgres:18, что у основной БД — поведение и формат тома идентичны.
     image: postgres:18
-    mem_limit: 64m
-    depends_on:
-      postgres:
-        condition: service_healthy
+    mem_limit: 256m
+    shm_size: 128m
     environment:
-      # Пароль для psql/createdb; имена базы и пользователя подставляются
-      # интерполяцией прямо в команду ниже — экранировать $ в command не нужно.
-      PGPASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        if psql -h postgres -U "${POSTGRES_USER:-user}" -d "${POSTGRES_DB:-desk}" -tAc "SELECT 1 FROM pg_database WHERE datname='${KEYCLOAK_DB:-keycloak}'" | grep -q 1; then
-          echo "База ${KEYCLOAK_DB:-keycloak} уже существует"
-        else
-          createdb -h postgres -U "${POSTGRES_USER:-user}" "${KEYCLOAK_DB:-keycloak}" && echo "Создана база ${KEYCLOAK_DB:-keycloak}"
-        fi
-    restart: "no"
+      POSTGRES_USER: keycloak
+      POSTGRES_DB: "${KEYCLOAK_DB:-keycloak}"
+      POSTGRES_PASSWORD: "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d ${KEYCLOAK_DB:-keycloak}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql
+    restart: unless-stopped
     networks:
       - data
     logging: *default-logging
@@ -281,13 +283,14 @@ services:
       # дефолтным admin — заполните, если стенд доступен не только вам.
       KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN:-admin}"
       KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:-admin}"
-      # Хранилище realm'а: тот же PostgreSQL, отдельная база (keycloak-db-init).
+      # Хранилище realm'а: отдельный кластер PostgreSQL (keycloak-postgres) со
+      # своим томом и kredами — данные Keycloak физически отделены от приложения.
       KC_DB: postgres
-      KC_DB_URL_HOST: postgres
+      KC_DB_URL_HOST: keycloak-postgres
       KC_DB_URL_PORT: "5432"
       KC_DB_URL_DATABASE: "${KEYCLOAK_DB:-keycloak}"
-      KC_DB_USERNAME: "${POSTGRES_USER:-user}"
-      KC_DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
       # KC_HOSTNAME — адрес, который попадает в issuer (iss) токена и в ссылки
       # страницы входа: его видит браузер, поэтому loopback с портом на хосте.
       # Приложение при этом проверяет подпись по KC_JWK_SET_URI — адресу
@@ -305,8 +308,8 @@ services:
       - ./keycloak:/opt/keycloak/data/import:ro
     command: ["start-dev", "--import-realm"]
     depends_on:
-      keycloak-db-init:
-        condition: service_completed_successfully
+      keycloak-postgres:
+        condition: service_healthy
     healthcheck:
       # TCP-проба без curl/wget в образе: bash /dev/tcp открывает сокет.
       # Порт 9000 — управляющий (health/metrics), основной 8080 отдаёт только
@@ -486,6 +489,7 @@ services:
 
 volumes:
   postgres_data:
+  keycloak_postgres_data:
   minio_data:
   mimir_data:
   tempo_data:

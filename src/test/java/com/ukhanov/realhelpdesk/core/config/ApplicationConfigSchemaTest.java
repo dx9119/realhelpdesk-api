@@ -118,9 +118,11 @@ class ApplicationConfigSchemaTest {
      * со схемой они исключаются (место секретов в контракте — {@code services.app.environment} compose-файла).
      * {@code KEYCLOAK_ADMIN_PASSWORD} — пароль начального администратора Keycloak: значение задаёт хост, а в контейнер его передаёт
      * {@code services.keycloak.environment} ({@code ${KEYCLOAK_ADMIN_PASSWORD:?...}}), как и остальные секреты.
+     * {@code KEYCLOAK_DB_PASSWORD} — пароль отдельного кластера PostgreSQL для Keycloak.
      */
     private static final Set<String> ENV_EXAMPLE_SECRET_KEYS = Set.of("JWT_SECRET", "CAPTCHA_HMAC_SECRET", "DB_PASSWORD", "MAIL_PASSWORD",
-            "KEY_STORE_PASS", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD", "KEYCLOAK_ADMIN_PASSWORD");
+            "KEY_STORE_PASS", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD", "KEYCLOAK_ADMIN_PASSWORD",
+            "KEYCLOAK_DB_PASSWORD");
 
     @Test
     @DisplayName("application*.properties — чистая схема: только обязательные ${VAR}, без дефолтов и литералов")

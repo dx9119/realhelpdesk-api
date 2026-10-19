@@ -6,7 +6,7 @@
 #   1. если infrastructure/.env нет — копирует шаблон infrastructure/.env.example;
 #   2. заполняет ПУСТЫЕ обязательные секреты случайными значениями через openssl
 #      (JWT_SECRET, CAPTCHA_HMAC_SECRET, DB_PASSWORD, MINIO_ROOT_PASSWORD,
-#      METRICS_PASSWORD, MINIO_ROOT_USER=minioadmin) — локальный стенд
+#      METRICS_PASSWORD, KEYCLOAK_DB_PASSWORD, MINIO_ROOT_USER=minioadmin) — локальный стенд
 #      поднимается без ручного заполнения;
 #   3. если .env уже существует — ничего в нём не меняет, только предупреждает
 #      о ключах, которых нет в шаблоне (добавили переменную в .env.example —
@@ -66,7 +66,7 @@ if grep -q '^MINIO_ROOT_USER=$' "$ENV_FILE"; then
 fi
 
 generated=0
-for key in JWT_SECRET CAPTCHA_HMAC_SECRET DB_PASSWORD MINIO_ROOT_PASSWORD METRICS_PASSWORD; do
+for key in JWT_SECRET CAPTCHA_HMAC_SECRET DB_PASSWORD MINIO_ROOT_PASSWORD METRICS_PASSWORD KEYCLOAK_DB_PASSWORD; do
     if grep -q "^${key}=$" "$ENV_FILE"; then
         gen_secret "$key"
         generated=$((generated + 1))
