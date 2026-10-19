@@ -21,9 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * В строках лога запроса есть корреляция traceId/spanId из живого OTel SDK, а ПДн (email, пароль) в лог не попадает — только маскированный
  * вид. Включённый management.opentelemetry.enabled не создаёт экспортеров: endpoint в тестовом classpath не задан, спаны никуда не уходят.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test",
-        "management.opentelemetry.enabled=true", "management.tracing.sampling.probability=1.0",
-        "logging.level.com.ukhanov.realhelpdesk=DEBUG"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {"spring.profiles.active=test", "management.opentelemetry.enabled=true", "management.tracing.sampling.probability=1.0",
+                "logging.level.com.ukhanov.realhelpdesk=DEBUG"})
 @ExtendWith(OutputCaptureExtension.class)
 @DisplayName("Корреляция traceId/spanId и маскирование ПДн в логах")
 class LogCorrelationAndMaskingTest {

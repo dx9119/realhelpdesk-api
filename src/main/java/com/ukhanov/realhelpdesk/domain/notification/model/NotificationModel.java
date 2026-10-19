@@ -28,8 +28,9 @@ import lombok.Setter;
  * </p>
  */
 @Entity
-@Table(name = "notifications", indexes = {@Index(name = "idx_notifications_recipient_created", columnList = "recipient_id, created_at"),
-        @Index(name = "idx_notifications_recipient_read", columnList = "recipient_id, is_read")})
+@Table(name = "notifications",
+        indexes = {@Index(name = "idx_notifications_recipient_created", columnList = "recipient_id, created_at"),
+                @Index(name = "idx_notifications_recipient_read", columnList = "recipient_id, is_read")})
 @Getter
 @Setter
 public class NotificationModel {

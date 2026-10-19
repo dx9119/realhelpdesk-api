@@ -31,8 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Проверяются и отказы: replay токена, токен чужого действия, honeypot, неверный nonce, отсутствующий токен. Профиль test: капча включена,
  * difficulty=8 (решается за миллисекунды), minimum-fill=0.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test",
-        "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
+                "email.domain=example.com"})
 @DisplayName("PoW-капча: полный поток challenge → solve → register (HTTP)")
 class CaptchaFlowIT extends PostgresIntegrationTest {
 

@@ -40,9 +40,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * завершается регистрацией 201. Клиентский IP берётся из {@code X-Forwarded-For} (доверие заголовкам включено в контексте), поэтому подсеть
  * задаётся тестом. Контекст свой — не мешает PoW-потоку CaptchaFlowIT с завышенным порогом.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test",
-        "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com",
-        "client-ip.trust-proxy-headers=true", "captcha.risk-subnet-offender-threshold=2"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
+                "email.domain=example.com", "client-ip.trust-proxy-headers=true", "captcha.risk-subnet-offender-threshold=2"})
 @DisplayName("Эмодзи-капча: эскалация по риску, wrong_answer и полный поток (HTTP)")
 class CaptchaEmojiFlowIT extends PostgresIntegrationTest {
 

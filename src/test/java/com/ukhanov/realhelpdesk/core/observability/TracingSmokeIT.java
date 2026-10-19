@@ -47,9 +47,9 @@ import io.micrometer.observation.ObservationRegistry;
  * теста, удаления handler'ов Micrometer не поддерживает, поэтому коллектор статический и очищается перед каждым тестом.
  * </p>
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"spring.profiles.active=test",
-        "management.opentelemetry.enabled=true", "management.tracing.sampling.probability=1.0", "captcha.enabled=false",
-        "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {"spring.profiles.active=test", "management.opentelemetry.enabled=true", "management.tracing.sampling.probability=1.0",
+                "captcha.enabled=false", "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com"})
 @ExtendWith(OutputCaptureExtension.class)
 @DisplayName("Tracing smoke: общий traceId и дочерние спаны сервисного слоя")
 class TracingSmokeIT extends PostgresIntegrationTest {

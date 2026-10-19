@@ -1,7 +1,9 @@
 # API
 
 Базовый URL — `/api/v1`. Машинная спека — OpenAPI: `GET /v3/api-docs`, UI — `/swagger-ui.html`
-(см. `make openapi`, `make openapi-types`).
+(см. `make openapi`, `make openapi-types`). В контуре prod оба отключены
+(`application-prod.properties`, `springdoc.*.enabled=false`) — чтобы не раскрывать
+контракт без аутентификации; спека для `make openapi` собирается из dev-стенда.
 
 ## Общие правила
 
