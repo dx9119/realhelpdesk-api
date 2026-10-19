@@ -126,7 +126,8 @@ make up-deps    # один раз: поднять infra + local-tools
 make run-local  # spring-boot:run на хосте (нужен JDK 25+)
 ```
 
-Правка кода → Hot-reload Spring Boot DevTools (секунды).
+Правка кода → перезапуск процесса (секунды, без пересборки образа); в Debug
+JVM hot-swap меняет тела методов без рестарта.
 
 Профиль `host` (`application-host.properties`) переводит адреса на loopback
 (`127.0.0.1:5432`, `9000`, `25`), выключает SSL и поднимает infra через
@@ -208,8 +209,8 @@ in-memory рейт-лимиты.
 ## 5. Наблюдаемость
 
 ```bash
-make obs-up      # стек + monitoring: Mimir :9090, Tempo :3200, Loki :3100,
-                 # OTel Collector :4318, Alloy :12345
+make obs-up      # стек + monitoring: Mimir :9090, Tempo :3200, Loki :3100
+                 # (Collector и Alloy — без портов на хост, только сеть compose)
 make obs-alerts  # текущие состояния алертов Mimir
 make obs-reload  # перечитать правила алертов (mimir/rules/)
 make obs-down    # остановить стек (томы целы)

@@ -98,7 +98,8 @@ PrometheusNaming срезает суффикс `.created` — OpenMetrics рез
 
 ```bash
 # после логина и создания заявки/сообщения/вложения и отправки письма
-curl -s -u test-metrics:test-password localhost:8081/actuator/prometheus \
+# (креды скрейпа — METRICS_USER и METRICS_PASSWORD из infrastructure/.env)
+curl -s -u "$METRICS_USER:$METRICS_PASSWORD" localhost:8081/actuator/prometheus \
   | grep -E 'tickets_total|tickets_status_transitions|tickets_open|tickets_time_to|attachments_|mail_sent'
 ```
 

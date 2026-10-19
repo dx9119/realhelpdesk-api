@@ -123,7 +123,7 @@ import static ...;               // static — всегда в конце
 
 ## Тесты
 
-- **JUnit 5 + Mockito + AssertJ**, `@SpringBootTest` не используется (изолированные unit-тесты и standalone-MockMvc).
+- **JUnit 5 + Mockito + AssertJ**. Юнит-тесты изолированы (standalone-MockMvc, без контекста Spring); полный контекст (`@SpringBootTest`, профиль `test`) поднимается только в интеграционных тестах наблюдаемости/безопасности (`TracingSmokeIT`, `CaptchaFlowIT`, `OperatorBootstrapIT` и др.).
 - Класс: `<ТестируемыйКлас>Test`, package-private (`class X`, без `public`), зеркалит пакет main.
 - Метод: `method_condition_outcome` на английском — `searchTickets_noAccessiblePortals_returnsEmptyPage`.
 - Аннотации `@Mock`/`@InjectMocks` — каждая на своей строке; заглушки `mock*`, captor'ы `*Captor`.
