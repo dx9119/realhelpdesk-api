@@ -23,10 +23,14 @@ make env
 | `DB_PASSWORD` | любой пароль PostgreSQL |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | учётная запись MinIO |
 | `METRICS_PASSWORD` | пароль сервисной учётки скрейпа метрик |
+| `KEYCLOAK_DB_PASSWORD` | пароль отдельного кластера PostgreSQL для Keycloak |
 
 `KEY_STORE_PASS` в шаблоне уже имеет локальное значение; `MAIL_PASSWORD`
 нужен только для внешнего SMTP, `KEYCLOAK_ADMIN_PASSWORD` — только если
 стенд Keycloak доступен не только вам.
+
+`make env` генерирует все перечисленные значения автоматически — руками их
+заполнять не нужно, если стенд локальный.
 
 ---
 

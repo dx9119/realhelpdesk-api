@@ -17,11 +17,14 @@
 Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,
 `KEY_STORE_PASS`, `MAIL_PASSWORD` (только для внешнего SMTP),
-`KEYCLOAK_ADMIN_PASSWORD` (если стенд Keycloak доступен не только вам).
+`KEYCLOAK_ADMIN_PASSWORD` (если стенд Keycloak доступен не только вам),
+`KEYCLOAK_DB_PASSWORD` (пароль отдельного кластера PostgreSQL для Keycloak,
+сервис `keycloak-postgres`).
 
 Смена секрета у уже поднятого стека: `DB_PASSWORD` фиксируется при первой
 инициализации тома PostgreSQL, поэтому его правка в `.env` рассогласует
-приложение и БД. Меняйте вместе с пересозданием данных:
+приложение и БД. То же касается `KEYCLOAK_DB_PASSWORD` — он фиксируется
+томом `keycloak_postgres_data`. Меняйте вместе с пересозданием данных:
 `make down-volumes && make up`.
 
 ## Как поменять настройку
