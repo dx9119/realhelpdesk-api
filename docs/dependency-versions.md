@@ -49,7 +49,7 @@
 |---|---|---|
 | MinIO (Java SDK) | 8.6.0 | S3-клиент вложений заявок: метаданные — в БД, файлы — в бакете |
 | okhttp-jvm / Okio | 5.1.0 / 3.15.0 | HTTP-транспорт SDK MinIO (JVM-вариант okhttp 5.x) |
-| pgsty/silo | `RELEASE.2026-09-16T00-00-00Z` (image, сервис `minio`) | S3-совместимое объектное хранилище вложений на PostgreSQL |
+| pgsty/silo | `RELEASE.2026-09-16T00-00-00Z` (image, сервис `minio`) | S3-совместимое объектное хранилище вложений |
 | Spring Mail / Jakarta Mail API | 4.1.1 / 2.1.5 | Отправка email через SMTP |
 | Angus Mail / Angus Activation | 2.0.5 / 2.0.2 | Рантайм-реализация Jakarta Mail |
 | SMTP4Dev | 3.15.0 (image) | Локальный SMTP с UI для проверки писем при разработке |
