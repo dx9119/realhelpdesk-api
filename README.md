@@ -133,6 +133,18 @@ long polling. Оба используют общий курсор `afterId` и �
 `traceId`/`spanId` (→ Loki). Стек наблюдаемости поднимается отдельно от
 приложения, приложение от него не зависит. Алерты обеспечены runbooks.
 
+### Управляющий порт
+
+Приложение слушает управляющий порт 8081 (`MANAGEMENT_PORT`) — отдельно от
+основного 8443. Правила безопасности (`ManagementSecurityConfiguration`):
+
+| Эндпоинт | Доступ | Зачем |
+|---|---|---|
+| `/actuator/health` | `permitAll` (без аутентификации) | liveness/readiness-проверки Docker-оркестратора |
+| `/actuator/info` | `permitAll` | версия сборки (`org.opencontainers.image.revision`) |
+| `/actuator/prometheus` | HTTP Basic `METRICS_USER`/`METRICS_PASSWORD` | скрейп метрик Alloy |
+| всё остальное (`env`, `heapdump`, `threaddump`, `configprops`) | `denyAll` | закрыто даже при попадании в `exposure.include` |
+
 Подробнее: [`docs/observability/overview.md`](docs/observability/overview.md)
 
 ## API
