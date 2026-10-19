@@ -40,6 +40,7 @@ import com.ukhanov.realhelpdesk.feature.messagemanager.exception.MessageExceptio
 import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 
@@ -103,8 +104,10 @@ public class AttachmentController {
     /** Отдаёт файл потоком: без буферизации в памяти приложения и без presigned-URL — доступ всегда через JWT-cookie. */
     @GetMapping("/{attachmentId}")
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
-    @ApiResponse(responseCode = "200", description = "Файл целиком")
-    @ApiResponse(responseCode = "206", description = "Часть файла (Range)")
+    @ApiResponse(responseCode = "200", description = "Файл целиком",
+            content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(responseCode = "206", description = "Часть файла (Range)",
+            content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
     @ApiResponse(responseCode = "416", description = "Диапазон не может быть удовлетворён (Range)", content = @Content())
     public ResponseEntity<StreamingResponseBody> downloadAttachment(@PathVariable Long portalId, @PathVariable Long ticketId,
             @PathVariable Long attachmentId, @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,

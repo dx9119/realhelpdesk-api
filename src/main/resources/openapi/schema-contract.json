@@ -1,0 +1,556 @@
+{
+  "_comment": "Контракт спеки: example + описание каждого поля каждой схемы. Применяется OpenApiContractEnricher'ом к components.schemas генерируемой спеки. ProblemDetail — стандарт Spring, описания не требуются. StreamingResponseBody/SseEmitter — схемы фреймворка, в контракте быть не должно (ловит guard-тест).",
+  "AttachmentResponse": {
+    "description": "Метаданные вложения заявки; байты отдаёт GET .../attachments/{attachmentId}",
+    "example": {
+      "id": 42,
+      "messageId": 17,
+      "ticketId": 9,
+      "fileName": "акт-сверки.pdf",
+      "contentType": "application/pdf",
+      "sizeBytes": 245760,
+      "uploadedById": 3,
+      "uploadedByFullName": "Иван Иванов",
+      "createdAt": "2026-01-15T10:30:00Z",
+      "downloadUrl": "/api/v1/portals/1/tickets/9/attachments/42"
+    },
+    "fields": {
+      "id": "Идентификатор вложения",
+      "messageId": "Идентификатор сообщения-владельца вложения",
+      "ticketId": "Идентификатор заявки",
+      "fileName": "Имя файла как при загрузке (для Content-Disposition)",
+      "contentType": "MIME-тип файла, определённый при загрузке",
+      "sizeBytes": "Размер файла в байтах",
+      "uploadedById": "Идентификатор загрузившего пользователя",
+      "uploadedByFullName": "Имя и фамилия загрузившего",
+      "createdAt": "Момент загрузки, ISO-8601 UTC",
+      "downloadUrl": "Адрес скачивания; при заданном static.base-url абсолютный (origin раздачи)"
+    }
+  },
+  "ChallengeRequest": {
+    "description": "Запрос captcha-challenge: клиент запрашивает задание перед регистрацией или отправкой кода email",
+    "example": { "action": "register" },
+    "fields": {
+      "action": "Действие, ради которого нужна капча: register или email-code"
+    }
+  },
+  "ChallengeResponse": {
+    "description": "Задание капчи: PoW (клиент подбирает nonce) или эмодзи (выбор ячеек). Уровень выбирает сервер",
+    "example": {
+      "challengeId": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjaGFsIn0.sig",
+      "type": "pow",
+      "params": { "salt": "b3c1f0", "difficulty": 16 },
+      "expiresAt": "2026-01-15T10:35:00Z"
+    },
+    "fields": {
+      "challengeId": "Подписанный challenge (JWT), передаётся назад в SolveRequest",
+      "type": "Уровень задания: pow или emoji",
+      "params": "Параметры задания: pow — salt и difficulty; emoji — prompt и cells",
+      "expiresAt": "Срок жизни challenge, ISO-8601 UTC"
+    }
+  },
+  "CreateMessageRequest": {
+    "description": "Новое сообщение в ленте заявки",
+    "example": { "messageText": "Здравствуйте! Проблема воспроизводится, пересылаю в отдел." },
+    "fields": {
+      "messageText": "Текст сообщения"
+    }
+  },
+  "CreateMessageResponse": {
+    "description": "Итог создания сообщения; Location указывает на GET .../messages/{id}",
+    "example": { "id": 17 },
+    "fields": {
+      "id": "Идентификатор созданного сообщения"
+    }
+  },
+  "CreatePortalRequest": {
+    "description": "Создание портала — пространства заявок. Автор становится владельцем",
+    "example": { "name": "Поддержка Acme", "description": "Заявки клиентов Acme" },
+    "fields": {
+      "name": "Название портала",
+      "description": "Описание портала, может отсутствовать"
+    }
+  },
+  "CreatePortalResponse": {
+    "description": "Итог создания портала; Location указывает на GET /portals/{id}",
+    "example": { "id": 1 },
+    "fields": {
+      "id": "Идентификатор созданного портала"
+    }
+  },
+  "CreateTicketRequest": {
+    "description": "Новая заявка от пользователя портала",
+    "example": {
+      "title": "Не приходит письмо о регистрации",
+      "body": "Клиент жалуется, что письмо с подтверждением не доходит во внешний домен.",
+      "ticketPriority": "HIGH",
+      "ticketAccessStatus": "ALL_USERS"
+    },
+    "fields": {
+      "title": "Заголовок заявки",
+      "body": "Описание проблемы, может отсутствовать",
+      "ticketPriority": "Приоритет; если не указан — NONE",
+      "ticketAccessStatus": "Кто видит заявку; если не указан — ALL_USERS"
+    }
+  },
+  "CreateTicketResponse": {
+    "description": "Итог создания заявки; Location указывает на GET .../tickets/{id}",
+    "example": { "id": 9 },
+    "fields": {
+      "id": "Идентификатор созданной заявки"
+    }
+  },
+  "DeleteResult": {
+    "description": "Результат массового удаления порталов",
+    "example": { "count": 2, "deletedIds": [1, 2] },
+    "fields": {
+      "count": "Сколько порталов удалено",
+      "deletedIds": "Идентификаторы удалённых порталов"
+    }
+  },
+  "EmailInfoResponse": {
+    "description": "Текущий уровень email-оповещений пользователя",
+    "example": { "muteLevel": "NEW_TICKET_OR_MESSAGE" },
+    "fields": {
+      "muteLevel": "Самое «тихое» событие, до которого оповещения приходят; NONE — оповещения включены полностью"
+    }
+  },
+  "ItemsResponseAttachmentResponse": {
+    "description": "Список вложений без пагинации",
+    "example": { "items": [{ "id": 42, "fileName": "акт-сверки.pdf", "contentType": "application/pdf", "sizeBytes": 245760, "ticketId": 9 }], "total": 1 },
+    "fields": {
+      "items": "Элементы списка",
+      "total": "Общее количество элементов"
+    }
+  },
+  "ItemsResponseLong": {
+    "description": "Список идентификаторов без пагинации",
+    "example": { "items": [1, 2, 3], "total": 3 },
+    "fields": {
+      "items": "Идентификаторы",
+      "total": "Общее количество"
+    }
+  },
+  "ItemsResponseMessageResponse": {
+    "description": "Сообщения заявки без пагинации, новые сверху",
+    "example": { "items": [{ "id": 17, "messageText": "Добрый день!", "authorFullName": "Иван Иванов", "ticketId": 9, "createdAt": "2026-01-15T10:30:00Z" }], "total": 1 },
+    "fields": {
+      "items": "Сообщения",
+      "total": "Общее количество сообщений"
+    }
+  },
+  "ItemsResponsePortalInfoResponse": {
+    "description": "Список порталов с версией (для If-Match) без пагинации",
+    "example": { "items": [{ "id": 1, "namePortal": "Поддержка Acme", "version": 3 }], "total": 1 },
+    "fields": {
+      "items": "Порталы",
+      "total": "Общее количество порталов"
+    }
+  },
+  "LoginRequest": {
+    "description": "Вход по email и паролю; при успехе сервер ставит cookie accessToken и refreshToken",
+    "example": { "email": "user@example.com", "password": "P@ssw0rd123" },
+    "fields": {
+      "email": "Email пользователя",
+      "password": "Пароль, минимум 8 символов"
+    }
+  },
+  "MessageResponse": {
+    "description": "Сообщение в ленте заявки",
+    "example": { "id": 17, "messageText": "Добрый день!", "authorId": 3, "authorFullName": "Иван Иванов", "ticketId": 9, "createdAt": "2026-01-15T10:30:00Z" },
+    "fields": {
+      "id": "Идентификатор сообщения",
+      "messageText": "Текст сообщения",
+      "authorId": "Идентификатор автора",
+      "authorFullName": "Имя и фамилия автора",
+      "ticketId": "Идентификатор заявки",
+      "createdAt": "Момент отправки, ISO-8601 UTC"
+    }
+  },
+  "NewPasswdRequest": {
+    "description": "Установка нового пароля по коду из письма восстановления",
+    "example": { "password": "N3wP@ssw0rd!" },
+    "fields": {
+      "password": "Новый пароль, минимум 8 символов"
+    }
+  },
+  "NotificationPreferencesRequest": {
+    "description": "Настройки in-app оповещений: полный набор событий и повтор непрочитанных",
+    "example": { "events": ["NEW_TICKET", "NEW_MESSAGE"], "repeatEnabled": true, "repeatIntervalMinutes": 60 },
+    "fields": {
+      "events": "Полный набор включённых событий (заменяет текущий)",
+      "repeatEnabled": "Повторять непрочитанные NEW_TICKET/NEW_MESSAGE; null — не менять",
+      "repeatIntervalMinutes": "Интервал повтора от 1 до 10080 минут; null — не менять"
+    }
+  },
+  "NotificationPreferencesResponse": {
+    "description": "Текущие настройки in-app оповещений",
+    "example": { "events": ["NEW_TICKET", "NEW_MESSAGE"], "repeatEnabled": true, "repeatIntervalMinutes": 60 },
+    "fields": {
+      "events": "Включённые события оповещений",
+      "repeatEnabled": "Повтор непрочитанных включён",
+      "repeatIntervalMinutes": "Интервал повтора в минутах"
+    }
+  },
+  "NotificationResponse": {
+    "description": "In-app оповещение пользователя",
+    "example": { "id": 101, "event": "NEW_MESSAGE", "ticketId": 9, "portalId": 1, "title": "Новое сообщение в заявке «Не приходит письмо»", "read": false, "createdAt": "2026-01-15T10:31:00Z" },
+    "fields": {
+      "id": "Идентификатор оповещения",
+      "event": "Событие, породившее оповещение",
+      "ticketId": "Идентификатор заявки, если оповещение о ней",
+      "portalId": "Идентификатор портала, если оповещение о нём",
+      "title": "Заголовок для рендера",
+      "read": "Прочитано ли оповещение",
+      "createdAt": "Момент возникновения, ISO-8601 UTC"
+    }
+  },
+  "PageResponseNotificationResponse": {
+    "description": "Постраничный список оповещений; page считается с нуля",
+    "example": { "content": [{ "id": 101, "event": "NEW_MESSAGE", "title": "Новое сообщение", "read": false }], "page": 0, "size": 10, "totalElements": 1, "totalPages": 1, "last": true },
+    "fields": {
+      "content": "Страница оповещений",
+      "page": "Номер страницы, с нуля",
+      "size": "Размер страницы",
+      "totalElements": "Всего элементов",
+      "totalPages": "Всего страниц",
+      "last": "Последняя ли страница"
+    }
+  },
+  "PageResponsePortalHistoryResponse": {
+    "description": "Постраничная история портала; page считается с нуля",
+    "example": { "content": [{ "id": 5, "portalId": 1, "event": "PORTAL_INFO_CHANGED", "actorName": "Иван Иванов", "fieldName": "name", "oldValue": "Acme", "newValue": "Acme Corp", "createdAt": "2026-01-15T10:30:00Z" }], "page": 0, "size": 10, "totalElements": 1, "totalPages": 1, "last": true },
+    "fields": {
+      "content": "Страница записей истории",
+      "page": "Номер страницы, с нуля",
+      "size": "Размер страницы",
+      "totalElements": "Всего записей",
+      "totalPages": "Всего страниц",
+      "last": "Последняя ли страница"
+    }
+  },
+  "PageResponsePortalResponse": {
+    "description": "Постраничный список порталов; page считается с нуля",
+    "example": { "content": [{ "id": 1, "name": "Поддержка Acme", "description": "Заявки клиентов Acme", "createdAt": "2026-01-15T10:30:00Z" }], "page": 0, "size": 10, "totalElements": 1, "totalPages": 1, "last": true },
+    "fields": {
+      "content": "Страница порталов",
+      "page": "Номер страницы, с нуля",
+      "size": "Размер страницы",
+      "totalElements": "Всего порталов",
+      "totalPages": "Всего страниц",
+      "last": "Последняя ли страница"
+    }
+  },
+  "PageResponseTicketResponse": {
+    "description": "Постраничный список заявок; page считается с нуля",
+    "example": { "content": [{ "id": 9, "title": "Не приходит письмо о регистрации", "authorFullName": "Иван Иванов", "portalName": "Поддержка Acme", "ticketPriority": "HIGH", "ticketStatus": "OPEN", "createdAt": "2026-01-15T10:30:00Z" }], "page": 0, "size": 10, "totalElements": 1, "totalPages": 1, "last": true },
+    "fields": {
+      "content": "Страница заявок",
+      "page": "Номер страницы, с нуля",
+      "size": "Размер страницы",
+      "totalElements": "Всего заявок",
+      "totalPages": "Всего страниц",
+      "last": "Последняя ли страница"
+    }
+  },
+  "Params": {
+    "description": "Параметры captcha-задания: у своего уровня поля непустые, остальные не сериализуются",
+    "example": { "salt": "b3c1f0", "difficulty": 16 },
+    "fields": {
+      "salt": "Соль для PoW: клиент хэширует salt:nonce",
+      "difficulty": "Требуемых ведущих нулевых бит SHA-256 у PoW",
+      "prompt": "Текст задания эмодзи-уровня",
+      "cells": "Идентификаторы ячеек эмодзи-задания"
+    }
+  },
+  "PatchPortalInfoRequest": {
+    "description": "Частичное обновление портала: меняются только переданные поля (null — «не трогать»). Защита от потери чужого изменения — If-Match с версией из GET",
+    "example": { "name": "Поддержка Acme Corp" },
+    "fields": {
+      "name": "Новое название; null — не менять",
+      "description": "Новое описание; null — не менять"
+    }
+  },
+  "PatchUserInfoRequest": {
+    "description": "Частичное обновление профиля: меняются только переданные поля (null — «не трогать»). Защита от потери чужого изменения — If-Match с версией из GET",
+    "example": { "firstName": "Иван", "lastName": "Иванов" },
+    "fields": {
+      "firstName": "Имя; null — не менять",
+      "lastName": "Фамилия; null — не менять",
+      "middleName": "Отчество; null — не менять",
+      "additionalInfo": "Дополнительная информация; null — не менять"
+    }
+  },
+  "PortalBulkDeleteRequest": {
+    "description": "Массовое удаление порталов по списку идентификаторов",
+    "example": { "ids": [1, 2] },
+    "fields": {
+      "ids": "Идентификаторы порталов для удаления"
+    }
+  },
+  "PortalHistoryResponse": {
+    "description": "Запись истории портала: передача владения или изменение поля. Имена участников — best effort (удалённый пользователь может быть без имени)",
+    "example": { "id": 5, "portalId": 1, "event": "PORTAL_INFO_CHANGED", "actorId": 3, "actorName": "Иван Иванов", "targetUserId": 8, "targetName": "Пётр Петров", "reason": "Смена подрядчика", "fieldName": "name", "oldValue": "Acme", "newValue": "Acme Corp", "createdAt": "2026-01-15T10:30:00Z" },
+    "fields": {
+      "id": "Идентификатор записи истории",
+      "portalId": "Портал, к которому относится запись",
+      "event": "Тип события (например PORTAL_INFO_CHANGED, PORTAL_TRANSFER_*)",
+      "actorId": "Идентификатор инициатора",
+      "actorName": "Имя инициатора",
+      "targetUserId": "Идентификатор целевого пользователя (передача владения)",
+      "targetName": "Имя целевого пользователя",
+      "reason": "Причина, если событие её несёт",
+      "fieldName": "Изменённое поле (для смены полей портала)",
+      "oldValue": "Старое значение поля",
+      "newValue": "Новое значение поля",
+      "createdAt": "Момент события, ISO-8601 UTC"
+    }
+  },
+  "PortalInfoResponse": {
+    "description": "Портал с версией для If-Match; отдаётся с заголовком ETag",
+    "example": { "id": 1, "namePortal": "Поддержка Acme", "description": "Заявки клиентов Acme", "version": 3 },
+    "fields": {
+      "id": "Идентификатор портала",
+      "namePortal": "Название портала",
+      "description": "Описание портала",
+      "version": "Версия для If-Match; при устаревшей версии — 412"
+    }
+  },
+  "PortalResponse": {
+    "description": "Портал в списках (мои порталы, доступные)",
+    "example": { "id": 1, "name": "Поддержка Acme", "description": "Заявки клиентов Acme", "createdAt": "2026-01-15T10:30:00Z" },
+    "fields": {
+      "id": "Идентификатор портала",
+      "name": "Название портала",
+      "description": "Описание портала",
+      "createdAt": "Момент создания, ISO-8601 UTC"
+    }
+  },
+  "PortalSettingsResponse": {
+    "description": "Настройки портала: участники и признак публичности",
+    "example": { "users": [{ "id": 3, "firstName": "Иван", "lastName": "Иванов", "email": "user@example.com" }], "public": false },
+    "fields": {
+      "users": "Пользователи с доступом к порталу",
+      "public": "Публичный ли портал (виден всем)"
+    }
+  },
+  "PortalTransferConfirmRequest": {
+    "description": "Подтверждение передачи владения предлагаемым владельцем; требует его пароль",
+    "example": { "password": "P@ssw0rd123", "reason": "Принимаю управление" },
+    "fields": {
+      "password": "Пароль предлагаемого владельца",
+      "reason": "Причина/комментарий к решению"
+    }
+  },
+  "PortalTransferRejectRequest": {
+    "description": "Отклонение передачи владения предлагаемым владельцем",
+    "example": { "reason": "Не могу принять управление" },
+    "fields": {
+      "reason": "Причина отклонения"
+    }
+  },
+  "PortalTransferRequest": {
+    "description": "Запрос на передачу владения порталом; предлагаемый владелец решает через confirm/reject",
+    "example": { "email": "newowner@example.com", "password": "P@ssw0rd123", "reason": "Передаю проект коллеге", "keepOldOwnerAsMember": true },
+    "fields": {
+      "email": "Email предлагаемого владельца",
+      "password": "Пароль инициатора для подтверждения личности",
+      "reason": "Причина передачи",
+      "keepOldOwnerAsMember": "Оставить ли старого владельца участником портала"
+    }
+  },
+  "PortalTransferResponse": {
+    "description": "Активное или решённое запрос на передачу владения; видно инициатору и предлагаемому владельцу",
+    "example": { "id": 7, "portalId": 1, "portalName": "Поддержка Acme", "initiatorName": "Иван Иванов", "proposedOwnerEmail": "newowner@example.com", "reasonInitiator": "Передаю проект коллеге", "reasonProposed": "Принимаю управление", "keepOldOwnerAsMember": true, "status": "ACCEPTED", "createdAt": "2026-01-15T10:30:00Z", "expiresAt": "2026-01-22T10:30:00Z", "decidedAt": "2026-01-16T09:00:00Z" },
+    "fields": {
+      "id": "Идентификатор запроса",
+      "portalId": "Портал, который передаётся",
+      "portalName": "Название портала",
+      "initiatorName": "Имя текущего владельца",
+      "proposedOwnerEmail": "Email предлагаемого нового владельца",
+      "reasonInitiator": "Причина от инициатора",
+      "reasonProposed": "Причина от предлагаемого владельца (при решении)",
+      "keepOldOwnerAsMember": "Останется ли старый владелец участником",
+      "status": "Статус запроса: PENDING, ACCEPTED, REJECTED, CANCELLED, EXPIRED",
+      "createdAt": "Момент создания запроса, ISO-8601 UTC",
+      "expiresAt": "Срок жизни запроса, ISO-8601 UTC",
+      "decidedAt": "Момент решения, ISO-8601 UTC; null пока не решён"
+    }
+  },
+  "PortalUsersRequest": {
+    "description": "Полная замена списка пользователей портала (PUT settings/users)",
+    "example": { "userIds": [3, 8] },
+    "fields": {
+      "userIds": "Идентификаторы пользователей, которым даётся доступ"
+    }
+  },
+  "PortalVisibilityRequest": {
+    "description": "Команда видимости портала; отвечает 204 без тела",
+    "example": { "isPublic": true },
+    "fields": {
+      "isPublic": "true — портал публичный (виден всем)"
+    }
+  },
+  "PortalVisibilityResponse": {
+    "description": "Текущий признак публичности портала",
+    "example": { "isPublic": true },
+    "fields": {
+      "isPublic": "Публичен ли портал"
+    }
+  },
+  "RecoveryRequest": {
+    "description": "Запрос письма восстановления пароля; отвечает 204, ошибка SMTP — 503",
+    "example": { "email": "user@example.com" },
+    "fields": {
+      "email": "Email аккаунта"
+    }
+  },
+  "RegisterRequest": {
+    "description": "Регистрация в контуре без keycloak; при успехе — 201, Location и cookies",
+    "example": { "firstName": "Иван", "lastName": "Иванов", "email": "user@example.com", "password": "P@ssw0rd123", "captchaToken": "eyJhbGciOiJIUzI1NiJ9.c29sdmVk.sig", "website": "", "externalId": 1001, "userPlatformSource": "LOCAL" },
+    "fields": {
+      "firstName": "Имя, 2-50 символов",
+      "lastName": "Фамилия, 2-50 символов",
+      "captchaToken": "Токен из POST /captcha/solve; обязателен при включённой капче",
+      "website": "Honeypot: поле должно быть пустым или отсутствовать",
+      "email": "Email для входа",
+      "password": "Пароль, минимум 8 символов",
+      "externalId": "Внешний идентификатор пользователя из интеграций",
+      "userPlatformSource": "Источник регистрации; если не указан — LOCAL"
+    }
+  },
+  "SessionResponse": {
+    "description": "Текущая сессия: признак авторизации и профиль (без отдельного GET /users/profile)",
+    "example": { "authenticated": true, "user": { "id": 3, "firstName": "Иван", "lastName": "Иванов", "email": "user@example.com", "userRole": "ROLE_USER", "userStatus": "ACTIVE" } },
+    "fields": {
+      "authenticated": "Авторизован ли запрос",
+      "user": "Профиль пользователя; отсутствует, если не авторизован"
+    }
+  },
+  "SolveRequest": {
+    "description": "Решение captcha-challenge: nonce для PoW или индексы ячеек для эмодзи",
+    "example": { "challengeId": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjaGFsIn0.sig", "nonce": "12345678" },
+    "fields": {
+      "challengeId": "Challenge из ChallengeResponse",
+      "nonce": "Подобранный nonce (для pow)",
+      "answer": "Индексы выбранных ячеек (для emoji)"
+    }
+  },
+  "SolveResponse": {
+    "description": "Успешное решение капчи; токен передаётся в RegisterRequest/заголовок X-Captcha-Token",
+    "example": { "captchaToken": "eyJhbGciOiJIUzI1NiJ9.dG9rZW4.sig" },
+    "fields": {
+      "captchaToken": "Токен, подтверждающий решение капчи"
+    }
+  },
+  "TicketPriorityRequest": {
+    "description": "Команда смены приоритета заявки; отвечает 204 без тела",
+    "example": { "priority": "HIGH" },
+    "fields": {
+      "priority": "Новый приоритет"
+    }
+  },
+  "TicketResponse": {
+    "description": "Заявка: единое представление для списка портала, детали, «моих заявок» и поиска",
+    "example": { "id": 9, "title": "Не приходит письмо о регистрации", "body": "Клиент жалуется, что письмо не доходит.", "authorId": 3, "authorFullName": "Иван Иванов", "portalName": "Поддержка Acme", "portalId": 1, "ticketPriority": "HIGH", "ticketStatus": "OPEN", "ticketAccessStatus": "ALL_USERS", "createdAt": "2026-01-15T10:30:00Z", "version": 1 },
+    "fields": {
+      "id": "Идентификатор заявки",
+      "title": "Заголовок заявки",
+      "body": "Текст описания проблемы",
+      "authorId": "Идентификатор автора: отличает свои заявки от чужих (по имени нельзя — однофамильцы)",
+      "authorFullName": "Имя и фамилия автора",
+      "portalName": "Название портала заявки",
+      "portalId": "Идентификатор портала заявки",
+      "ticketPriority": "Приоритет: CRITICAL, HIGH, MEDIUM, LOW, NONE",
+      "ticketStatus": "Статус: OPEN, IN_PROGRESS, CLOSED",
+      "ticketAccessStatus": "Кто видит заявку: ALL_USERS или CREATOR_AND_PORTAL_USERS",
+      "createdAt": "Момент создания, ISO-8601 UTC",
+      "version": "Колонка @Version: конфликт при изменении — 409; значение позволяет заметить устаревшие данные"
+    }
+  },
+  "TicketStatusRequest": {
+    "description": "Команда смены статуса заявки; отвечает 204 без тела",
+    "example": { "status": "IN_PROGRESS" },
+    "fields": {
+      "status": "Новый статус"
+    }
+  },
+  "TokenCleanupResponse": {
+    "description": "Итог принудительной очистки отозванных refresh-токенов",
+    "example": { "revokedDeleted": 120, "batches": 3 },
+    "fields": {
+      "revokedDeleted": "Сколько отозванных токенов удалено",
+      "batches": "Сколько батчей удаления выполнено"
+    }
+  },
+  "TokenStatusResponse": {
+    "description": "Статус refresh-токена и его срок",
+    "example": { "tokenStatus": "ACTIVE", "createdAt": "2026-01-15T10:30:00Z" },
+    "fields": {
+      "tokenStatus": "Статус токена: ACTIVE, LOGOUT, BLOCKED, REVOKED, SUSPECTED, PASSWD_CHANGE",
+      "createdAt": "Момент выпуска токена, ISO-8601 UTC"
+    }
+  },
+  "UnreadCountResponse": {
+    "description": "Счётчик непрочитанных оповещений для значка; ответ no-store",
+    "example": { "count": 5 },
+    "fields": {
+      "count": "Количество непрочитанных оповещений"
+    }
+  },
+  "UpdatePortalInfoRequest": {
+    "description": "Полная замена информации о портале (PUT); защита от потери чужого изменения — If-Match",
+    "example": { "name": "Поддержка Acme Corp", "description": "Заявки клиентов Acme и партнёров" },
+    "fields": {
+      "name": "Название портала",
+      "description": "Описание портала, может отсутствовать"
+    }
+  },
+  "UploadAttachmentRequest": {
+    "description": "Поля формы multipart-загрузки вложения; сам файл приходит отдельной частью «file»",
+    "example": { "messageText": "Прикладываю акт сверки" },
+    "fields": {
+      "messageText": "Сопроводительный текст сообщения; без него сервис сформирует «Файл: <имя>»"
+    }
+  },
+  "UserInfo": {
+    "description": "Краткий профиль участника (настройки портала)",
+    "example": { "id": 3, "firstName": "Иван", "lastName": "Иванов", "middleName": "Сергеевич", "email": "user@example.com" },
+    "fields": {
+      "id": "Идентификатор пользователя",
+      "firstName": "Имя",
+      "lastName": "Фамилия",
+      "middleName": "Отчество, может отсутствовать",
+      "email": "Email"
+    }
+  },
+  "UserInfoRequest": {
+    "description": "Полная замена профиля (PUT /users/profile); защита от потери чужого изменения — If-Match",
+    "example": { "firstName": "Иван", "lastName": "Иванов", "middleName": "Сергеевич", "additionalInfo": "Отдел поддержки" },
+    "fields": {
+      "firstName": "Имя, 2-20 символов",
+      "lastName": "Фамилия, 2-20 символов",
+      "middleName": "Отчество, до 20 символов",
+      "additionalInfo": "Дополнительная информация о пользователе"
+    }
+  },
+  "UserInfoResponse": {
+    "description": "Профиль пользователя; отдаётся с ETag (версия) для If-Match",
+    "example": { "id": 3, "externalId": 1001, "firstName": "Иван", "lastName": "Иванов", "middleName": "Сергеевич", "additionalInfo": "Отдел поддержки", "email": "user@example.com", "emailVerified": true, "userRole": "ROLE_USER", "userStatus": "ACTIVE", "userPlatformSource": "LOCAL", "createdAt": "2026-01-15T10:30:00Z", "version": 2 },
+    "fields": {
+      "id": "Идентификатор пользователя",
+      "externalId": "Внешний идентификатор из интеграций, может отсутствовать",
+      "firstName": "Имя",
+      "lastName": "Фамилия",
+      "middleName": "Отчество, может отсутствовать",
+      "additionalInfo": "Дополнительная информация, может отсутствовать",
+      "email": "Email пользователя",
+      "emailVerified": "Подтверждён ли email",
+      "userRole": "Роль: ROLE_USER, ROLE_OPERATOR, ROLE_NONE",
+      "userStatus": "Статус аккаунта: ACTIVE, BLOCKED, DISABLED",
+      "userPlatformSource": "Источник регистрации: LOCAL, TELEGRAM, KEYCLOAK",
+      "createdAt": "Момент регистрации, ISO-8601 UTC",
+      "version": "Версия для If-Match; при устаревшей версии — 412"
+    }
+  }
+}

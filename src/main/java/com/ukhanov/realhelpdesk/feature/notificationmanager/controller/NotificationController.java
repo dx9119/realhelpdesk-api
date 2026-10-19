@@ -29,9 +29,10 @@ import com.ukhanov.realhelpdesk.feature.notificationmanager.dto.UnreadCountRespo
 import com.ukhanov.realhelpdesk.feature.notificationmanager.exception.NotificationException;
 import com.ukhanov.realhelpdesk.feature.notificationmanager.service.NotificationManageService;
 
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
-
 @RequiredArgsConstructor
 @RestController
 @Validated
@@ -60,6 +61,8 @@ public class NotificationController {
      * всеми вкладками.
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @ApiResponse(responseCode = "200", description = "Поток событий Server-Sent Events (событие notification)",
+            content = @Content(mediaType = MediaType.TEXT_EVENT_STREAM_VALUE, schema = @Schema(type = "string")))
     public SseEmitter stream(@RequestParam(defaultValue = "0") @Min(0) long afterId,
             @RequestParam(defaultValue = "10") @Min(1) @Max(50) int size, HttpServletResponse response) {
         response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue());

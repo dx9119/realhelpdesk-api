@@ -30,6 +30,8 @@ import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.models.OpenAPI;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Контракт OpenAPI-документации: спека безопасна и полна.
@@ -38,7 +40,8 @@ import io.swagger.v3.oas.models.OpenAPI;
  * 1) В prod-контуре springdoc выключен — контракт не раскрывается без аутентификации (в white-list security документация permitAll во всех
  * профилях). 2) SecurityScheme (Bearer JWT) описан — в swagger-ui есть кнопка Authorize. 3) Глобальный обработчик исключений размечен
  * {@link ApiResponse} — в описании каждой операции видны коды ошибок и структура problem+json. 4) Контроллеры документируют реальные
- * статусы: код в спеке совпадает с кодом, возвращаемым методом (201/202/204/206/416), а не дефолтный 200.
+ * статусы: код в спеке совпадает с кодом, возвращаемым методом (201/202/204/206/416), а не дефолтный 200. 5) Контракт схем
+ * ({@code openapi/schema-contract.json}) полон: у каждой схемы пример и описания полей — фронтенд не спрашивает бэкендера форматы.
  * </p>
  */
 @DisplayName("OpenAPI: спека в prod отключена, авторизация и ошибки задокументированы")
@@ -47,6 +50,11 @@ class OpenApiDocumentationGuardTest {
     private static final Path PROD_PROPERTIES = Path.of("src", "main", "resources", "application-prod.properties");
 
     private static final Path MAIN_JAVA = Path.of("src", "main", "java");
+
+    private static final Path SCHEMA_CONTRACT = Path.of("src", "main", "resources", "openapi", "schema-contract.json");
+
+    /** Схемы фреймворка, не несущие смысла для клиента: в контракте быть не должно (ловим утечки из DTO/контроллеров). */
+    private static final Set<String> FORBIDDEN_CONTRACT_SCHEMAS = Set.of("StreamingResponseBody", "SseEmitter");
 
     /** Обработчик ResponseStatusException произвольно транслирует статусы фреймворка — его коды не фиксируются. */
     private static final Set<String> DYNAMIC_HANDLERS = Set.of("handleResponseStatusException");
@@ -146,6 +154,53 @@ class OpenApiDocumentationGuardTest {
             }
         }
         assertThat(violations).as("расхождения кода возврата и кода в спеке").isEmpty();
+    }
+
+    @Test
+    @DisplayName("Контракт схем полон: у каждой схемы пример и описания полей, схемы фреймворка не описаны")
+    void schemaContractIsComplete() throws IOException {
+        JsonNode root = new ObjectMapper().readTree(SCHEMA_CONTRACT.toFile());
+        assertThat(root.isObject()).as("контракт — JSON-объект").isTrue();
+
+        List<String> violations = new ArrayList<>();
+        int schemas = 0;
+        for (Map.Entry<String, JsonNode> entry : root.properties()) {
+            String name = entry.getKey();
+            if (name.startsWith("_")) {
+                continue;
+            }
+            schemas++;
+            if (FORBIDDEN_CONTRACT_SCHEMAS.contains(name)) {
+                violations.add("схема фреймворка %s в контракте".formatted(name));
+                continue;
+            }
+            JsonNode node = entry.getValue();
+            if (isBlank(node, "description")) {
+                violations.add("%s: нет description схемы".formatted(name));
+            }
+            JsonNode example = node.get("example");
+            if (example == null || !example.isObject() || example.isEmpty()) {
+                violations.add("%s: нет примера (example-объект)".formatted(name));
+            }
+            JsonNode fields = node.get("fields");
+            if (fields == null || !fields.isObject() || fields.isEmpty()) {
+                violations.add("%s: нет описаний полей".formatted(name));
+                continue;
+            }
+            for (Map.Entry<String, JsonNode> field : fields.properties()) {
+                if (field.getValue() == null || field.getValue().asText().isBlank()) {
+                    violations.add("%s.%s: пустое описание".formatted(name, field.getKey()));
+                }
+            }
+        }
+
+        assertThat(schemas).as("схем в контракте").isGreaterThanOrEqualTo(50);
+        assertThat(violations).as("неполнота контракта спеки").isEmpty();
+    }
+
+    private static boolean isBlank(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.asText().isBlank();
     }
 
     private static List<Path> controllerFiles() throws IOException {
