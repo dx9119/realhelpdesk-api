@@ -33,6 +33,7 @@ import com.ukhanov.realhelpdesk.feature.ticketmanager.dto.TicketStatusRequest;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.service.TicketManageService;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -44,6 +45,7 @@ public class TicketController {
 
     @PostMapping("/{portalId}/tickets")
     @PreAuthorize("@accessValidationService.hasPortalAccess(#portalId)")
+    @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<CreateTicketResponse> createTicketForPortal(@Valid @RequestBody CreateTicketRequest request,
             @PathVariable Long portalId) throws TicketException, PortalException, MessagingException, UnsupportedEncodingException {
         CreateTicketResponse response = ticketManageService.createTicket(request, portalId);
@@ -87,6 +89,7 @@ public class TicketController {
 
     @PreAuthorize("@ticketAccessValidationService.hasTicketChange(#portalId, #ticketId)")
     @PutMapping("/{portalId}/tickets/{ticketId}/status")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> setTicketStatus(@PathVariable Long portalId, @PathVariable Long ticketId,
             @Valid @RequestBody TicketStatusRequest request)
             throws TicketException, PortalException, MessagingException, UnsupportedEncodingException {
@@ -96,6 +99,7 @@ public class TicketController {
 
     @PreAuthorize("@ticketAccessValidationService.hasTicketChange(#portalId, #ticketId)")
     @PutMapping("/{portalId}/tickets/{ticketId}/priority")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> setTicketPriority(@PathVariable Long portalId, @PathVariable Long ticketId,
             @Valid @RequestBody TicketPriorityRequest request)
             throws TicketException, PortalException, MessagingException, UnsupportedEncodingException {
@@ -105,6 +109,7 @@ public class TicketController {
 
     @PreAuthorize("@ticketAccessValidationService.hasTicketChange(#portalId, #ticketId)")
     @DeleteMapping("/{portalId}/tickets/{ticketId}")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> deleteTicket(@PathVariable Long portalId, @PathVariable Long ticketId)
             throws TicketException, PortalException, MessagingException, UnsupportedEncodingException {
         ticketManageService.deleteTicket(ticketId, portalId);

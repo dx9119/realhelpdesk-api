@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ukhanov.realhelpdesk.core.security.ratelimit.service.RateLimitService;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +31,7 @@ public class DevOpsController {
     private final RateLimitService rateLimitService;
 
     @PostMapping("/ratelimit-reset")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> resetRateLimits() {
         rateLimitService.reset();
         logger.info("Rate-limit бакеты сброшены (dev-эндпоинт)");

@@ -28,6 +28,7 @@ import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoResponse;
 import com.ukhanov.realhelpdesk.feature.usermanager.exception.UserManageException;
 import com.ukhanov.realhelpdesk.feature.usermanager.service.UserManageService;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -71,6 +72,7 @@ public class UserController {
      */
     @PostMapping("/password-resets")
     @RateLimit(key = "password-reset-request")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody RecoveryRequest request)
             throws MessagingException, UnsupportedEncodingException {
         userManageService.sendResetLink(request);
@@ -80,6 +82,7 @@ public class UserController {
 
     @PutMapping("/password-resets/{code}")
     @RateLimit(key = "password-reset-confirm")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> resetPassword(@PathVariable Long code, @Valid @RequestBody NewPasswdRequest request) throws TokenException {
         userManageService.setNewPasswd(code, request);
 

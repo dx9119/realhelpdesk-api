@@ -39,6 +39,8 @@ import com.ukhanov.realhelpdesk.feature.attachmentmanager.service.AttachmentMana
 import com.ukhanov.realhelpdesk.feature.messagemanager.exception.MessageException;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -82,6 +84,7 @@ public class AttachmentController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
+    @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<AttachmentResponse> uploadAttachment(@Valid @ModelAttribute UploadAttachmentRequest form,
             @RequestParam("file") MultipartFile file, @PathVariable Long portalId, @PathVariable Long ticketId)
             throws AttachmentException, TicketException, MessageException, MessagingException, UnsupportedEncodingException {
@@ -100,6 +103,9 @@ public class AttachmentController {
     /** Отдаёт файл потоком: без буферизации в памяти приложения и без presigned-URL — доступ всегда через JWT-cookie. */
     @GetMapping("/{attachmentId}")
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
+    @ApiResponse(responseCode = "200", description = "Файл целиком")
+    @ApiResponse(responseCode = "206", description = "Часть файла (Range)")
+    @ApiResponse(responseCode = "416", description = "Диапазон не может быть удовлетворён (Range)", content = @Content())
     public ResponseEntity<StreamingResponseBody> downloadAttachment(@PathVariable Long portalId, @PathVariable Long ticketId,
             @PathVariable Long attachmentId, @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
             @RequestHeader(value = HttpHeaders.IF_RANGE, required = false) String ifRange) throws AttachmentException {

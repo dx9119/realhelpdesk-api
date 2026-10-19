@@ -25,6 +25,7 @@ import com.ukhanov.realhelpdesk.feature.messagemanager.service.MessageManageServ
 import com.ukhanov.realhelpdesk.feature.portalmanager.exception.PortalException;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -36,6 +37,7 @@ public class MessageController {
 
     @PostMapping
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
+    @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<CreateMessageResponse> createMessage(@Valid @RequestBody CreateMessageRequest request,
             @PathVariable Long portalId, @PathVariable Long ticketId)
             throws MessageException, MessagingException, TicketException, UnsupportedEncodingException {

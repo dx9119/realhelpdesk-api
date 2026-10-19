@@ -29,6 +29,7 @@ import com.ukhanov.realhelpdesk.feature.portalmanager.exception.PortalException;
 import com.ukhanov.realhelpdesk.feature.portalmanager.service.PortalManageService;
 import com.ukhanov.realhelpdesk.feature.portalmanager.service.PortalOwnerTransferService;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -46,6 +47,7 @@ public class PortalTransferController {
     @PreAuthorize("@accessValidationService.hasPortalOwner(#portalId)")
     @RateLimit(key = "portal-transfer-request")
     @PostMapping("/{portalId}/owner-transfer")
+    @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<PortalTransferResponse> initiate(@PathVariable @NotNull Long portalId,
             @Valid @RequestBody PortalTransferRequest request) throws PortalException, LimitException {
         PortalTransferResponse response = transferService.initiate(portalId, request);

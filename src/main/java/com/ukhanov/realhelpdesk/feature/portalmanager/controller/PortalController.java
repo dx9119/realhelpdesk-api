@@ -43,6 +43,7 @@ import com.ukhanov.realhelpdesk.feature.portalmanager.exception.PortalException;
 import com.ukhanov.realhelpdesk.feature.portalmanager.service.PortalManageService;
 import com.ukhanov.realhelpdesk.feature.usermanager.exception.UserManageException;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -61,6 +62,7 @@ public class PortalController {
     private final PortalManageService portalManageService;
 
     @PostMapping
+    @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<CreatePortalResponse> createPortal(@Valid @RequestBody CreatePortalRequest createPortalRequest)
             throws PortalException, LimitException, UserManageException, MessagingException, UnsupportedEncodingException {
         CreatePortalResponse response = portalManageService.createPortal(createPortalRequest);
@@ -129,6 +131,7 @@ public class PortalController {
     /** Флаг видимости — команда, поэтому 204 без тела (см. docs/api.md, раздел о кодах). */
     @PreAuthorize("@accessValidationService.hasPortalOwner(#portalId)")
     @PutMapping("/{portalId}/settings/visibility")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> setPortalVisibility(@PathVariable @NotNull Long portalId,
             @Valid @RequestBody PortalVisibilityRequest request) throws PortalException {
         portalManageService.setPortalStatus(portalId, request.isPublic());

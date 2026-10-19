@@ -40,6 +40,7 @@ import com.ukhanov.realhelpdesk.core.security.localjwt.config.JwtProperties;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.annotation.RateLimit;
 import com.ukhanov.realhelpdesk.feature.usermanager.service.UserManageService;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -70,6 +71,7 @@ public class AuthController {
 
     @PostMapping("/register")
     @RateLimit(key = "auth-register")
+    @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<Void> registration(@Valid @RequestBody RegisterRequest registerRequest, HttpServletRequest httpRequest)
             throws RegistrationException, MessagingException, EmailAccessDeniedException, CaptchaException, UnsupportedEncodingException {
 
@@ -117,6 +119,7 @@ public class AuthController {
 
     // удаляем куки если пользователь хочет завершить сессию
     @DeleteMapping("/session")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> logout(HttpServletRequest request) throws TokenException, LogoutException {
 
         logoutService.processLogout(request);

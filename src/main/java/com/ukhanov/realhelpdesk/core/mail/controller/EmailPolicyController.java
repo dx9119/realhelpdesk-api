@@ -25,6 +25,7 @@ import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaSe
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaTokenService;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.annotation.RateLimit;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -38,6 +39,7 @@ public class EmailPolicyController {
     private final ClientIpResolver clientIpResolver;
 
     @PostMapping("/confirmations/{token}")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> confirmEmail(@PathVariable Long token) throws EmailAccessDeniedException {
         emailDeliveryService.confirmEmail(token);
         return ResponseEntity.noContent().build();
@@ -50,6 +52,7 @@ public class EmailPolicyController {
     }
 
     @DeleteMapping("/notifications/{event}")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> stopNotifications(@PathVariable NotificationEvent event) {
         emailPolicyService.addToStopList(event);
         return ResponseEntity.noContent().build();
@@ -57,6 +60,7 @@ public class EmailPolicyController {
 
     @PostMapping("/codes")
     @RateLimit(key = "email-code")
+    @ApiResponse(responseCode = "202", description = "Принято в обработку")
     public ResponseEntity<Void> sendConfirmCode(@RequestHeader(value = "X-Captcha-Token", required = false) String captchaToken,
             HttpServletRequest httpRequest) throws MessagingException, CaptchaException, UnsupportedEncodingException {
         captchaService.verify(captchaToken, CaptchaTokenService.ACTION_EMAIL_CODE, clientIpResolver.resolve(httpRequest));

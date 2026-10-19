@@ -29,6 +29,7 @@ import com.ukhanov.realhelpdesk.feature.notificationmanager.dto.UnreadCountRespo
 import com.ukhanov.realhelpdesk.feature.notificationmanager.exception.NotificationException;
 import com.ukhanov.realhelpdesk.feature.notificationmanager.service.NotificationManageService;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -81,12 +82,14 @@ public class NotificationController {
     }
 
     @PutMapping("/{id}/read")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> markRead(@PathVariable Long id) throws NotificationException {
         notificationManageService.markRead(id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/read-all")
+    @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> markAllRead() {
         notificationManageService.markAllRead();
         return ResponseEntity.noContent().build();
