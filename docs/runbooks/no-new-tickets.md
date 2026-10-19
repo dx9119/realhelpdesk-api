@@ -17,9 +17,10 @@
    `up == 1`? Если API мёртв — это уже AppUnreachable, а не этот алерт.
 2. **Фронтенд/шлюз**: проверить, что UI отдаётся, CDN/инверсия не в 5xx.
    Частая причина — фронт задеплоен с поломанным сабмитом формы.
-3. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=rate(tickets_created_total[5m])`
-   — «Заявки создано /мин» — как давно упала скорость;
-   `rate(http_server_requests_seconds_count{uri=~"/tickets.*",method="POST"}[5m])` —
+3. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=rate(tickets_total[5m])'`
+   — «Заявки создано /мин» — как давно упала скорость (имя счётчика `tickets_total`, не
+   `tickets_created_total`; серия появляется после первой заявки после старта — см. metrics.md);
+   `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=rate(http_server_requests_seconds_count{uri=~"/tickets.*",method="POST"}[5m])'` —
    ушёл ли POST /tickets (если GET есть, а POST нет — авторизация/валидация).
 4. **Логи**: `{...="app"} |= "POST" |= "tickets"` — доходят ли запросы, какие ответы.
 5. **Ложные срабатывания**: ночная/праздничная тишина в часовом поясе, отсутствие

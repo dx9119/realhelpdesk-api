@@ -9,7 +9,7 @@
 | Сигнал | Что | Куда | Доступ |
 |---|---|---|---|
 | Метрики | Micrometer → `/actuator/prometheus` (management-порт 8081, HTTP Basic) | Mimir | `curl -u … localhost:9090/prometheus` |
-| Трейсы | Micrometer Tracing (OTel-мост) → OTLP → Collector → Tempo | Tempo | `curl -s localhost:3200/traceql/search` (TraceQL) |
+| Трейсы | Micrometer Tracing (OTel-мост) → OTLP → Collector → Tempo | Tempo | `curl -s localhost:3200/api/traces/<traceId>`; поиск — `-G localhost:3200/api/search --data-urlencode q=… --data-urlencode start=… --data-urlencode end=…` (TraceQL) |
 | Логи | Logback-паттерн с `traceId`/`spanId` → stdout → Alloy → Loki | Loki | `curl -s localhost:3100/loki/api/v1/query` (LogQL) |
 
 Приложение не зависит от стека: без `obs-up` экспорта трейсов нет (соединение отклоняется), метрики
@@ -64,8 +64,11 @@
 ## Как отлаживать по traceId
 
 1. Возьмите `traceId` (32 hex) из строки лога: колонки `… | <traceId> | <spanId> | <logger> | <msg>`.
-2. **Трейсы** — `curl -s localhost:3200/traceql/search` (TraceQL): вставить traceId → waterfall спанов.
-3. Или **Логи** — `curl -s "localhost:3100/loki/api/v1/query?query={container_label_com_docker_compose_service=\"app\"} |= \"<traceId>\""` →
+2. **Трейсы** — `curl -s localhost:3200/api/traces/<traceId>` → JSON со спанами (waterfall).
+   Поиск по признакам: `curl -s -G localhost:3200/api/search --data-urlencode 'q={ name =~ "http .*" }'
+   --data-urlencode "start=$(( $(date +%s) - 3600 ))" --data-urlencode "end=$(date +%s)" --data-urlencode 'limit=20'` — окно `start`/`end`
+   обязательно: без него Tempo ищет только в живом ingester, дисковые блоки не попадают в выдачу.
+3. Или **Логи** — `curl -s -G localhost:3100/loki/api/v1/query_range --data-urlencode 'query={container_label_com_docker_compose_service="app"} |= "<traceId>"' --data-urlencode 'limit=20'` →
    ссылка **TraceID** в колонке слева → переход к трейсу.
 4. Из трейса — «Logs for this span» (tracesToLogs настроен на тот же traceId).
 
@@ -113,7 +116,7 @@ curl -s localhost:9090/prometheus/api/v1/alerts
   8 алертов, 8 runbooks, 3 SLO.
 - Тесты: `HttpObservabilityTest`, `DbObservabilityTest`, `ObservabilityConfigurationTest`,
   `ActuatorSecurityTest`, `LogCorrelationAndMaskingTest`, `ObservabilityContextTest`,
-  `TracingSmokeIT`; всего 569 (`mvn verify`), юнит-часть — 544 (`mvn test`).
+  `ObservabilityRunbookGuardTest`, `TracingSmokeIT`; всего 675 (`mvn verify`), юнит-часть — 634 (`mvn test`).
 - Финальные испытания на живом стеке: load-smoke k6 (317 запросов, 100% checks, все пороги
   в допуске), бизнес-метрики в Mimir (Prometheus-совместимый API) после трафика, сквозная цепочка
   лог → Loki → Tempo по traceId (6 спанов на запрос), 8/8 правил алертов загружены.
@@ -123,7 +126,7 @@ curl -s localhost:9090/prometheus/api/v1/alerts
 - **Exemplars** — переход «метрика → конкретный trace» идёт через Tempo serviceMap и логи.
 - **Tail sampling** — включён как прод-пример (`otel-collector/config-prod.yaml`), локально
   probability-сэмплинг.
-- **JSON-логи** — сохранён текстовый паттерн (Loki парсит его regex-ом в derived-поле).
+- **JSON-логи** — внедрены для всех профилей кроме `dev` (`StructuredLogEncoder`, ECS); dev-стек (его скрейпит Alloy) остаётся на читаемом текстовом паттерне с колонками `traceId`/`spanId`.
 - **Профилирование** (JFR/async-profiler) и **burn-rate алерты по SLO** — не внедрялись.
 
 ### Известные ограничения (совместимость с Boot 4)

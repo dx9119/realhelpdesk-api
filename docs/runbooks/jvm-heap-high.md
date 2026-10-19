@@ -10,7 +10,7 @@ Heap почти заполнен. Дальше — частые Full GC (лат�
 
 ## Диагностика
 
-1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=jvm_memory_used_bytes{area="heap"}`
+1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=jvm_memory_used_bytes{area="heap"}'`
    — «JVM heap» (used vs max), `rate(jvm_gc_pause_seconds_sum[1m])` —
    растёт ли frequency/длительность GC-пауз.
 2. **Логи**: `OutOfMemoryError`, «GC overhead limit exceeded», частые Full GC.

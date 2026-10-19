@@ -10,12 +10,14 @@
 
 ## Диагностика
 
-1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=rate(http_server_requests_seconds_count{status=~"5.."}[5m])`
+1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=rate(http_server_requests_seconds_count{status=~"5.."}[5m])'`
    — локализуйте uri с ошибками.
-2. **Логи** (`make logs` или `curl -s "localhost:3100/loki/api/v1/query?query={container_label_com_docker_compose_service=\"app\"} |= \"ERROR\""`):
+2. **Логи** (`make logs` или
+   `curl -s -G localhost:3100/loki/api/v1/query_range --data-urlencode 'query={container_label_com_docker_compose_service="app"} |= "ERROR"' --data-urlencode 'limit=20'`):
    ищите `exception` (NPE, constraint violation, таймаут БД/MinIO/SMTP).
-3. **Трейсы** (`curl -s localhost:3200/traceql/search`): спаны с `status:error` —
-   видно, на каком слое (repository/service/http) падает запрос.
+3. **Трейсы** (`curl -s -G localhost:3200/api/search --data-urlencode 'q={ status = error }' --data-urlencode "start=$(( $(date +%s) - 3600 ))" --data-urlencode "end=$(date +%s)" --data-urlencode 'limit=20'` —
+   окно `start`/`end` обязательно, без него Tempo ищет только в живом ingester):
+   спаны с `status = error` — видно, на каком слое (repository/service/http) падает запрос.
 4. **Зависимости**: `jdbc_connections_active` (БД), health-группа `/actuator/health/smtp`
    (почта), `/actuator/health/minio` (хранилище). Логи Alloy: таймауты connect.
 5. **Корреляция**: если ошибки совпали с деплоем/перезапуском — почти наверняка регрессия.

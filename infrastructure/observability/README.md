@@ -38,7 +38,7 @@ curl -s 'localhost:9090/prometheus/api/v1/targets' | head -c 400
 curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode \
   'query=rate(http_server_requests_seconds_count[5m])'
 # трейс по traceId
-curl -s "localhost:3200/api/trace/$TRACE_ID"
+curl -s "localhost:3200/api/traces/$TRACE_ID"
 # логи приложения (LogQL)
 curl -s -G http://localhost:3100/loki/api/v1/query_range --data-urlencode \
   'query={container_label_com_docker_compose_service="app"}' | head -c 400
@@ -85,13 +85,13 @@ curl -s localhost:9090/prometheus/api/v1/alerts
 
 ```
 приложение ──OTLP (traces)──▶ otel-collector ──▶ tempo
-приложение ──stdout json──▶ alloy ──▶ loki
+приложение ──stdout (docker json-file; dev-стек — текстовый паттерн logback)──▶ alloy ──▶ loki
 приложение ──HTTP Basic (метрики, management-порт 8081)──▶ alloy ──remote_write──▶ mimir
 запросы     ──PromQL──▶ mimir:9090/prometheus │ TraceQL──▶ tempo:3200 │ LogQL──▶ loki:3100
 ```
 
-Без наблюдаемости (обычный `make up`) endpoint — `localhost:4317` (дефолт
-compose-интерполяции), экспорта трейсов нет (соединение отклоняется, приложение
+Без наблюдаемости (обычный `make up`) endpoint — `localhost:4318/v1/traces` (дефолт
+compose-интерполяции, HTTP OTLP), экспорта трейсов нет (соединение отклоняется, приложение
 работает). `make obs-up` и `make up-load`/`make load-smoke` передают
 `OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces` инлайном, поэтому
 в комбинации «obs + load» endpoint'ы совпадают — экспорт трейсов не ломается
@@ -102,10 +102,13 @@ compose-интерполяции), экспорта трейсов нет (со�
 
 1. Возьмите `traceId` (32 hex) из строки лога приложения: колонка после `role`
    (`… | INFO | … | <traceId> | <spanId> | <logger> | <msg>`); там же его отдаёт `make logs`.
-2. Запросите трейс в Tempo: `curl -s "localhost:3200/api/trace/$TRACE_ID"` —
+2. Запросите трейс в Tempo: `curl -s "localhost:3200/api/traces/$TRACE_ID"` —
    JSON со списком спанов (operational name, duration, теги ресурса).
-3. Поиск по признакам — TraceQL: `curl -s -G localhost:3200/traceql/search
-   --data-urlencode 'q={ .http.status_code >= 500 }' --data-urlencode 'limit=20'`.
+3. Поиск по признакам — TraceQL (обязательны `start`/`end`: без окна Tempo
+   ищет только в живом ingester, блоки на диске не попадают в выдачу):
+   `curl -s -G localhost:3200/api/search --data-urlencode 'q={ .http.status_code >= 500 }'
+   --data-urlencode "start=$(( $(date +%s) - 3600 ))" --data-urlencode "end=$(date +%s)"
+   --data-urlencode 'limit=20'`.
 4. Логи того же запроса: LogQL `|~ "<traceId>"` (пример выше) — связка
    лог ↔ трейс держится на одном traceId, отдельного хранилища связей нет.
 
@@ -127,8 +130,9 @@ compose-интерполяции), экспорта трейсов нет (со�
 - **Exemplars не включены**: для `percentiles-histogram` в Micrometer exemplars требуют
   OpenTelemetry-трейсинг в том же потоке; переход с метрики на конкретный trace работает через
   Tempo serviceMap и логи, а не через exemplars.
-- **Loki парсит текстовые логи** (паттерн `logback-spring.xml`, а не JSON): traceId попадает
-  в вывод колонкой лога и ищется подстрокой в LogQL; при смене паттерна логов поправьте
+- **Loki парсит логи dev-стека как текст** (профиль `dev` — паттерн `logback-spring.xml`, а не JSON): traceId попадает
+  в вывод колонкой лога и ищется подстрокой в LogQL. В профилях кроме `dev` (рабочий контур) приложение пишет
+  ECS JSON через `StructuredLogEncoder`; при смене формата на JSON для Alloy поправьте
   `alloy/config.alloy` и примеры запросов в этой документации.
 - **Alloy ходит в docker.sock от root** — локальный dev-стенд; в проде заменить на Alloy с
   read-only сокетом и без root.

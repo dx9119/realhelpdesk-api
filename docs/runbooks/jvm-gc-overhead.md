@@ -10,7 +10,7 @@
 
 ## Диагностика
 
-1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=rate(jvm_gc_pause_seconds_sum[1m])`
+1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=rate(jvm_gc_pause_seconds_sum[1m])'`
    — «GC паузы» (сек/сек, пауз/с), `jvm_memory_used_bytes{area="heap"}` —
    виден ритм аллокаций vs утечка (used растёт между GC → утечка; пила → интенсивные аллокации).
 2. **Тип GC**: в проде G1/ZGC — логи контейнера при старте («Using G1»).

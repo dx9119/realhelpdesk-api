@@ -10,7 +10,7 @@
 
 ## Диагностика
 
-1. **Метрики Mimir**: `curl -s localhost:9090/prometheus/api/v1/query?query=rate(auth_attempts_total[5m])`
+1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=rate(auth_attempts_total[5m])'`
    — `type` (login/refresh): всплеск login
    — внешний перебор; refresh — сломанный клиент/интеграция.
 2. **Логи** (без ПДн — email в логи не пишем): `{...="app"} |= "auth" |= "WARN"`
