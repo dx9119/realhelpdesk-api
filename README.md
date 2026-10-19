@@ -70,8 +70,11 @@ com.ukhanov.realhelpdesk
     ├── attachmentmanager, notificationmanager, usermanager
 ```
 
-Ошибки HTTP-слоя централизованно преобразуются в RFC 7807-подобные ответы
-через `GlobalExceptionHandler`.
+Ошибки HTTP-слоя централизованно преобразуются в ответы формата RFC 7807
+через `GlobalExceptionHandler`. Spring `ProblemDetail` формирует тело
+`application/problem+json` с полями `type`, `title`, `status`, `detail`,
+`instance`; `timestamp`, `errors` и машинный `code` провала капчи —
+extension-поля, которые RFC 7807 разрешает добавлять.
 
 ## Конфигурация
 
