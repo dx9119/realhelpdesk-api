@@ -2,16 +2,15 @@ package com.ukhanov.realhelpdesk.core.pagination.service;
 
 import java.util.Set;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
 import com.ukhanov.realhelpdesk.core.pagination.exception.PaginationException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PaginationAdapterTest {
 
@@ -20,39 +19,50 @@ class PaginationAdapterTest {
     private final PaginationAdapter adapter = new PaginationAdapter();
 
     @Test
-    void allowedField_appliedToSorting() {
+    @DisplayName("Разрешённое поле сортировки применяется к PageRequest")
+    void buildPageRequest_allowedField_appliesSorting() {
+        // given / when
         PageRequest request = adapter.buildPageRequest(1, 20, "title", "desc", ALLOWED_FIELDS);
 
-        assertEquals(1, request.getPageNumber());
-        assertEquals(20, request.getPageSize());
-        assertNotNull(request.getSort().getOrderFor("title"));
-        assertEquals(Sort.Direction.DESC, request.getSort().getOrderFor("title").getDirection());
+        // then
+        assertThat(request.getPageNumber()).isEqualTo(1);
+        assertThat(request.getPageSize()).isEqualTo(20);
+        assertThat(request.getSort().getOrderFor("title")).isNotNull();
+        assertThat(request.getSort().getOrderFor("title").getDirection()).isEqualTo(Sort.Direction.DESC);
     }
 
     @Test
-    void ascOrder_whenDescNotSpecified() {
+    @DisplayName("Направление asc — сортировка по возрастанию")
+    void buildPageRequest_directionAsc_sortsAscending() {
+        // given / when
         PageRequest request = adapter.buildPageRequest(0, 10, "createdAt", "asc", ALLOWED_FIELDS);
 
-        assertEquals(Sort.Direction.ASC, request.getSort().getOrderFor("createdAt").getDirection());
+        // then
+        assertThat(request.getSort().getOrderFor("createdAt").getDirection()).isEqualTo(Sort.Direction.ASC);
     }
 
     @Test
-    void unknownField_throwsPaginationException() {
-        PaginationException ex = assertThrows(PaginationException.class,
-                () -> adapter.buildPageRequest(0, 10, "constructor", "asc", ALLOWED_FIELDS));
-
-        assertTrue(ex.getMessage().contains("\"constructor\""));
-        assertTrue(ex.getMessage().contains("createdAt"));
-        assertTrue(ex.getMessage().contains("ticketStatus"));
+    @DisplayName("Неизвестное поле сортировки → PaginationException с перечнем разрешённых полей")
+    void buildPageRequest_unknownField_throwsPaginationException() {
+        // given / when / then
+        assertThatThrownBy(() -> adapter.buildPageRequest(0, 10, "constructor", "asc", ALLOWED_FIELDS))
+                .isInstanceOf(PaginationException.class).hasMessageContaining("\"constructor\"").hasMessageContaining("createdAt")
+                .hasMessageContaining("ticketStatus");
     }
 
     @Test
-    void nestedPath_notPassed() {
-        assertThrows(PaginationException.class, () -> adapter.buildPageRequest(0, 10, "author.createdAt", "desc", ALLOWED_FIELDS));
+    @DisplayName("Вложенный путь в поле сортировки → PaginationException")
+    void buildPageRequest_nestedPath_throwsPaginationException() {
+        // given / when / then
+        assertThatThrownBy(() -> adapter.buildPageRequest(0, 10, "author.createdAt", "desc", ALLOWED_FIELDS))
+                .isInstanceOf(PaginationException.class);
     }
 
     @Test
-    void sqlInSortField_rejected() {
-        assertThrows(PaginationException.class, () -> adapter.buildPageRequest(0, 10, "title; DROP TABLE tickets", "asc", ALLOWED_FIELDS));
+    @DisplayName("SQL-вставка в поле сортировки → PaginationException")
+    void buildPageRequest_sqlInjectionInSortField_throwsPaginationException() {
+        // given / when / then
+        assertThatThrownBy(() -> adapter.buildPageRequest(0, 10, "title; DROP TABLE tickets", "asc", ALLOWED_FIELDS))
+                .isInstanceOf(PaginationException.class);
     }
 }

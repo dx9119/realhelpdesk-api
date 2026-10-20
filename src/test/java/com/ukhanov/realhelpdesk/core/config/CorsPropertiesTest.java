@@ -14,31 +14,45 @@ class CorsPropertiesTest {
 
     @Test
     @DisplayName("cors.allowed-origins биндится списком через запятую")
-    void bindsCommaSeparatedOrigins() {
+    void bind_commaSeparatedOrigins_returnsOriginList() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("cors.allowed-origins", "https://localhost.ru,https://example.com");
 
         CorsProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getAllowedOrigins()).containsExactly("https://localhost.ru", "https://example.com");
     }
 
     @Test
     @DisplayName("Лишние пробелы вокруг origin вычищаются — браузер сравнивает origin буквально")
-    void trimsWhitespaceAroundOrigins() {
+    void bind_originsWithWhitespace_returnsTrimmedOriginList() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("cors.allowed-origins", " https://localhost.ru , https://example.com ");
 
         CorsProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getAllowedOrigins()).containsExactly("https://localhost.ru", "https://example.com");
     }
 
     @Test
     @DisplayName("Без cors.* биндинг не срабатывает")
-    void emptyEnvironment_isNotBound() {
-        BindResult<CorsProperties> result = Binder.get(new MockEnvironment()).bind("cors", Bindable.of(CorsProperties.class));
+    void bind_noCorsProperties_isNotBound() {
 
+        // given
+        // when
+        MockEnvironment environment = new MockEnvironment();
+
+        BindResult<CorsProperties> result = Binder.get(environment).bind("cors", Bindable.of(CorsProperties.class));
+
+        // then
         assertThat(result.isBound()).isFalse();
     }
 

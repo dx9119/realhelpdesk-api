@@ -77,10 +77,14 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("upload → бакет существует → объект залит в него же")
     void upload_existingBucket_putsObjectIntoBucket() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
 
         storageService.upload(OBJECT_KEY, new ByteArrayInputStream(CONTENT), CONTENT.length, "application/pdf");
 
+        // then
         verify(mockMinioClient).putObject(putCaptor.capture());
         PutObjectArgs args = putCaptor.getValue();
         assertThat(args.bucket()).isEqualTo(BUCKET);
@@ -92,10 +96,14 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("upload → бакета нет → сначала создаётся бакет, затем объект")
     void upload_missingBucket_createsBucketFirst() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(false);
 
         storageService.upload(OBJECT_KEY, new ByteArrayInputStream(CONTENT), CONTENT.length, "text/plain");
 
+        // then
         verify(mockMinioClient).makeBucket(any(MakeBucketArgs.class));
         verify(mockMinioClient).putObject(any(PutObjectArgs.class));
     }
@@ -103,9 +111,13 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("upload → MinIO недоступен → StorageException 503, IOException наверх не уходит")
     void upload_clientFailure_wrapsIntoStorageException() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         doThrow(new IOException("connection refused")).when(mockMinioClient).putObject(any(PutObjectArgs.class));
 
+        // then
         assertThatThrownBy(() -> storageService.upload(OBJECT_KEY, new ByteArrayInputStream(CONTENT), CONTENT.length, "text/plain"))
                 .isInstanceOf(StorageException.class).hasMessageContaining("Не удалось сохранить файл");
     }
@@ -113,7 +125,13 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("upload → неположительный размер → IllegalArgumentException, в MinIO не ходим")
     void upload_nonPositiveSize_throwsIllegalArgumentException() throws Exception {
-        assertThatThrownBy(() -> storageService.upload(OBJECT_KEY, new ByteArrayInputStream(new byte[0]), 0, "text/plain"))
+
+        // given
+        // when
+        ByteArrayInputStream emptyContent = new ByteArrayInputStream(new byte[0]);
+
+        // then
+        assertThatThrownBy(() -> storageService.upload(OBJECT_KEY, emptyContent, 0, "text/plain"))
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(mockMinioClient, never()).putObject(any(PutObjectArgs.class));
@@ -126,9 +144,13 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("download → объект есть → возвращается поток из MinIO")
     void download_existingObject_returnsStream() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         when(mockMinioClient.getObject(any(GetObjectArgs.class))).thenReturn(getObjectResponse());
 
+        // then
         try (InputStream content = storageService.download(OBJECT_KEY)) {
             verify(mockMinioClient).getObject(getCaptor.capture());
             assertThat(getCaptor.getValue().bucket()).isEqualTo(BUCKET);
@@ -140,9 +162,13 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("download(смещение, длина) → в MinIO уходит запрос только на фрагмент [offset, offset+length)")
     void download_ranged_passesOffsetAndLength() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         when(mockMinioClient.getObject(any(GetObjectArgs.class))).thenReturn(getObjectResponse());
 
+        // then
         try (InputStream content = storageService.download(OBJECT_KEY, 5, 3)) {
             verify(mockMinioClient).getObject(getCaptor.capture());
             assertThat(getCaptor.getValue().offset()).isEqualTo(5L);
@@ -154,9 +180,13 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("download без диапазона → offset и length не задаются: читается весь объект")
     void download_fullObject_setsNoRangeArgs() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         when(mockMinioClient.getObject(any(GetObjectArgs.class))).thenReturn(getObjectResponse());
 
+        // then
         try (InputStream content = storageService.download(OBJECT_KEY)) {
             verify(mockMinioClient).getObject(getCaptor.capture());
             assertThat(getCaptor.getValue().offset()).isNull();
@@ -168,6 +198,8 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("download с отрицательным смещением → IllegalArgumentException, в MinIO не ходим")
     void download_negativeOffset_throwsIllegalArgumentException() throws Exception {
+
+        // given / when / then
         assertThatThrownBy(() -> storageService.download(OBJECT_KEY, -1, 5)).isInstanceOf(IllegalArgumentException.class);
 
         verify(mockMinioClient, never()).getObject(any(GetObjectArgs.class));
@@ -176,22 +208,30 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("download → объекта нет (NoSuchKey) → StorageException со статусом 404")
     void download_missingObject_throwsNotFound() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         when(mockMinioClient.getObject(any(GetObjectArgs.class))).thenThrow(errorResponse("NoSuchKey"));
 
-        StorageException exception = catchThrowableOfType(() -> storageService.download(OBJECT_KEY), StorageException.class);
+        StorageException exception = catchThrowableOfType(StorageException.class, () -> storageService.download(OBJECT_KEY));
 
+        // then
         assertThat(exception.getStatus().value()).isEqualTo(404);
     }
 
     @Test
     @DisplayName("download → прочая ошибка MinIO → StorageException 503")
     void download_clientFailure_throwsServiceUnavailable() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         when(mockMinioClient.getObject(any(GetObjectArgs.class))).thenThrow(errorResponse("InternalError"));
 
-        StorageException exception = catchThrowableOfType(() -> storageService.download(OBJECT_KEY), StorageException.class);
+        StorageException exception = catchThrowableOfType(StorageException.class, () -> storageService.download(OBJECT_KEY));
 
+        // then
         assertThat(exception.getStatus().value()).isEqualTo(503);
     }
 
@@ -201,11 +241,15 @@ class MinioStorageServiceTest {
 
     @Test
     @DisplayName("delete → ошибка MinIO не всплывает: удаление best-effort для отката загрузки")
-    void delete_failureIsSwallowed() throws Exception {
+    void delete_clientFailure_isSwallowed() throws Exception {
+
+        // given
+        // when
         doThrow(new IOException("gone")).when(mockMinioClient).removeObject(any(RemoveObjectArgs.class));
 
         storageService.delete(OBJECT_KEY);
 
+        // then
         verify(mockMinioClient).removeObject(removeCaptor.capture());
         assertThat(removeCaptor.getValue().bucket()).isEqualTo(BUCKET);
         assertThat(removeCaptor.getValue().object()).isEqualTo(OBJECT_KEY);
@@ -214,28 +258,40 @@ class MinioStorageServiceTest {
     @Test
     @DisplayName("delete → null-ключ → тихо выходим, в MinIO не ходим")
     void delete_nullKey_doesNothing() throws Exception {
+
+        // given
+        // when
         storageService.delete(null);
 
+        // then
         verify(mockMinioClient, never()).removeObject(any(RemoveObjectArgs.class));
     }
 
     @Test
     @DisplayName("ensureBucket → бакет уже готов → вторая проверка не выполняется")
-    void ensureBucket_checkedOnlyOnce() throws Exception {
+    void ensureBucket_existingBucket_checksOnlyOnce() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
 
         storageService.ensureBucket();
         storageService.ensureBucket();
 
+        // then
         verify(mockMinioClient).bucketExists(bucketCaptor.capture());
         assertThat(bucketCaptor.getValue().bucket()).isEqualTo(BUCKET);
     }
 
     @Test
     @DisplayName("ensureBucket → нет доступа → StorageException, приложение на месте не валится")
-    void ensureBucket_failure_throwsStorageException() throws Exception {
+    void ensureBucket_clientFailure_throwsStorageException() throws Exception {
+
+        // given
+        // when
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenThrow(new IOException("unauthorized"));
 
+        // then
         assertThatThrownBy(() -> storageService.ensureBucket()).isInstanceOf(StorageException.class).hasMessageContaining("не подготовлен");
     }
 

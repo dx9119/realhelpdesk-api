@@ -25,151 +25,253 @@ class EmailTemplatesTest {
 
     @Test
     @DisplayName("Подтверждение регистрации: тема и код в теле письма")
-    void registrationLink_containsTokenAndConfirmUrl() {
-        assertThat(emailTemplates.registrationLinkSubject()).isEqualTo("Подтверждение регистрации");
+    void registrationLink_code_returnsSubjectAndBodyWithCode() {
 
-        String body = emailTemplates.registrationLinkBody("123456");
-        assertThat(body).contains("123456").contains("https://" + EmailTemplatesFixture.DOMAIN + "/notify-settings")
+        // given
+        String code = "123456";
+
+        // when
+        String subject = emailTemplates.registrationLinkSubject();
+        String body = emailTemplates.registrationLinkBody(code);
+
+        // then
+        assertThat(subject).isEqualTo("Подтверждение регистрации");
+        assertThat(body).contains(code).contains("https://" + EmailTemplatesFixture.DOMAIN + "/notify-settings")
                 .contains(EmailTemplatesFixture.PROJECT_NAME);
     }
 
     @Test
     @DisplayName("Код подтверждения: тема и код в теле письма")
-    void registrationCode_containsCodeAndConfirmUrl() {
-        assertThat(emailTemplates.registrationCodeSubject()).isEqualTo("Код подтверждения");
+    void registrationCode_code_returnsSubjectAndBodyWithCode() {
 
-        String body = emailTemplates.registrationCodeBody("654321");
-        assertThat(body).contains("654321").contains("https://" + EmailTemplatesFixture.DOMAIN + "/notify-settings");
+        // given
+        String code = "654321";
+
+        // when
+        String subject = emailTemplates.registrationCodeSubject();
+        String body = emailTemplates.registrationCodeBody(code);
+
+        // then
+        assertThat(subject).isEqualTo("Код подтверждения");
+        assertThat(body).contains(code).contains("https://" + EmailTemplatesFixture.DOMAIN + "/notify-settings");
     }
 
     @Test
     @DisplayName("Сброс пароля: ссылка на форму со сбросом содержит код")
-    void passwordReset_containsResetLinkWithCode() {
-        assertThat(emailTemplates.passwordResetSubject()).isEqualTo("Сброс пароля");
+    void passwordReset_code_returnsSubjectAndBodyWithResetLink() {
 
-        String body = emailTemplates.passwordResetBody("999888");
-        assertThat(body).contains("https://" + EmailTemplatesFixture.DOMAIN + "/pass-reset?code=999888")
+        // given
+        String code = "999888";
+
+        // when
+        String subject = emailTemplates.passwordResetSubject();
+        String body = emailTemplates.passwordResetBody(code);
+
+        // then
+        assertThat(subject).isEqualTo("Сброс пароля");
+        assertThat(body).contains("https://" + EmailTemplatesFixture.DOMAIN + "/pass-reset?code=" + code)
                 .contains("проигнорируйте это письмо");
     }
 
     @Test
     @DisplayName("Новое сообщение в заявке: тема и ссылка на заявку")
-    void ticketReply_containsSubjectAndTicketLink() {
-        assertThat(emailTemplates.ticketReplySubject(TICKET_ID)).isEqualTo("[Заявка#77] Новое сообщение");
+    void ticketReply_knownTicket_returnsSubjectAndLink() {
 
+        // given
+        // when
+        String expectedLink = ticketLink();
+
+        String subject = emailTemplates.ticketReplySubject(TICKET_ID);
         String body = emailTemplates.ticketReplyBody(TICKET_ID, PORTAL_ID);
-        assertThat(body).contains("В заявке #77 появилось новое сообщение").contains(ticketLink());
+
+        // then
+        assertThat(subject).isEqualTo("[Заявка#77] Новое сообщение");
+        assertThat(body).contains("В заявке #77 появилось новое сообщение").contains(expectedLink);
     }
 
     @Test
     @DisplayName("Созданная заявка: тема и ссылка на заявку")
-    void ticketCreated_containsSubjectAndTicketLink() {
-        assertThat(emailTemplates.ticketCreatedSubject(TICKET_ID)).isEqualTo("Создана новая заявка #77");
+    void ticketCreated_knownTicket_returnsSubjectAndLink() {
 
+        // given
+        // when
+        String expectedLink = ticketLink();
+
+        String subject = emailTemplates.ticketCreatedSubject(TICKET_ID);
         String body = emailTemplates.ticketCreatedBody(TICKET_ID, PORTAL_ID);
-        assertThat(body).contains("Создана заявка #77").contains(ticketLink());
+
+        // then
+        assertThat(subject).isEqualTo("Создана новая заявка #77");
+        assertThat(body).contains("Создана заявка #77").contains(expectedLink);
     }
 
     @Test
     @DisplayName("Ссылки на заявку одинаковы во всех шаблонах: /portal/{portalId}/ticket/{ticketId}")
-    void ticketLinks_areConsistentAcrossTemplates() {
-        String link = ticketLink();
+    void ticketBodies_knownTicket_shareSameLink() {
 
-        assertThat(emailTemplates.ticketCreatedBody(TICKET_ID, PORTAL_ID)).contains(link);
-        assertThat(emailTemplates.ticketReplyBody(TICKET_ID, PORTAL_ID)).contains(link);
-        assertThat(emailTemplates.updateStatusTicketBody(TICKET_ID, PORTAL_ID)).contains(link);
-        assertThat(emailTemplates.updatePriorityTicketBody(TICKET_ID, PORTAL_ID)).contains(link);
-    }
+        // given
+        // when
+        String expectedLink = ticketLink();
 
-    private String ticketLink() {
-        return "https://" + EmailTemplatesFixture.DOMAIN + "/ticket-show/portal/" + PORTAL_ID + "/ticket/" + TICKET_ID;
+        String created = emailTemplates.ticketCreatedBody(TICKET_ID, PORTAL_ID);
+        String reply = emailTemplates.ticketReplyBody(TICKET_ID, PORTAL_ID);
+        String status = emailTemplates.updateStatusTicketBody(TICKET_ID, PORTAL_ID);
+        String priority = emailTemplates.updatePriorityTicketBody(TICKET_ID, PORTAL_ID);
+
+        // then
+        assertThat(created).contains(expectedLink);
+        assertThat(reply).contains(expectedLink);
+        assertThat(status).contains(expectedLink);
+        assertThat(priority).contains(expectedLink);
     }
 
     @Test
     @DisplayName("Созданный портал: тема и ссылка на список порталов")
-    void portalCreated_containsSubjectAndPortalUrl() {
-        assertThat(emailTemplates.portalCreatedSubject(PORTAL_ID)).isEqualTo("Создан новый портал #5");
+    void portalCreated_knownPortal_returnsSubjectAndUrl() {
 
-        assertThat(emailTemplates.portalCreatedBody(PORTAL_ID)).contains("Создан портал #5")
-                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
+        // given
+        // when
+        String subject = emailTemplates.portalCreatedSubject(PORTAL_ID);
+        String body = emailTemplates.portalCreatedBody(PORTAL_ID);
+
+        // then
+        assertThat(subject).isEqualTo("Создан новый портал #5");
+        assertThat(body).contains("Создан портал #5").contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
     }
 
     @Test
     @DisplayName("Добавленный пользователь портала: тема и ссылка на общий список порталов")
-    void portalAddUser_containsSubjectAndPortalUrl() {
-        assertThat(emailTemplates.portalAddUserSubject(PORTAL_ID)).isEqualTo("Вас добавили к порталу #5");
+    void portalAddUser_knownPortal_returnsSubjectAndUrl() {
 
-        assertThat(emailTemplates.portalAddUserBody(PORTAL_ID)).contains("Общие порталы")
-                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
+        // given
+        // when
+        String subject = emailTemplates.portalAddUserSubject(PORTAL_ID);
+        String body = emailTemplates.portalAddUserBody(PORTAL_ID);
+
+        // then
+        assertThat(subject).isEqualTo("Вас добавили к порталу #5");
+        assertThat(body).contains("Общие порталы").contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
     }
 
     @Test
     @DisplayName("Смена статуса заявки: тема со статусом, ссылка ведёт на портал и заявку")
-    void updateStatusTicket_containsStatusAndPortalScopedLink() {
-        assertThat(emailTemplates.updateStatusTicketSubject(TICKET_ID, TicketStatus.CLOSED)).isEqualTo("Задан статус:CLOSED для заявки#77");
+    void updateStatusTicket_closedStatus_returnsSubjectAndLink() {
 
-        assertThat(emailTemplates.updateStatusTicketBody(TICKET_ID, PORTAL_ID))
-                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/ticket-show/portal/" + PORTAL_ID + "/ticket/" + TICKET_ID);
+        // given
+        // when
+        String subject = emailTemplates.updateStatusTicketSubject(TICKET_ID, TicketStatus.CLOSED);
+        String body = emailTemplates.updateStatusTicketBody(TICKET_ID, PORTAL_ID);
+
+        // then
+        assertThat(subject).isEqualTo("Задан статус:CLOSED для заявки#77");
+        assertThat(body).contains(ticketLink());
     }
 
     @Test
     @DisplayName("Смена приоритета заявки: тема с приоритетом, ссылка ведёт на портал и заявку")
-    void updatePriorityTicket_containsPriorityAndPortalScopedLink() {
-        assertThat(emailTemplates.updatePriorityTicketSubject(TICKET_ID, TicketPriority.CRITICAL))
-                .isEqualTo("Задан приоритет:CRITICAL для заявки#77");
+    void updatePriorityTicket_criticalPriority_returnsSubjectAndLink() {
 
-        assertThat(emailTemplates.updatePriorityTicketBody(TICKET_ID, PORTAL_ID))
-                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/ticket-show/portal/" + PORTAL_ID + "/ticket/" + TICKET_ID);
+        // given
+        // when
+        String subject = emailTemplates.updatePriorityTicketSubject(TICKET_ID, TicketPriority.CRITICAL);
+        String body = emailTemplates.updatePriorityTicketBody(TICKET_ID, PORTAL_ID);
+
+        // then
+        assertThat(subject).isEqualTo("Задан приоритет:CRITICAL для заявки#77");
+        assertThat(body).contains(ticketLink());
     }
 
     @Test
     @DisplayName("Удалённая заявка: тема и инициатор удаления в теле")
-    void deletedTicket_containsSubjectAndActorEmail() {
-        assertThat(emailTemplates.deletedTicketSubject(TICKET_ID)).isEqualTo("Удалена заявка#77");
+    void deletedTicket_knownActor_returnsSubjectAndActor() {
 
-        assertThat(emailTemplates.deletedTicketBody(TICKET_ID, "user@example.com"))
-                .contains("Заявка #77 была удалена пользователем user@example.com");
+        // given
+        String actor = "user@example.com";
+
+        // when
+        String subject = emailTemplates.deletedTicketSubject(TICKET_ID);
+        String body = emailTemplates.deletedTicketBody(TICKET_ID, actor);
+
+        // then
+        assertThat(subject).isEqualTo("Удалена заявка#77");
+        assertThat(body).contains("Заявка #77 была удалена пользователем " + actor);
     }
 
     @Test
     @DisplayName("Удалённый портал: тема и инициатор удаления в теле")
-    void deletedPortal_containsSubjectAndActorEmail() {
-        assertThat(emailTemplates.deletedPortalSubject(PORTAL_ID)).isEqualTo("Удален портал#5");
+    void deletedPortal_knownActor_returnsSubjectAndActor() {
 
-        assertThat(emailTemplates.deletedPortalBody(PORTAL_ID, "user@example.com"))
-                .contains("Портал #5 был удален пользователем user@example.com");
+        // given
+        String actor = "user@example.com";
+
+        // when
+        String subject = emailTemplates.deletedPortalSubject(PORTAL_ID);
+        String body = emailTemplates.deletedPortalBody(PORTAL_ID, actor);
+
+        // then
+        assertThat(subject).isEqualTo("Удален портал#5");
+        assertThat(body).contains("Портал #5 был удален пользователем " + actor);
     }
 
     @Test
     @DisplayName("Крупные ID не группируются пробелами при подстановке в шаблон")
-    void largeIds_areNotGroupedByMessageFormat() {
-        assertThat(emailTemplates.ticketCreatedSubject(12345L)).isEqualTo("Создана новая заявка #12345");
-        assertThat(emailTemplates.ticketCreatedBody(12345L, 67890L))
-                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/ticket-show/portal/67890/ticket/12345");
+    void ticketCreated_largeIds_areNotGroupedByFormat() {
+
+        // given
+        // when
+        String subject = emailTemplates.ticketCreatedSubject(12345L);
+        String body = emailTemplates.ticketCreatedBody(12345L, 67890L);
+
+        // then
+        assertThat(subject).isEqualTo("Создана новая заявка #12345");
+        assertThat(body).contains("https://" + EmailTemplatesFixture.DOMAIN + "/ticket-show/portal/67890/ticket/12345");
     }
 
     @Test
     @DisplayName("Письмо новому владельцу: тема, ссылка /portal-transfer и срок действия")
-    void portalTransferProposed_containsSubjectLinkAndDeadline() {
-        assertThat(emailTemplates.portalTransferProposedSubject(PORTAL_ID)).isEqualTo("Вам передают портал #5");
+    void portalTransferProposed_knownReason_returnsLinkAndDeadline() {
 
-        assertThat(emailTemplates.portalTransferProposedBody(PORTAL_ID, "Иванов Иван", "Причина передачи"))
-                .contains("Иванов Иван предлагает передать вам владение порталом #5").contains("Причина передачи")
+        // given
+        String ownerName = "Иванов Иван";
+        String reason = "Причина передачи";
+
+        // when
+        String subject = emailTemplates.portalTransferProposedSubject(PORTAL_ID);
+        String body = emailTemplates.portalTransferProposedBody(PORTAL_ID, ownerName, reason);
+
+        // then
+        assertThat(subject).isEqualTo("Вам передают портал #5");
+        assertThat(body).contains(ownerName + " предлагает передать вам владение порталом #5").contains(reason)
                 .contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-transfer/5").contains("72 часа");
     }
 
     @Test
     @DisplayName("Письма о решении по передаче: новому владельцу и причине отклонения")
-    void transferDecisionTemplates_containNamesAndReasons() {
-        assertThat(emailTemplates.portalTransferAcceptedSubject(PORTAL_ID)).isEqualTo("Портал #5 сменил владельца");
-        assertThat(emailTemplates.portalTransferAcceptedBody(PORTAL_ID, "Иванов Иван", "Причина передачи"))
-                .contains("Владелец портала #5 теперь — Иванов Иван").contains("Причина передачи");
+    void transferDecisionBodies_knownNamesAndReasons_containThem() {
 
-        assertThat(emailTemplates.portalTransferRejectedSubject(PORTAL_ID)).isEqualTo("Запрос на передачу портала #5 отклонён");
-        assertThat(emailTemplates.portalTransferRejectedBody(PORTAL_ID, "Иванов Иван", "Не время"))
-                .contains("Иванов Иван отклонил передачу вам портала #5").contains("Не время");
+        // given
+        String ownerName = "Иванов Иван";
+        String reason = "Причина передачи";
+        String rejectionReason = "Не время";
 
-        assertThat(emailTemplates.portalTransferCancelledBody(PORTAL_ID, "Иванов Иван")).contains("Иванов Иван отозвал предложение");
-        assertThat(emailTemplates.portalTransferExpiredBody(PORTAL_ID)).contains("истёк");
+        // when
+        String acceptedSubject = emailTemplates.portalTransferAcceptedSubject(PORTAL_ID);
+        String acceptedBody = emailTemplates.portalTransferAcceptedBody(PORTAL_ID, ownerName, reason);
+        String rejectedSubject = emailTemplates.portalTransferRejectedSubject(PORTAL_ID);
+        String rejectedBody = emailTemplates.portalTransferRejectedBody(PORTAL_ID, ownerName, rejectionReason);
+        String cancelledBody = emailTemplates.portalTransferCancelledBody(PORTAL_ID, ownerName);
+        String expiredBody = emailTemplates.portalTransferExpiredBody(PORTAL_ID);
+
+        // then
+        assertThat(acceptedSubject).isEqualTo("Портал #5 сменил владельца");
+        assertThat(acceptedBody).contains("Владелец портала #5 теперь — " + ownerName).contains(reason);
+        assertThat(rejectedSubject).isEqualTo("Запрос на передачу портала #5 отклонён");
+        assertThat(rejectedBody).contains(ownerName + " отклонил передачу вам портала #5").contains(rejectionReason);
+        assertThat(cancelledBody).contains(ownerName + " отозвал предложение");
+        assertThat(expiredBody).contains("истёк");
+    }
+
+    private String ticketLink() {
+        return "https://" + EmailTemplatesFixture.DOMAIN + "/ticket-show/portal/" + PORTAL_ID + "/ticket/" + TICKET_ID;
     }
 }

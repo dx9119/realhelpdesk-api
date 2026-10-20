@@ -22,53 +22,75 @@ class CaptchaRiskServiceTest {
 
     @Test
     @DisplayName("Провалы одного IP дают мягкий риск ELEVATED по достижении порога, не EMOJI")
-    void singleIpThreshold_elevates() {
+    void recordFailure_thresholdReached_returnsElevated() {
+
+        // given
+        // when
         riskService.recordFailure("1.2.3.4");
         riskService.recordFailure("1.2.3.4");
+        // then
         assertThat(riskService.riskLevel("1.2.3.4")).isEqualTo(Risk.NONE);
 
         riskService.recordFailure("1.2.3.4");
+
         assertThat(riskService.riskLevel("1.2.3.4")).isEqualTo(Risk.ELEVATED);
     }
 
     @Test
     @DisplayName("Много провалов одного IP (NAT-сеть) всё равно не даёт EMOJI")
-    void singleIpManyFailures_staysElevated() {
+    void recordFailure_fiftyFailuresFromOneIp_staysElevated() {
+
+        // given
+        // when
         for (int i = 0; i < 50; i++) {
             riskService.recordFailure("1.2.3.4");
         }
 
+        // then
         assertThat(riskService.riskLevel("1.2.3.4")).as("один внешний адрес NAT не срабатывает как распределённая атака")
                 .isEqualTo(Risk.ELEVATED);
     }
 
     @Test
     @DisplayName("Провалы разных IP одной подсети дают EMOJI по достижении порога")
-    void subnetOffenders_escalateToEmoji() {
+    void recordFailure_twoIpsInSubnet_returnsEmojiRisk() {
+
+        // given
+        // when
         riskService.recordFailure("1.2.3.4");
+        // then
         assertThat(riskService.riskLevel("1.2.3.5")).isNotEqualTo(Risk.EMOJI);
 
         riskService.recordFailure("1.2.3.5");
+
         assertThat(riskService.riskLevel("1.2.3.4")).as("в подсети /24 уже два разных провалившихся IP").isEqualTo(Risk.EMOJI);
         assertThat(riskService.riskLevel("1.2.3.99")).as("эскалация считается по подсети, не по конкретному IP").isEqualTo(Risk.EMOJI);
     }
 
     @Test
     @DisplayName("Провалы в разных подсетях не суммируются")
-    void differentSubnets_doNotAggregate() {
+    void recordFailure_failuresInDifferentSubnets_doNotEscalate() {
+
+        // given
+        // when
         riskService.recordFailure("1.2.3.4");
         riskService.recordFailure("5.6.7.8");
 
+        // then
         assertThat(riskService.riskLevel("1.2.3.4")).isNotEqualTo(Risk.EMOJI);
         assertThat(riskService.riskLevel("5.6.7.8")).isNotEqualTo(Risk.EMOJI);
     }
 
     @Test
     @DisplayName("Успех сбрасывает IP и его вклад в подсеть")
-    void reset_clearsIpAndSubnetMembership() {
+    void reset_afterSubnetEscalation_clearsEmojiRisk() {
+
+        // given
+        // when
         riskService.recordFailure("1.2.3.4");
         riskService.recordFailure("1.2.3.5");
         riskService.recordFailure("1.2.3.4");
+        // then
         assertThat(riskService.riskLevel("1.2.3.4")).isEqualTo(Risk.EMOJI);
 
         riskService.reset("1.2.3.5");
@@ -78,12 +100,16 @@ class CaptchaRiskServiceTest {
 
     @Test
     @DisplayName("Неизвестный IP и null не рискованные; null/пустое в recordFailure/reset — no-op")
-    void unknownIp_isNotRisky() {
+    void riskLevel_unknownOrBlankIp_returnsNone() {
+
+        // given
+        // when
         riskService.recordFailure(null);
         riskService.recordFailure("   ");
         riskService.reset(null);
         riskService.reset("");
 
+        // then
         assertThat(riskService.riskLevel(null)).isEqualTo(Risk.NONE);
         assertThat(riskService.riskLevel("")).isEqualTo(Risk.NONE);
         assertThat(riskService.riskLevel("9.9.9.9")).isEqualTo(Risk.NONE);
@@ -91,7 +117,9 @@ class CaptchaRiskServiceTest {
 
     @Test
     @DisplayName("Невалидные конфигурационные значения — старт падает с понятной ошибкой")
-    void constructor_validatesProperties() {
+    void constructor_invalidProperties_throwsIllegalStateException() {
+
+        // given / when / then
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskFailureThreshold(0))))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("risk-failure-threshold");
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskFailureWindowSeconds(5))))

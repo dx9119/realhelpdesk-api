@@ -17,6 +17,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.Meter;
@@ -25,11 +27,11 @@ import io.micrometer.core.instrument.Tag;
 
 /**
  * HTTP-метрики: uri-шаблон вместо фактического пути, NOT_FOUND для несуществующих маршрутов, тег exception из @ControllerAdvice и тег role.
- * Отдельный контекст не нужен — используется тот же профиль test, что и в ActuatorSecurityTest.
+ * Отдельный контекст не нужен — используется тот же профиль test, что и в ActuatorSecurityIT.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
 @DisplayName("http.server.requests: шаблоны uri, шум, exception и роль")
-class HttpObservabilityTest {
+class HttpObservabilityIT extends AbstractIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
@@ -46,8 +48,14 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("Существующий маршрут даёт uri-шаблон и тег role, а не фактический путь")
-    void mappedPathUsesUriTemplate() {
-        assertThat(get(serverPort, "/api/v1/health").statusCode()).isEqualTo(200);
+    void get_mappedRoute_recordsUriTemplate() {
+
+        // given
+        // when
+        int status = get(serverPort, "/api/v1/health").statusCode();
+
+        // then
+        assertThat(status).isEqualTo(200);
 
         Meter meter = findMeter("uri", "/api/v1/health");
         assertThat(meter).as("метрика с uri=/api/v1/health").isNotNull();
@@ -57,10 +65,14 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("Несуществующие маршруты схлопываются в uri=NOT_FOUND и не плодят уникальные значения")
-    void unknownPathsCollapseToNotFound() {
+    void get_unknownRoutes_collapsesToNotFound() {
+
+        // given
+        // when
         int first = get(serverPort, "/api/v1/users/password-resets/unknown/extra-one").statusCode();
         int second = get(serverPort, "/api/v1/users/password-resets/unknown/extra-two").statusCode();
 
+        // then
         assertThat(first).as("первый неизвестный маршрут").isEqualTo(404);
         assertThat(second).as("второй неизвестный маршрут").isEqualTo(404);
 
@@ -72,10 +84,14 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("Исключение, перехваченное GlobalExceptionHandler, попадает в тег exception")
-    void handledExceptionIsVisibleInTag() {
+    void get_unsupportedMethod_recordsExceptionTag() {
+
+        // given
         // GET на PUT-маршрут восстановления пароля: метод не поддерживается, ответ отдаёт @ControllerAdvice.
+        // when
         int status = get(serverPort, "/api/v1/users/password-resets/12345").statusCode();
 
+        // then
         assertThat(status).isEqualTo(405);
         assertThat(metersWith("exception", "HttpRequestMethodNotSupportedException")).as("тег exception с именем класса, без текста ошибки")
                 .isNotEmpty();
@@ -83,22 +99,32 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("Запросы к actuator — на управляющем порту и в скрейпе — не создают наблюдений")
-    void actuatorRequestsAreNotObserved() {
-        assertThat(get(managementPort, "/actuator/health").statusCode()).isEqualTo(200);
-        assertThat(get(serverPort, "/actuator/health").statusCode()).isIn(401, 403, 404);
+    void get_actuatorRequests_areNotObserved() {
 
+        // given
+        // when
+        int managementStatus = get(managementPort, "/actuator/health").statusCode();
+        int serverStatus = get(serverPort, "/actuator/health").statusCode();
+
+        // then
+        assertThat(managementStatus).isEqualTo(200);
+        assertThat(serverStatus).isIn(401, 403, 404);
         assertThat(meterRegistry.find(METER_NAME).meters()).allSatisfy(
                 meter -> assertThat(tagValue(meter, "uri")).as("actuator не должен попадать в метрики").doesNotStartWith("/actuator"));
     }
 
     @Test
     @DisplayName("Неудачный вход увеличивает auth.attempts{type=login,result=failure} без email в тегах")
-    void authAttemptsAreCounted() {
+    void post_failedLogin_incrementsAuthAttempts() {
+
+        // given
+        // when
         double before = counterValue("auth.attempts", "type", "login", "result", "failure");
 
         HttpResponse<String> response = post(serverPort, "/api/v1/auth/login",
                 "{\"email\":\"nobody@example.com\",\"password\":\"wrong-password\"}");
 
+        // then
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(counterValue("auth.attempts", "type", "login", "result", "failure")).isEqualTo(before + 1);
 
@@ -108,10 +134,17 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("В метриках нет высококардинальных идентификаторов (userId, email, ticketId)")
-    void prohibitedTagsAreAbsent() {
-        String[] forbidden = {"userId", "user_id", "email", "ticketId", "ticket_id"};
+    void meters_afterRequests_haveNoHighCardinalityTags() {
 
-        for (Meter meter : meterRegistry.getMeters()) {
+        // given
+        String[] forbidden = {"userId", "user_id", "email", "ticketId", "ticket_id"};
+        // when
+        get(serverPort, "/api/v1/health");
+
+        Iterable<Meter> meters = meterRegistry.getMeters();
+
+        // then
+        for (Meter meter : meters) {
             for (Tag tag : tags(meter)) {
                 assertThat(forbidden).as("метрика %s", meter.getId().getName()).doesNotContain(tag.getKey());
             }
@@ -120,17 +153,21 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("Запросы к одному шаблону с разными ID не растят число уникальных uri")
-    void differentIdsDoNotIncreaseUriCardinality() {
+    void get_sameTemplateDifferentIds_keepsUriCardinality() {
+
+        // given
         // GET /api/v1/portals/{portalId}/tickets/{ticketId}: разные ID, ответ 401 не важен —
         // важно, что в метрику попадает шаблон маршрута, а не фактический путь. Первая серия прогревает
         // (запись meter'а может чуть отстать от ответа — observation стопается на commit), вторая должна
         // обойтись без новых uri-значений. Реестр может быть общим для @SpringBootTest-классов, поэтому
         // сравниваем множества после серий, а не абсолютные числа.
+        // when
         requestSeriesWithDifferentIds(1);
         Set<String> afterFirstSeries = uniqueUriValues();
 
         requestSeriesWithDifferentIds(11);
 
+        // then
         assertThat(uniqueUriValues()).as("вторая серия с другими ID не добавляет uri-значений").isEqualTo(afterFirstSeries);
         assertThat(meterRegistry.find(METER_NAME).meters()).allSatisfy(meter -> assertThat(tagValue(meter, "uri"))
                 .as("uri не должен содержать фактический portalId/ticketId").doesNotContain("1001", "1002", "1011", "1012"));
@@ -145,9 +182,13 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("Отключённые deny-метрики (disk, jvm.buffer) не появляются в реестре")
-    void deniedMetricsAreAbsent() {
+    void request_deniedMetrics_stayAbsent() {
+
+        // given
+        // when
         get(serverPort, "/api/v1/health");
 
+        // then
         assertThat(meterRegistry.find("disk.free").meter()).as("disk.free отклонён MeterFilter").isNull();
         assertThat(meterRegistry.find("disk.total").meter()).as("disk.total отклонён MeterFilter").isNull();
         assertThat(meterRegistry.find("jvm.buffer.count").meter()).as("jvm.buffer.count отклонён MeterFilter").isNull();
@@ -156,11 +197,16 @@ class HttpObservabilityTest {
 
     @Test
     @DisplayName("Пул планировщика измеряется: executor.* с тегом name=taskScheduler")
-    void taskSchedulerExecutorIsBound() {
-        assertThat(meterRegistry.find("executor.pool.max").tags("name", "taskScheduler").meter())
-                .as("Boot автоматически биндит ThreadPoolTaskScheduler как executor.*{name=taskScheduler}").isNotNull();
-        assertThat(meterRegistry.find("executor.queue.remaining").tags("name", "taskScheduler").meter())
-                .as("очередь планировщика измеряется").isNotNull();
+    void scheduler_taskSchedulerExecutor_isBound() {
+
+        // given
+        // when
+        Meter poolMax = meterRegistry.find("executor.pool.max").tags("name", "taskScheduler").meter();
+        Meter queueRemaining = meterRegistry.find("executor.queue.remaining").tags("name", "taskScheduler").meter();
+
+        // then
+        assertThat(poolMax).as("Boot автоматически биндит ThreadPoolTaskScheduler как executor.*{name=taskScheduler}").isNotNull();
+        assertThat(queueRemaining).as("очередь планировщика измеряется").isNotNull();
     }
 
     private Set<String> uniqueUriValues() {

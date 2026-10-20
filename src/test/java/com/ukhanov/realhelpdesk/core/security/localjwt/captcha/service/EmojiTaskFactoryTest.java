@@ -19,7 +19,9 @@ class EmojiTaskFactoryTest {
 
     @Test
     @DisplayName("Задание: сетка из 9 разных глифов, prompt не пуст, индексы ответа в пределах сетки")
-    void create_gridInvariants() {
+    void create_repeatedGeneration_keepsGridInvariants() {
+
+        // given / when / then
         for (int i = 0; i < 200; i++) {
             EmojiTask task = factory.create();
 
@@ -34,9 +36,13 @@ class EmojiTaskFactoryTest {
 
     @Test
     @DisplayName("Оба вида заданий встречаются: категорийное (несколько ячеек) и «только этот глиф» (одна)")
-    void create_bothKindsAppear() {
+    void create_twoHundredTasks_producesBothTaskKinds() {
+
+        // given
         int multiAnswer = 0;
         int singleAnswer = 0;
+
+        // when
         for (int i = 0; i < 200; i++) {
             EmojiTask task = factory.create();
             if (task.answer().size() == 1) {
@@ -46,6 +52,7 @@ class EmojiTaskFactoryTest {
             }
         }
 
+        // then
         assertThat(multiAnswer).as("категорийные задания встречаются").isPositive();
         assertThat(singleAnswer).as("задания «только этот глиф» встречаются").isPositive();
     }
@@ -53,12 +60,15 @@ class EmojiTaskFactoryTest {
     @Test
     @DisplayName("Задание с одним выбранным глифом: prompt повторяет ровно один глиф из сетки, он же и есть ответ")
     void create_glyphTask_promptMatchesSingleCell() {
+
+        // given / when / then
         for (int i = 0; i < 200; i++) {
             EmojiTask task = factory.create();
             if (task.answer().size() != 1) {
                 continue;
             }
             String glyph = task.cells().get(task.answer().getFirst());
+
             assertThat(task.prompt()).contains(glyph);
             assertThat(task.cells().stream().filter(glyph::equals).count()).as("глиф ровно один в сетке").isEqualTo(1);
         }
@@ -67,18 +77,25 @@ class EmojiTaskFactoryTest {
     @Test
     @DisplayName("Детерминированность: одинаковый Random даёт одинаковые задания")
     void create_seededRandom_reproducible() {
+
+        // given
+        // when
         EmojiTask first = new EmojiTaskFactory(new Random(7)).create();
         EmojiTask second = new EmojiTaskFactory(new Random(7)).create();
 
+        // then
         assertThat(second).isEqualTo(first);
     }
 
     @Test
     @DisplayName("Все глифы сетки уникальны в пределах задания")
-    void create_cellsUnique() {
+    void create_hundredTasks_keepsCellsUnique() {
+
+        // given / when / then
         for (int i = 0; i < 100; i++) {
             EmojiTask task = factory.create();
             Set<String> unique = new HashSet<>(task.cells());
+
             assertThat(unique).hasSize(task.cells().size());
             assertThat(List.copyOf(task.cells())).hasSize(9);
         }

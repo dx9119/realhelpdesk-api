@@ -53,7 +53,7 @@
 - **Теги** — конечные enum'ы (`TicketStatus`, `NotificationEvent`), группы (`content_type` — часть
   MIME до `/`), результаты (`success`/`failure`). Запрещённые значения (userId, ticketId, email,
   sessionId, token, password, полный URL) срезает `ignoreTags` в `ObservabilityConfiguration`;
-  регрессия — `HttpObservabilityTest.prohibitedTagsAreAbsent`.
+  регрессия — `HttpObservabilityIT.prohibitedTagsAreAbsent`.
 - **URI** — только паттерн маршрута (`/api/v1/tickets/{id}`), потолок 100 уникальных значений на
   `http.server.requests`, сверху DENY.
 - **Deny-списки** — шумные/вводящие в заблуждение биндеры отключены свойствами
@@ -114,8 +114,8 @@ curl -s localhost:9090/prometheus/api/v1/alerts
   Micrometer Tracing + OTel-мост, маскирование ПДн в логах, колонки `traceId`/`spanId`.
 - Полный стек `make obs-up`: Mimir, Tempo, OTel Collector, Loki, Alloy;
   8 алертов, 8 runbooks, 3 SLO.
-- Тесты: `HttpObservabilityTest`, `DbObservabilityTest`, `ObservabilityConfigurationTest`,
-  `ActuatorSecurityTest`, `LogCorrelationAndMaskingTest`, `ObservabilityContextTest`,
+- Тесты: `HttpObservabilityIT`, `DbObservabilityIT`, `ObservabilityConfigurationTest`,
+  `ActuatorSecurityIT`, `LogCorrelationAndMaskingIT`, `ObservabilityContextIT`,
   `ObservabilityRunbookGuardTest`, `TracingSmokeIT`; всего 675 (`mvn verify`), юнит-часть — 634 (`mvn test`).
 - Финальные испытания на живом стеке: load-smoke k6 (317 запросов, 100% checks, все пороги
   в допуске), бизнес-метрики в Mimir (Prometheus-совместимый API) после трафика, сквозная цепочка

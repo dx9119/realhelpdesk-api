@@ -23,38 +23,53 @@ class AttachmentMapperTest {
 
     @Test
     @DisplayName("static.base-url не задан — downloadUrl относительный, файлы отдаёт API, как до настройки")
-    void downloadUrl_withoutBaseIsRelative() {
+    void downloadUrl_noBaseUrl_returnsRelativeUrl() {
+
+        // given / when / then
         assertThat(mapper.downloadUrl(new StaticProperties(), PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).isEqualTo(PATH);
     }
 
     @Test
     @DisplayName("static.base-url задан — downloadUrl абсолютный, путь API не меняется")
-    void downloadUrl_withBaseIsAbsolute() {
+    void downloadUrl_baseUrlSet_returnsAbsoluteUrl() {
+
+        // given
+        // when
         StaticProperties properties = new StaticProperties();
         properties.setBaseUrl("https://cdn.example.com");
 
+        // then
         assertThat(mapper.downloadUrl(properties, PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).isEqualTo("https://cdn.example.com" + PATH);
     }
 
     @Test
     @DisplayName("Хвостовой слэш в base-url не даёт двойного слэша в URL")
-    void downloadUrl_stripsTrailingSlash() {
+    void downloadUrl_trailingSlash_returnsUrlWithoutDoubleSlash() {
+
+        // given
+        // when
         StaticProperties properties = new StaticProperties();
         properties.setBaseUrl("http://10.0.0.5:9100/");
 
+        // then
         assertThat(mapper.downloadUrl(properties, PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).isEqualTo("http://10.0.0.5:9100" + PATH);
     }
 
     @Test
     @DisplayName("Без настройки статики — ошибка сразу, а не NPE в момент сборки URL")
-    void downloadUrl_rejectsNullProperties() {
+    void downloadUrl_nullProperties_throwsNullPointerException() {
+
+        // given / when / then
         assertThatThrownBy(() -> mapper.downloadUrl(null, PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("staticProperties");
     }
 
     @Test
     @DisplayName("toResponse переносит downloadUrl в ответ API")
-    void toResponse_carriesDownloadUrl() {
+    void toResponse_validAttachment_carriesDownloadUrlToDto() {
+
+        // given
+        // when
         StaticProperties properties = new StaticProperties();
         properties.setBaseUrl("https://cdn.example.com");
         AttachmentModel attachment = new AttachmentModel();
@@ -63,6 +78,7 @@ class AttachmentMapperTest {
 
         AttachmentResponse response = mapper.toResponse(attachment, PORTAL_ID, TICKET_ID, properties);
 
+        // then
         assertThat(response.downloadUrl()).isEqualTo("https://cdn.example.com" + PATH);
         assertThat(response.ticketId()).isEqualTo(TICKET_ID);
         assertThat(response.messageId()).isNull();

@@ -10,13 +10,15 @@ class SameSiteTest {
 
     @Test
     @DisplayName("В наборе ровно три элемента: None, Lax, Strict")
-    void containsExactlyThreeElements() {
+    void values_enumDefinition_returnsExactlyThree() {
+        // given / when / then
         assertThat(SameSite.values()).extracting(SameSite::name).containsExactly("NONE", "LAX", "STRICT");
     }
 
     @Test
     @DisplayName("В Set-Cookie уходит форма из getValue: None/Lax/Strict")
-    void wireValuesMatchCookieHeader() {
+    void getValue_eachConstant_returnsCookieHeaderForm() {
+        // given / when / then
         assertThat(SameSite.NONE.getValue()).isEqualTo("None");
         assertThat(SameSite.LAX.getValue()).isEqualTo("Lax");
         assertThat(SameSite.STRICT.getValue()).isEqualTo("Strict");

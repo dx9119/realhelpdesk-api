@@ -19,7 +19,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.TokenStatus;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.repository.JwtRefreshTokenRepository;
@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.profiles.active=test", "jwt.revoked-token-retention-seconds=86400"})
 @DisplayName("Операторская очистка отозванных токенов (HTTP)")
-class OperatorTokenCleanupIT extends PostgresIntegrationTest {
+class OperatorTokenCleanupIT extends AbstractIntegrationTest {
 
     private static final String PATH = "/api/v1/operator/tokens/cleanup";
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
@@ -82,26 +82,37 @@ class OperatorTokenCleanupIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Без access-токена — 401, очистка не запускается")
-    void withoutToken_unauthorized() throws Exception {
+    void cleanup_withoutAccessToken_returns401() throws Exception {
+
+        // given
+        // when
         HttpResponse<String> response = cleanup(null);
 
+        // then
         assertThat(response.statusCode()).isEqualTo(401);
     }
 
     @Test
     @DisplayName("С ролью ROLE_USER — 403, отозванные токены не удаляются")
-    void withUserRole_forbidden() throws Exception {
+    void cleanup_userRole_returns403AndKeepsRevoked() throws Exception {
+
+        // given
+        // when
         UUID revokedOld = saveRevoked(OLD);
 
         HttpResponse<String> response = cleanup(regularToken);
 
+        // then
         assertThat(response.statusCode()).isEqualTo(403);
         assertThat(jwtRefreshTokenRepository.findById(revokedOld)).as("обычный пользователь не запускает очистку").isPresent();
     }
 
     @Test
     @DisplayName("С ролью ROLE_OPERATOR — 200: старые отозванные удаляются, свежие и активные остаются")
-    void withOperatorRole_deletesOnlyOldRevoked() throws Exception {
+    void cleanup_operatorRole_deletesOnlyOldRevoked() throws Exception {
+
+        // given
+        // when
         UUID revokedOldFirst = saveRevoked(OLD);
         UUID revokedOldSecond = saveRevoked(OLD);
         UUID revokedFresh = saveRevoked(Instant.now());
@@ -109,6 +120,7 @@ class OperatorTokenCleanupIT extends PostgresIntegrationTest {
 
         HttpResponse<String> response = cleanup(operatorToken);
 
+        // then
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).contains("\"revokedDeleted\":2").contains("\"batches\":1");
         assertThat(jwtRefreshTokenRepository.findById(revokedOldFirst)).isEmpty();

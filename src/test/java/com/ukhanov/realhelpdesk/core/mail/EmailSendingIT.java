@@ -29,7 +29,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.config.EmailProperties;
 import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
 import com.ukhanov.realhelpdesk.core.mail.model.EmailLog;
@@ -58,7 +58,7 @@ import io.micrometer.observation.ObservationRegistry;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @DataJpaTest
 @DisplayName("Реальная отправка email по SMTP (GreenMail + PostgreSQL)")
-class EmailSendingIT extends PostgresIntegrationTest {
+class EmailSendingIT extends AbstractIntegrationTest {
 
     private static final String RECIPIENT = "user@example.com";
     private static final String FROM = "noreply@example.com";
@@ -117,9 +117,13 @@ class EmailSendingIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Письмо реально доходит до SMTP-сервера с нужными заголовками и текстом")
-    void sendEmail_deliversMessageThroughSmtp() throws Exception {
+    void sendEmail_validRecipient_deliversMessageWithHeaders() throws Exception {
+
+        // given
+        // when
         emailDeliveryService.sendEmail(RECIPIENT, "Тема письма", "Текст письма", NotificationEvent.NEW_TICKET);
 
+        // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
         MimeMessage message = greenMail.getReceivedMessages()[0];
 
@@ -136,9 +140,13 @@ class EmailSendingIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Письмо админу уходит на адрес email.notify")
-    void sendAdminNotification_deliversToNotifyAddress() throws Exception {
+    void sendAdminNotification_validContent_deliversToNotifyAddress() throws Exception {
+
+        // given
+        // when
         emailDeliveryService.sendAdminNotification("Новая регистрация", "Кто,что", NotificationEvent.NEW_SYSTEM_MESSAGE);
 
+        // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
         assertThat(greenMail.getReceivedMessages()[0].getAllRecipients()[0].toString()).isEqualTo(ADMIN);
     }
@@ -146,11 +154,15 @@ class EmailSendingIT extends PostgresIntegrationTest {
     @Test
     @DisplayName("Адрес в стоп-листе: письмо не доставляется и не попадает в журнал")
     void sendEmail_recipientInStopList_isNotDeliveredAndNotLogged() throws Exception {
+
+        // given
+        // when
         unsubscribedEmailRepository.saveAndFlush(new UnsubscribedEmail(RECIPIENT, NotificationEvent.NEW_MESSAGE));
 
         emailDeliveryService.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_MESSAGE);
         emailDeliveryService.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_TICKET);
 
+        // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
         assertThat(greenMail.getReceivedMessages()).hasSize(1);
         assertThat(countLogs(RECIPIENT, NotificationEvent.NEW_MESSAGE)).isZero();
@@ -160,10 +172,14 @@ class EmailSendingIT extends PostgresIntegrationTest {
     @Test
     @DisplayName("Лимит восстановления пароля не исчерпан — письмо доставляется и учитывается в журнале")
     void sendEmail_recoveryPasswordWithinLimit_isDelivered() throws Exception {
+
+        // given
+        // when
         seedRecoveryLogs(2);
 
         emailDeliveryService.sendEmail(RECIPIENT, "Сброс пароля", "Текст", NotificationEvent.RECOVERY_PASSWORD);
 
+        // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
         assertThat(countLogs(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD)).isEqualTo(3);
     }
@@ -171,8 +187,12 @@ class EmailSendingIT extends PostgresIntegrationTest {
     @Test
     @DisplayName("Сверх лимита восстановления пароля — 429, письмо не доставляется и не логируется")
     void sendEmail_recoveryPasswordOverLimit_throwsTooManyRequests() {
+
+        // given
+        // when
         seedRecoveryLogs(3);
 
+        // then
         assertThatThrownBy(() -> emailDeliveryService.sendEmail(RECIPIENT, "Сброс пароля", "Текст", NotificationEvent.RECOVERY_PASSWORD))
                 .isInstanceOf(EmailAccessDeniedException.class).extracting(ex -> ((EmailAccessDeniedException) ex).getStatus())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
@@ -194,6 +214,9 @@ class EmailSendingIT extends PostgresIntegrationTest {
     @Test
     @DisplayName("Верный код подтверждения помечает адрес подтверждённым в БД")
     void confirmEmail_correctToken_persistsVerifiedFlag() {
+
+        // given
+        // when
         UserModel user = saveUser(123456789L);
         authenticateAs(user);
 
@@ -201,15 +224,20 @@ class EmailSendingIT extends PostgresIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
+        // then
         assertThat(userDomainService.getUserById(user.getId()).isEmailVerified()).isTrue();
     }
 
     @Test
     @DisplayName("Неверный код подтверждения — 403 и флаг в БД не меняется")
     void confirmEmail_wrongToken_keepsFlagUnchanged() {
+
+        // given
+        // when
         UserModel user = saveUser(123456789L);
         authenticateAs(user);
 
+        // then
         assertThatThrownBy(() -> emailDeliveryService.confirmEmail(987654321L)).isInstanceOf(EmailAccessDeniedException.class);
         entityManager.flush();
         entityManager.clear();
@@ -219,12 +247,16 @@ class EmailSendingIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Код подтверждения доходит до SMTP-сервера адресату")
-    void sendConfirmCode_deliversCodeThroughSmtp() throws Exception {
+    void sendConfirmCode_authenticatedUser_deliversCodeThroughSmtp() throws Exception {
+
+        // given
+        // when
         UserModel user = saveUser(424242L);
         authenticateAs(user);
 
         emailDeliveryService.sendConfirmCode();
 
+        // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
         MimeMessage message = greenMail.getReceivedMessages()[0];
 

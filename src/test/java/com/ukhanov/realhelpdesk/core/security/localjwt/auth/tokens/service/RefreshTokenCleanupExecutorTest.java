@@ -29,13 +29,17 @@ class RefreshTokenCleanupExecutorTest {
 
     @Test
     @DisplayName("Отозванные: выбирает порцию и удаляет её по id, возвращая число удалённых")
-    void deleteInactiveBatch_selectsAndDeletes() {
+    void deleteInactiveBatch_tokensFound_deletesBatchAndReturnsCount() {
+
+        // given
+        // when
         List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID());
         when(repository.findInactiveIdsBefore(eq(TokenStatus.ACTIVE), eq(CUTOFF), any())).thenReturn(ids);
         when(repository.deleteByUuidIn(ids)).thenReturn(2);
 
         int deleted = executor.deleteInactiveBatch(CUTOFF, 50);
 
+        // then
         assertThat(deleted).isEqualTo(2);
         ArgumentCaptor<Pageable> page = ArgumentCaptor.forClass(Pageable.class);
         verify(repository).findInactiveIdsBefore(eq(TokenStatus.ACTIVE), eq(CUTOFF), page.capture());
@@ -46,11 +50,15 @@ class RefreshTokenCleanupExecutorTest {
 
     @Test
     @DisplayName("Активные: идёт по своей выборке, пустая порция — 0 без удаления")
-    void deleteActiveBatch_usesActiveQueryAndSkipsEmpty() {
+    void deleteActiveBatch_emptyBatch_returnsZeroWithoutDelete() {
+
+        // given
+        // when
         when(repository.findActiveIdsBefore(eq(TokenStatus.ACTIVE), eq(CUTOFF), any())).thenReturn(List.of());
 
         int deleted = executor.deleteActiveBatch(CUTOFF, 100);
 
+        // then
         assertThat(deleted).isZero();
         verify(repository).findActiveIdsBefore(eq(TokenStatus.ACTIVE), eq(CUTOFF), any());
         verify(repository, org.mockito.Mockito.never()).deleteByUuidIn(any());
@@ -58,9 +66,13 @@ class RefreshTokenCleanupExecutorTest {
 
     @Test
     @DisplayName("Отозванные пусты — удаление не вызывается")
-    void deleteInactiveBatch_emptySkipsDelete() {
+    void deleteInactiveBatch_emptyBatch_returnsZeroWithoutDelete() {
+
+        // given
+        // when
         when(repository.findInactiveIdsBefore(any(), any(), any())).thenReturn(List.of());
 
+        // then
         assertThat(executor.deleteInactiveBatch(CUTOFF, 100)).isZero();
 
         verify(repository, org.mockito.Mockito.never()).deleteByUuidIn(any());

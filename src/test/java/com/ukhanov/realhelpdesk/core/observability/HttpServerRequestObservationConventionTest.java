@@ -22,26 +22,36 @@ class HttpServerRequestObservationConventionTest {
 
     @Test
     @DisplayName("Без атрибута роли — ANONYMOUS")
-    void anonymousWhenRoleAttributeIsMissing() {
+    void roleTag_roleAttributeMissing_returnsAnonymous() {
+
+        // given / when / then
         assertThat(roleOf(new MockHttpServletRequest("GET", "/api/v1/health"))).isEqualTo("ANONYMOUS");
     }
 
     @Test
     @DisplayName("Роль из атрибута запроса попадает в тег без префикса ROLE_")
-    void roleFromRequestAttribute() {
+    void roleTag_roleAttributeSet_returnsValueWithoutPrefix() {
+
+        // given
+        // when
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/tickets");
         request.setAttribute(HttpServerRequestObservationConvention.ROLE_ATTRIBUTE, "ROLE_OPERATOR");
 
+        // then
         assertThat(roleOf(request)).isEqualTo("OPERATOR");
     }
 
     @Test
     @DisplayName("Сохраняются стандартные теги исключения, метода, исхода, статуса и uri")
-    void defaultKeyValuesAreKept() {
+    void getLowCardinalityKeyValues_standardTags_returnsSortedList() {
+
+        // given
+        // when
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/health");
 
         List<String> keys = keysOf(request);
 
+        // then
         assertThat(keys).contains("exception", "method", "outcome", "role", "status", "uri");
         assertThat(keys).isEqualTo(keys.stream().sorted().toList());
     }

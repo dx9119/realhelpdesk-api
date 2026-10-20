@@ -70,18 +70,25 @@ class OpenApiDocumentationGuardTest {
 
     @Test
     @DisplayName("Профиль prod отключает спеку и UI — контракт API не утекает из рабочего контура")
-    void prodProfileDisablesSpringdoc() throws Exception {
+    void prodProfile_springdocEnabled_equalsFalse() throws Exception {
+
+        // given
+        // when
         Properties prod = new Properties();
         try (InputStream in = Files.newInputStream(PROD_PROPERTIES)) {
             prod.load(in);
         }
+
+        // then
         assertThat(prod.getProperty("springdoc.api-docs.enabled")).as("springdoc.api-docs.enabled").isEqualTo("false");
         assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).as("springdoc.swagger-ui.enabled").isEqualTo("false");
     }
 
     @Test
     @DisplayName("Документация в white-list обеих security-цепочек — swagger доступен в dev без аутентификации")
-    void swaggerPathsArePermittedInBothContours() {
+    void swaggerPaths_bothSecurityContours_arePermitted() {
+
+        // given / when / then
         assertThat(WhiteUrlConfig.WHITE_LIST_URLS).as("контур без keycloak").contains("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html",
                 "/swagger-ui/**");
         assertThat(KeycloakWhiteUrlConfig.WHITE_LIST_URLS).as("контур keycloak").contains("/v3/api-docs", "/v3/api-docs/**",
@@ -90,23 +97,32 @@ class OpenApiDocumentationGuardTest {
 
     @Test
     @DisplayName("SecurityScheme Bearer JWT описан — в swagger-ui есть кнопка Authorize")
-    void securitySchemeIsDeclared() {
+    void securityScheme_bearerJwtHttp_isDeclared() {
+
+        // given
+        // when
         SecurityScheme scheme = OpenApiConfiguration.class.getAnnotation(SecurityScheme.class);
+        // then
         assertThat(scheme).as("@SecurityScheme на конфигурации").isNotNull();
         assertThat(scheme.type()).isEqualTo(SecuritySchemeType.HTTP);
         assertThat(scheme.scheme()).isEqualTo("bearer");
         assertThat(scheme.bearerFormat()).isEqualTo("JWT");
 
         OpenAPI openApi = new OpenApiConfiguration().realHelpDeskOpenAPI();
+
         assertThat(openApi.getInfo().getTitle()).isEqualTo("RealHelpDesk API");
         assertThat(openApi.getSecurity()).as("глобальный security-requirement").isNotEmpty();
     }
 
     @Test
     @DisplayName("Каждый @ExceptionHandler размечен @ApiResponse — коды ошибок видны в спеке каждой операции")
-    void globalHandlerDocumentsErrorCodes() {
+    void exceptionHandlers_missingApiResponse_returnsEmpty() {
+
+        // given
+        // when
         Set<String> documentedCodes = new TreeSet<>();
         Set<String> unannotated = new TreeSet<>();
+
         for (Method method : GlobalExceptionHandler.class.getDeclaredMethods()) {
             if (method.getAnnotation(ExceptionHandler.class) == null) {
                 continue;
@@ -123,6 +139,7 @@ class OpenApiDocumentationGuardTest {
             }
         }
 
+        // then
         assertThat(GlobalExceptionHandler.class.getAnnotation(RestControllerAdvice.class))
                 .as("обработчик — @RestControllerAdvice (springdoc тиражирует ответы во все операции)").isNotNull();
         assertThat(unannotated).as("обработчики без @ApiResponse (кроме динамических)").isEmpty();
@@ -131,9 +148,14 @@ class OpenApiDocumentationGuardTest {
 
     @Test
     @DisplayName("Контроллеры документируют реальные статусы: @ApiResponse совпадает с кодом, возвращаемым методом")
-    void controllersDocumentRealStatusCodes() throws IOException {
+    void controllers_apiResponseStatusMismatch_returnsEmpty() throws IOException {
+
+        // given
+        // when
         List<Path> controllers = controllerFiles();
+        // then
         assertThat(controllers).as("контроллеры найдены").isNotEmpty();
+
         List<String> violations = new ArrayList<>();
         for (Path controller : controllers) {
             for (String block : methodBlocks(read(controller))) {
@@ -153,13 +175,18 @@ class OpenApiDocumentationGuardTest {
                 }
             }
         }
+
         assertThat(violations).as("расхождения кода возврата и кода в спеке").isEmpty();
     }
 
     @Test
     @DisplayName("Контракт схем полон: у каждой схемы пример и описания полей, схемы фреймворка не описаны")
-    void schemaContractIsComplete() throws IOException {
+    void schemaContract_missingExampleOrFields_returnsEmpty() throws IOException {
+
+        // given
+        // when
         JsonNode root = new ObjectMapper().readTree(SCHEMA_CONTRACT.toFile());
+        // then
         assertThat(root.isObject()).as("контракт — JSON-объект").isTrue();
 
         List<String> violations = new ArrayList<>();
@@ -188,7 +215,7 @@ class OpenApiDocumentationGuardTest {
                 continue;
             }
             for (Map.Entry<String, JsonNode> field : fields.properties()) {
-                if (field.getValue() == null || field.getValue().asText().isBlank()) {
+                if (field.getValue() == null || field.getValue().stringValue().isBlank()) {
                     violations.add("%s.%s: пустое описание".formatted(name, field.getKey()));
                 }
             }
@@ -200,7 +227,7 @@ class OpenApiDocumentationGuardTest {
 
     private static boolean isBlank(JsonNode node, String field) {
         JsonNode value = node.get(field);
-        return value == null || value.asText().isBlank();
+        return value == null || value.stringValue().isBlank();
     }
 
     private static List<Path> controllerFiles() throws IOException {

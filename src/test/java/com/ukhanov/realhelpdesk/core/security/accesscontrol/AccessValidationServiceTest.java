@@ -61,45 +61,57 @@ class AccessValidationServiceTest {
 
     @Test
     @DisplayName("Владелец управляет порталом")
-    void owner_canManage() throws Exception {
+    void hasPortalManageAccess_ownerOnBoard_returnsTrue() throws Exception {
+        // given
         currentUser = owner;
 
+        // when / then
         assertThat(service.hasPortalManageAccess(PORTAL_ID)).isTrue();
     }
 
     @Test
     @DisplayName("Доверенный пользователь управляет порталом")
-    void trusted_canManage() throws Exception {
+    void hasPortalManageAccess_trustedUser_returnsTrue() throws Exception {
+        // given
         currentUser = trusted;
 
+        // when / then
         assertThat(service.hasPortalManageAccess(PORTAL_ID)).isTrue();
     }
 
     @Test
     @DisplayName("Посторонний не управляет даже публичным порталом")
-    void stranger_cannotManagePublicPortal() throws Exception {
+    void hasPortalManageAccess_strangerOnPublicPortal_returnsFalse() throws Exception {
+        // given
         currentUser = stranger;
+        // when
         portal.setPublic(true);
 
+        // then
         assertThat(service.hasPortalManageAccess(PORTAL_ID)).isFalse();
         assertThat(service.hasPortalAccess(PORTAL_ID)).isTrue();
     }
 
     @Test
     @DisplayName("Посторонний не имеет доступа к приватному порталу")
-    void stranger_cannotManagePrivatePortal() throws Exception {
+    void hasPortalManageAccess_strangerOnPrivatePortal_returnsFalse() throws Exception {
+        // given
         currentUser = stranger;
 
+        // when / then
         assertThat(service.hasPortalManageAccess(PORTAL_ID)).isFalse();
         assertThat(service.hasPortalAccess(PORTAL_ID)).isFalse();
     }
 
     @Test
     @DisplayName("Публичный доступ не даёт прав управления (только владелец меняет isPublic)")
-    void ownerOnly_forSharing() throws Exception {
+    void hasPortalOwner_trustedUser_returnsFalse() throws Exception {
+        // given
         currentUser = trusted;
+        // when
         portal.setPublic(true);
 
+        // then
         assertThat(service.hasPortalOwner(PORTAL_ID)).isFalse();
         assertThat(service.hasPortalManageAccess(PORTAL_ID)).isTrue();
     }

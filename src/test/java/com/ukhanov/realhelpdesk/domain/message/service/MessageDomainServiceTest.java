@@ -46,8 +46,10 @@ class MessageDomainServiceTest {
 
     @Test
     @DisplayName("saveMessage → должен вернуть сущность с присвоенным id")
-    void saveMessage_returnsEntityWithGeneratedId() {
+    void saveMessage_validMessage_returnsEntityWithGeneratedId() {
+
         // given
+        // when
         TicketModel ticket = createTicket(TICKET_ID);
 
         MessageModel messageToSave = createMessage(ticket, "Не могу войти в аккаунт");
@@ -60,7 +62,6 @@ class MessageDomainServiceTest {
 
         when(mockMessageRepository.save(any(MessageModel.class))).thenReturn(savedFromRepo);
 
-        // when
         MessageModel result = service.saveMessage(messageToSave);
 
         // then
@@ -77,6 +78,8 @@ class MessageDomainServiceTest {
     @Test
     @DisplayName("saveMessage → кидает NPE при null")
     void saveMessage_null_throwsNPE() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.saveMessage(null)).isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("Сообщение не должно быть null");
     }
@@ -87,8 +90,10 @@ class MessageDomainServiceTest {
 
     @Test
     @DisplayName("getMessagesByTicketId → возвращает список сообщений")
-    void getMessagesByTicketId_returnsMessages() {
+    void getMessagesByTicketId_existingMessages_returnsAllInOrder() {
+
         // given
+        // when
         TicketModel ticket = createTicket(TICKET_ID);
 
         MessageModel m1 = createMessage(ticket, "Клиент: проблема с оплатой");
@@ -98,7 +103,6 @@ class MessageDomainServiceTest {
 
         when(mockMessageRepository.findByTicketIdOrderByIdAsc(TICKET_ID)).thenReturn(expected);
 
-        // when
         List<MessageModel> result = service.getMessagesByTicketId(TICKET_ID);
 
         // then
@@ -114,10 +118,14 @@ class MessageDomainServiceTest {
     @Test
     @DisplayName("getMessagesByTicketId → пустой список когда сообщений нет")
     void getMessagesByTicketId_noMessages_returnsEmpty() {
+
+        // given
+        // when
         when(mockMessageRepository.findByTicketIdOrderByIdAsc(TICKET_ID)).thenReturn(Collections.emptyList());
 
         List<MessageModel> result = service.getMessagesByTicketId(TICKET_ID);
 
+        // then
         assertThat(result).isEmpty();
 
         verify(mockMessageRepository).findByTicketIdOrderByIdAsc(TICKET_ID);
@@ -126,6 +134,8 @@ class MessageDomainServiceTest {
     @Test
     @DisplayName("getMessagesByTicketId → null ticketId → NPE")
     void getMessagesByTicketId_null_throwsNPE() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.getMessagesByTicketId(null)).isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("Идентификатор заявки не должен быть null");
     }

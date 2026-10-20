@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.model.EmailLog;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 
@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @DataJpaTest
 @DisplayName("Журнал писем в БД: EmailLogRepository")
-class EmailLogRepositoryIT extends PostgresIntegrationTest {
+class EmailLogRepositoryIT extends AbstractIntegrationTest {
 
     private static final String RECIPIENT = "user@example.com";
 
@@ -26,7 +26,10 @@ class EmailLogRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Считаются только письма нужного адресата, события и попавшие в окно")
-    void countEmails_filtersByRecipientEventAndWindow() {
+    void countEmails_filteredByRecipientEventAndWindow_returnsTwo() {
+
+        // given
+        // when
         LocalDateTime now = LocalDateTime.now();
         log(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusMinutes(5));
         log(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusMinutes(10));
@@ -37,12 +40,16 @@ class EmailLogRepositoryIT extends PostgresIntegrationTest {
 
         long count = repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusHours(1), now);
 
+        // then
         assertThat(count).isEqualTo(2);
     }
 
     @Test
     @DisplayName("Границы окна включительные — письма на границе считаются")
-    void countEmails_windowBoundariesAreInclusive() {
+    void countEmails_atWindowBoundaries_countsBoth() {
+
+        // given
+        // when
         LocalDateTime now = LocalDateTime.now().withNano(0);
         log(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusHours(1));
         log(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now);
@@ -50,17 +57,22 @@ class EmailLogRepositoryIT extends PostgresIntegrationTest {
 
         long count = repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusHours(1), now);
 
+        // then
         assertThat(count).isEqualTo(2);
     }
 
     @Test
     @DisplayName("Вне окна и по другому событию — ноль")
-    void countEmails_returnsZeroWhenNothingMatches() {
+    void countEmails_noMatchingRows_returnsZero() {
+
+        // given
+        // when
         LocalDateTime now = LocalDateTime.now();
         log(RECIPIENT, NotificationEvent.NEW_TICKET, now.minusHours(5));
         log(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusDays(2));
         repository.flush();
 
+        // then
         assertThat(repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusHours(1), now))
                 .isZero();
     }

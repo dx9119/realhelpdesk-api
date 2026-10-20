@@ -14,6 +14,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -26,14 +28,14 @@ import io.micrometer.tracing.Tracer;
  * обычного запроса видны в реестре.
  *
  * <p>
- * Проверка actuator-безопасности и контракта скрейпа живёт в ActuatorSecurityTest (шаг 3), метрики БД — в DbObservabilityTest; здесь —
- * сводный smoke обязательного набора из плана. Тест делит закэшированный контекст с HttpObservabilityTest/DbObservabilityTest (одинаковый
- * набор properties).
+ * Проверка actuator-безопасности и контракта скрейпа живёт в ActuatorSecurityIT (шаг 3), метрики БД — в DbObservabilityIT; здесь — сводный
+ * smoke обязательного набора из плана. Тест делит закэшированный контекст с HttpObservabilityIT/DbObservabilityIT (одинаковый набор
+ * properties).
  * </p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
 @DisplayName("Контекст наблюдаемости: бины, отключённый OTLP-экспорт и обязательные метрики")
-class ObservabilityContextTest {
+class ObservabilityContextIT extends AbstractIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
@@ -54,24 +56,44 @@ class ObservabilityContextTest {
 
     @Test
     @DisplayName("Бины MeterRegistry, ObservationRegistry и Tracer есть — tracing-инфраструктура подключена")
-    void observabilityBeansArePresent() {
-        assertThat(meterRegistry).as("MeterRegistry — точка записи метрик").isNotNull();
-        assertThat(observationRegistry).as("ObservationRegistry — точка записи наблюдений (HTTP, сервисные, почта)").isNotNull();
-        assertThat(tracer).as("Tracer — мост micrometer-tracing (noop без экспорта, реальный — с management.opentelemetry.enabled=true)")
+    void context_observabilityBeans_arePresent() {
+
+        // given
+        MeterRegistry meters = meterRegistry;
+        ObservationRegistry observations = observationRegistry;
+        Tracer tracing = tracer;
+
+        // when / then
+        assertThat(meters).as("MeterRegistry — точка записи метрик").isNotNull();
+        assertThat(observations).as("ObservationRegistry — точка записи наблюдений (HTTP, сервисные, почта)").isNotNull();
+        assertThat(tracing).as("Tracer — мост micrometer-tracing (noop без экспорта, реальный — с management.opentelemetry.enabled=true)")
                 .isNotNull();
     }
 
     @Test
     @DisplayName("OTLP-экспорт в тестовом профиле выключен — внешняя инфраструктура и collector не нужны")
-    void otlpExportIsDisabledInTestProfile() {
-        assertThat(environment.getProperty("management.opentelemetry.enabled"))
-                .as("в тестовом профиле OTel SDK выключен: спаны никуда не экспортируются, старт без collector'а").isEqualTo("false");
+    void context_testProfile_disablesOtlpExport() {
+
+        // given
+        // when
+        String enabled = environment.getProperty("management.opentelemetry.enabled");
+
+        // then
+        assertThat(enabled).as("в тестовом профиле OTel SDK выключен: спаны никуда не экспортируются, старт без collector'а")
+                .isEqualTo("false");
     }
 
     @Test
     @DisplayName("После запроса в реестре есть обязательные метрики: http, пул БД, JVM и бизнес-метрики шага 8")
-    void requiredMetricsArePresentAfterRequest() throws IOException, InterruptedException {
-        assertThat(get("/api/v1/health").statusCode()).isEqualTo(200);
+    void request_healthAndFailedLogin_produceRequiredMetrics() throws IOException, InterruptedException {
+
+        // given
+        // when
+        int healthStatus = get("/api/v1/health").statusCode();
+        HttpResponse<String> login = post("/api/v1/auth/login", "{\"email\":\"nobody@example.com\",\"password\":\"wrong-password\"}");
+
+        // then
+        assertThat(healthStatus).isEqualTo(200);
 
         assertThat(meterRegistry.find("http.server.requests").meter()).as("HTTP-метрики создаются Observation-фильтром Spring MVC")
                 .isNotNull();
@@ -81,7 +103,6 @@ class ObservabilityContextTest {
         assertThat(meterRegistry.find("tickets.open").meter()).as("бизнес-gauge открытых заявок регистрируется в конструкторе").isNotNull();
 
         // Бизнес-метрика аутентификации (шаг 8): фиксируется на неудачном входе, без email в тегах.
-        HttpResponse<String> login = post("/api/v1/auth/login", "{\"email\":\"nobody@example.com\",\"password\":\"wrong-password\"}");
         assertThat(login.statusCode()).isEqualTo(401);
         assertThat(meterRegistry.find("auth.attempts").tags("type", "login", "result", "failure").meter())
                 .as("auth.attempts{type=login,result=failure} растёт на отказе во входе").isNotNull();

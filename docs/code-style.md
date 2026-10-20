@@ -32,6 +32,10 @@ mvn validate          # обе проверки + компиляция (запу
    в его настройках указать тот же `config/eclipse/eclipse-format.xml` и включить форматирование при сохранении.
 4. После импорта: `Settings → Editor → Code Style → Java → ⚙ → Override default color or font settings`
    не требуется — убедитесь, что выбран импортированный scheme (он становится активным автоматически).
+5. Включите `Settings → Build, Execution, Deployment → Build Tools → Maven → Runner → Delegate IDE build/run actions to Maven`.
+   Иначе кнопка Run/Build в IDEA компилирует своим компилятором и обходит проверки фазы `validate`
+   (Spotless, Checkstyle, enforcer JDK, `-Werror`): локально всё «зелёное», а `make verify`/CI падают.
+   Цена — сборка из IDE идёт через Maven (медленнее), зато результат совпадает с командной строкой.
 
 Перед коммитом проверьте себя: `mvn spotless:check` — если файлы «грязные», IDEA форматирует иначе,
 либо переимпортируйте профиль, либо выполните `mvn spotless:apply`.

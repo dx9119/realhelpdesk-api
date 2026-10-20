@@ -121,7 +121,10 @@ class PortalManageServiceTest {
 
     @Test
     @DisplayName("Создание портала → письмо NEW_PORTAL участникам")
-    void createPortal_sendsPortalCreatedEmail() throws Exception {
+    void createPortal_validRequest_sendsPortalCreatedEmail() throws Exception {
+
+        // given
+        // when
         when(portalDomainService.isPortalExistByName(OWNER_ID, "Портал")).thenReturn(false);
         when(portalDomainService.savePortal(any())).thenAnswer(invocation -> {
             PortalModel portal = invocation.getArgument(0);
@@ -131,6 +134,7 @@ class PortalManageServiceTest {
 
         CreatePortalResponse response = service.createPortal(request("Портал"));
 
+        // then
         assertThat(response.id()).isEqualTo(PORTAL_ID);
         verify(emailDeliveryService).initNotifyPortalUsers(any(PortalModel.class), eq(emailTemplates.portalCreatedSubject(PORTAL_ID)),
                 eq(emailTemplates.portalCreatedBody(PORTAL_ID)), eq(NotificationEvent.NEW_PORTAL));
@@ -139,8 +143,12 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Неподтверждённая почта: портал не создаётся, письма нет")
     void createPortal_emailNotVerified_throwsWithoutEmail() {
+
+        // given
+        // when
         currentUserProvider.getCurrentUserModel().setEmailVerified(false);
 
+        // then
         assertThatThrownBy(() -> service.createPortal(request("Портал"))).isInstanceOf(UserManageException.class)
                 .hasMessageContaining("Подтвердите ваш адрес электронной почты");
 
@@ -150,8 +158,12 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Достигнут лимит порталов: ошибка и письма нет")
     void createPortal_limitReached_throwsWithoutEmail() {
+
+        // given
+        // when
         when(limitService.hasUserReachedPortalLimit(currentUserProvider.getCurrentUserModel())).thenReturn(true);
 
+        // then
         assertThatThrownBy(() -> service.createPortal(request("Портал"))).isInstanceOf(LimitException.class);
 
         verifyNoInteractions(emailDeliveryService);
@@ -164,6 +176,9 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Удаление портала владельцем → письмо PORTAL_DELETED")
     void deletePortals_owner_sendsPortalDeletedEmail() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portal(PORTAL_ID);
         when(accessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
         when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
@@ -171,6 +186,7 @@ class PortalManageServiceTest {
 
         DeleteResult result = service.deletePortals(Set.of(PORTAL_ID));
 
+        // then
         assertThat(result.count()).isEqualTo(1);
         verify(emailDeliveryService).initNotifyPortalUsers(eq(portal), eq(emailTemplates.deletedPortalSubject(PORTAL_ID)),
                 eq(emailTemplates.deletedPortalBody(PORTAL_ID, OWNER_EMAIL)), eq(NotificationEvent.PORTAL_DELETED));
@@ -179,10 +195,14 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Удаление без прав владельца: письмо не уходит")
     void deletePortals_notOwner_sendsNoEmail() throws Exception {
+
+        // given
+        // when
         when(accessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(false);
 
         DeleteResult result = service.deletePortals(Set.of(PORTAL_ID));
 
+        // then
         assertThat(result.count()).isZero();
         verifyNoInteractions(emailDeliveryService);
     }
@@ -194,12 +214,16 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Смена видимости портала → история VISIBILITY_CHANGED (старое/новое значение)")
     void setPortalStatus_changed_recordsVisibilityHistory() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portal(PORTAL_ID);
         when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
         when(portalDomainService.savePortal(any())).thenReturn(portal);
 
         service.setPortalStatus(PORTAL_ID, true);
 
+        // then
         assertThat(portal.isPublic()).isTrue();
         verify(portalHistoryService).record(eq(PORTAL_ID), eq(PortalHistoryEvent.VISIBILITY_CHANGED), eq(OWNER_ID), isNull(), isNull(),
                 eq("visibility"), eq("false"), eq("true"));
@@ -208,18 +232,25 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Видимость не менялась → история не пишется")
     void setPortalStatus_unchanged_writesNoHistory() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portal(PORTAL_ID);
         when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
         when(portalDomainService.savePortal(any())).thenReturn(portal);
 
         service.setPortalStatus(PORTAL_ID, false);
 
+        // then
         verify(portalHistoryService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Замена участников → история USERS_CHANGED со старым и новым составом")
-    void addUserForPortal_recordsUsersHistory() throws Exception {
+    void addUserForPortal_changedMembership_recordsUsersHistory() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portal(PORTAL_ID);
         portal.setAllowedUserIds(new java.util.HashSet<>(Set.of(9L)));
         when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
@@ -227,6 +258,7 @@ class PortalManageServiceTest {
 
         service.addUserForPortal(PORTAL_ID, Set.of(9L, 10L));
 
+        // then
         verify(portalHistoryService).record(eq(PORTAL_ID), eq(PortalHistoryEvent.USERS_CHANGED), eq(OWNER_ID), isNull(), isNull(),
                 eq("users"), eq("9"), eq("9,10"));
     }
@@ -234,6 +266,9 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Переименование и описание → история NAME_CHANGED и DESCRIPTION_CHANGED")
     void updatePortalInfo_changed_recordsHistory() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portal(PORTAL_ID);
         portal.setDescription("Старое");
         when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
@@ -241,6 +276,7 @@ class PortalManageServiceTest {
 
         service.updatePortalInfo(PORTAL_ID, new UpdatePortalInfoRequest("Новый", "Новое"), null);
 
+        // then
         verify(portalHistoryService).record(eq(PORTAL_ID), eq(PortalHistoryEvent.NAME_CHANGED), eq(OWNER_ID), isNull(), isNull(),
                 eq("name"), eq("Портал"), eq("Новый"));
         verify(portalHistoryService).record(eq(PORTAL_ID), eq(PortalHistoryEvent.DESCRIPTION_CHANGED), eq(OWNER_ID), isNull(), isNull(),
@@ -250,6 +286,9 @@ class PortalManageServiceTest {
     @Test
     @DisplayName("Данные не менялись → история не пишется")
     void updatePortalInfo_unchanged_writesNoHistory() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portal(PORTAL_ID);
         portal.setDescription("Старое");
         when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
@@ -257,12 +296,16 @@ class PortalManageServiceTest {
 
         service.updatePortalInfo(PORTAL_ID, new UpdatePortalInfoRequest("Портал", "Старое"), null);
 
+        // then
         verify(portalHistoryService, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Удаление портала владельцем → история PORTAL_DELETED с именем")
     void deletePortals_owner_recordsPortalDeletedHistory() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portal(PORTAL_ID);
         when(accessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
         when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
@@ -270,6 +313,7 @@ class PortalManageServiceTest {
 
         service.deletePortals(Set.of(PORTAL_ID));
 
+        // then
         verify(portalHistoryService).record(eq(PORTAL_ID), eq(PortalHistoryEvent.PORTAL_DELETED), eq(OWNER_ID), isNull(), isNull(),
                 eq("name"), eq("Портал"), isNull());
     }

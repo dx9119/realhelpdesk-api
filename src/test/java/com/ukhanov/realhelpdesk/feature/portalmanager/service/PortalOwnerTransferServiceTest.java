@@ -143,11 +143,15 @@ class PortalOwnerTransferServiceTest {
 
     @Test
     @DisplayName("Инициирование: запрос PENDING, история, участникам и новому владельцу in-app + email")
-    void initiate_createsPendingRequestAndNotifies() throws Exception {
+    void initiate_validRequest_createsPendingAndNotifies() throws Exception {
+
+        // given
+        // when
         when(userDomainService.getUserByEmail(PROPOSED_EMAIL)).thenReturn(proposed);
 
         PortalTransferResponse response = service.initiate(PORTAL_ID, initiateRequest());
 
+        // then
         assertThat(response.status()).isEqualTo("PENDING");
         assertThat(response.reasonInitiator()).isEqualTo("Причина");
         assertThat(response.keepOldOwnerAsMember()).isTrue();
@@ -182,8 +186,12 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Инициирование чужим паролем: 401, ничего не сохраняется")
     void initiate_wrongPassword_rejects() throws Exception {
+
+        // given
+        // when
         PortalTransferRequest request = initiateRequest(PROPOSED_EMAIL, BAD_PASSWORD);
 
+        // then
         assertThatThrownBy(() -> service.initiate(PORTAL_ID, request)).isInstanceOf(PortalException.class).hasMessage("Неверный пароль");
 
         verifyNoInteractions(transferRequestRepository, portalHistoryService, notificationPublisher, emailDeliveryService);
@@ -192,9 +200,13 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Передача самому себе: ошибка, запроса нет")
     void initiate_selfTransfer_rejects() throws Exception {
+
+        // given
+        // when
         when(userDomainService.getUserByEmail(OWNER_EMAIL)).thenReturn(owner);
         PortalTransferRequest request = initiateRequest(OWNER_EMAIL, GOOD_PASSWORD);
 
+        // then
         assertThatThrownBy(() -> service.initiate(PORTAL_ID, request)).isInstanceOf(PortalException.class)
                 .hasMessageContaining("самому себе");
 
@@ -204,8 +216,12 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Email без пользователя: 404, запроса нет")
     void initiate_unknownEmail_rejects() throws Exception {
+
+        // given
+        // when
         when(userDomainService.getUserByEmail(any())).thenThrow(new UsernameNotFoundException("нет"));
 
+        // then
         assertThatThrownBy(() -> service.initiate(PORTAL_ID, initiateRequest())).isInstanceOf(PortalException.class)
                 .hasMessageContaining("не найден");
 
@@ -215,9 +231,13 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Неактивный предлагаемый владелец: ошибка, запроса нет")
     void initiate_blockedUser_rejects() throws Exception {
+
+        // given
+        // when
         proposed.setUserStatus(UserStatus.BLOCKED);
         when(userDomainService.getUserByEmail(PROPOSED_EMAIL)).thenReturn(proposed);
 
+        // then
         assertThatThrownBy(() -> service.initiate(PORTAL_ID, initiateRequest())).isInstanceOf(PortalException.class)
                 .hasMessageContaining("не активна");
 
@@ -227,10 +247,14 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Второй активный запрос: 409, первый не трогаем")
     void initiate_secondPending_rejects() throws Exception {
+
+        // given
+        // when
         when(userDomainService.getUserByEmail(PROPOSED_EMAIL)).thenReturn(proposed);
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
+        // then
         assertThatThrownBy(() -> service.initiate(PORTAL_ID, initiateRequest())).isInstanceOf(PortalException.class)
                 .hasMessageContaining("уже существует");
 
@@ -241,12 +265,16 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Истёкший активный запрос закрывается как EXPIRED и создаётся новый")
     void initiate_stalePending_expiresAndCreatesNew() throws Exception {
+
+        // given
+        // when
         when(userDomainService.getUserByEmail(PROPOSED_EMAIL)).thenReturn(proposed);
         PortalTransferRequestModel stale = pendingTransfer(Instant.now().minus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(stale));
 
         PortalTransferResponse response = service.initiate(PORTAL_ID, initiateRequest());
 
+        // then
         assertThat(response.status()).isEqualTo("PENDING");
         assertThat(stale.getStatus()).isEqualTo(PortalTransferStatus.EXPIRED);
         verify(portalHistoryService).record(eq(PORTAL_ID), eq(PortalHistoryEvent.TRANSFER_EXPIRED), isNull(), eq(PROPOSED_ID), isNull(),
@@ -261,7 +289,10 @@ class PortalOwnerTransferServiceTest {
 
     @Test
     @DisplayName("Подтверждение: владелец меняется, старый владелец остаётся участником, история и оповещения")
-    void confirm_transfersOwnershipAndKeepsOldOwner() throws Exception {
+    void confirm_keepOldOwnerTrue_transfersOwnershipAndKeepsMember() throws Exception {
+
+        // given
+        // when
         asProposed();
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         pending.setKeepOldOwner(true);
@@ -269,6 +300,7 @@ class PortalOwnerTransferServiceTest {
 
         PortalTransferResponse response = service.confirm(PORTAL_ID, confirmRequest());
 
+        // then
         assertThat(response.status()).isEqualTo("ACCEPTED");
         assertThat(portal.getOwner()).isSameAs(proposed);
         assertThat(portal.getAllowedUserIds()).containsExactlyInAnyOrder(OWNER_ID, MEMBER_ID);
@@ -290,6 +322,9 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Подтверждение без keepOldOwner: старый владелец выходит из участников")
     void confirm_withoutKeepingOldOwner_removesHim() throws Exception {
+
+        // given
+        // when
         asProposed();
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         pending.setKeepOldOwner(false);
@@ -297,6 +332,7 @@ class PortalOwnerTransferServiceTest {
 
         service.confirm(PORTAL_ID, confirmRequest());
 
+        // then
         assertThat(portal.getOwner()).isSameAs(proposed);
         assertThat(portal.getAllowedUserIds()).containsExactly(MEMBER_ID);
     }
@@ -304,10 +340,14 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Подтверждение не предлагаемым владельцем: 404 (существование запроса не раскрывается)")
     void confirm_byStranger_rejectsAsNotFound() throws Exception {
+
+        // given
+        // when
         when(currentUserProvider.getCurrentUserId()).thenReturn(STRANGER_ID);
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
+        // then
         assertThatThrownBy(() -> service.confirm(PORTAL_ID, confirmRequest())).isInstanceOf(PortalException.class)
                 .hasMessageContaining("не найден");
 
@@ -317,10 +357,14 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Подтверждение по истёкшему сроку: 409, запрос закрыт как EXPIRED")
     void confirm_expired_rejectsAndExpires() throws Exception {
+
+        // given
+        // when
         asProposed();
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().minus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
+        // then
         assertThatThrownBy(() -> service.confirm(PORTAL_ID, confirmRequest())).isInstanceOf(PortalException.class)
                 .hasMessageContaining("истёк");
 
@@ -332,11 +376,15 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Подтверждение чужим паролем: 401, портал не передан")
     void confirm_wrongPassword_rejects() throws Exception {
+
+        // given
+        // when
         asProposed();
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
         PortalTransferConfirmRequest request = confirmRequest(BAD_PASSWORD);
 
+        // then
         assertThatThrownBy(() -> service.confirm(PORTAL_ID, request)).isInstanceOf(PortalException.class).hasMessage("Неверный пароль");
 
         assertThat(portal.getOwner()).isSameAs(owner);
@@ -346,12 +394,16 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Лимит участников нового владельца: LimitException, портал не передан")
     void confirm_memberLimit_rejects() throws Exception {
+
+        // given
+        // when
         asProposed();
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         pending.setKeepOldOwner(true);
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
         when(limitService.violatesSharedUserPortalLimit(eq(proposed), eq(portal), eq(2))).thenReturn(true);
 
+        // then
         assertThatThrownBy(() -> service.confirm(PORTAL_ID, confirmRequest())).isInstanceOf(LimitException.class);
 
         assertThat(portal.getOwner()).isSameAs(owner);
@@ -364,13 +416,17 @@ class PortalOwnerTransferServiceTest {
 
     @Test
     @DisplayName("Отклонение предлагаемым владельцем: REJECTED, история, причина инициатору")
-    void reject_marksRejectedAndNotifiesInitiator() throws Exception {
+    void reject_byProposedUser_marksRejectedAndNotifies() throws Exception {
+
+        // given
+        // when
         asProposed();
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
         PortalTransferResponse response = service.reject(PORTAL_ID, rejectRequest());
 
+        // then
         assertThat(response.status()).isEqualTo("REJECTED");
         assertThat(pending.getStatus()).isEqualTo(PortalTransferStatus.REJECTED);
         assertThat(pending.getReasonProposed()).isEqualTo("Отклоняю");
@@ -386,12 +442,16 @@ class PortalOwnerTransferServiceTest {
 
     @Test
     @DisplayName("Отзыв владельцем: CANCELLED, история, предлагаемому in-app + email")
-    void cancel_marksCancelledAndNotifiesProposed() throws Exception {
+    void cancel_pendingTransfer_marksCancelledAndNotifiesProposed() throws Exception {
+
+        // given
+        // when
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
         PortalTransferResponse response = service.cancel(PORTAL_ID);
 
+        // then
         assertThat(response.status()).isEqualTo("CANCELLED");
         assertThat(pending.getStatus()).isEqualTo(PortalTransferStatus.CANCELLED);
 
@@ -407,20 +467,28 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("Отзыв не владельцем: 403")
     void cancel_byStranger_rejects() throws Exception {
+
+        // given
+        // when
         when(currentUserProvider.getCurrentUserModel()).thenReturn(memberAsCurrent());
 
+        // then
         assertThatThrownBy(() -> service.cancel(PORTAL_ID)).isInstanceOf(PortalException.class).hasMessageContaining("только владелец");
     }
 
     @Test
     @DisplayName("GET активного запроса: виден предлагаемому владельцу")
-    void getPending_visibleToProposed() throws Exception {
+    void getPending_proposedUser_returnsPendingTransfer() throws Exception {
+
+        // given
+        // when
         asProposed();
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
         PortalTransferResponse response = service.getPending(PORTAL_ID);
 
+        // then
         assertThat(response.status()).isEqualTo("PENDING");
         assertThat(response.proposedOwnerEmail()).isEqualTo(PROPOSED_EMAIL);
     }
@@ -428,25 +496,35 @@ class PortalOwnerTransferServiceTest {
     @Test
     @DisplayName("GET активного запроса постороннему: 404")
     void getPending_stranger_seesNotFound() throws Exception {
+
+        // given
+        // when
         when(currentUserProvider.getCurrentUserId()).thenReturn(STRANGER_ID);
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
+        // then
         assertThatThrownBy(() -> service.getPending(PORTAL_ID)).isInstanceOf(PortalException.class).hasMessageContaining("не найден");
     }
 
     @Test
     @DisplayName("GET без активного запроса: 404")
     void getPending_withoutRequest_seesNotFound() throws Exception {
+
+        // given / when / then
         assertThatThrownBy(() -> service.getPending(PORTAL_ID)).isInstanceOf(PortalException.class).hasMessageContaining("не найден");
     }
 
     @Test
     @DisplayName("GET истёкшего запроса: ленивое закрытие и 404")
     void getPending_expired_closesAndNotFound() throws Exception {
+
+        // given
+        // when
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().minus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING)).thenReturn(Optional.of(pending));
 
+        // then
         assertThatThrownBy(() -> service.getPending(PORTAL_ID)).isInstanceOf(PortalException.class).hasMessageContaining("не найден");
 
         assertThat(pending.getStatus()).isEqualTo(PortalTransferStatus.EXPIRED);

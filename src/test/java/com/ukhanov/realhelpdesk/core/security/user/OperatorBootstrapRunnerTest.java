@@ -40,65 +40,89 @@ class OperatorBootstrapRunnerTest {
 
     @Test
     @DisplayName("Существующий подтверждённый пользователь повышается до ROLE_OPERATOR")
-    void run_promotesVerifiedUser() {
+    void run_verifiedUser_promotesToOperator() {
+
+        // given
+        // when
         UserModel user = user(UserRole.ROLE_USER, true);
         when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(user));
 
         runner(EMAIL).run(null);
 
+        // then
         assertThat(user.getUserRole()).isEqualTo(UserRole.ROLE_OPERATOR);
         verify(userRepository).save(user);
     }
 
     @Test
     @DisplayName("Пользователь без подтверждённого email не повышается")
-    void run_skipsUnverifiedUser() {
+    void run_unverifiedUser_skipsPromotion() {
+
+        // given
+        // when
         UserModel user = user(UserRole.ROLE_USER, false);
         when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(user));
 
         runner(EMAIL).run(null);
 
+        // then
         assertThat(user.getUserRole()).isEqualTo(UserRole.ROLE_USER);
         verify(userRepository, never()).save(ArgumentMatchers.any());
     }
 
     @Test
     @DisplayName("Незарегистрированный email пропускается — аккаунты не создаются")
-    void run_skipsMissingUser() {
+    void run_missingUser_skipsSave() {
+
+        // given
+        // when
         when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.empty());
 
         runner(EMAIL).run(null);
 
+        // then
         verify(userRepository, never()).save(ArgumentMatchers.any());
     }
 
     @Test
     @DisplayName("Уже оператор не пересохраняется (идемпотентность)")
-    void run_skipsAlreadyOperator() {
+    void run_alreadyOperator_skipsResave() {
+
+        // given
+        // when
         UserModel user = user(UserRole.ROLE_OPERATOR, true);
         when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(user));
 
         runner(EMAIL).run(null);
 
+        // then
         verify(userRepository, never()).save(ArgumentMatchers.any());
     }
 
     @Test
     @DisplayName("Пустой список — ни одного обращения к БД")
-    void run_emptyListNoop() {
+    void run_emptyList_makesNoRepositoryCalls() {
+
+        // given
+        // when
         runner().run(null);
 
+        // then
         verifyNoInteractions(userRepository);
     }
 
     @Test
     @DisplayName("Список нормализуется: trim, нижний регистр, без пустых и дублей")
-    void run_normalizesEmails() {
+    void run_mixedCaseWithBlanks_normalizesEmails() {
+
+        // given
+        // when
         UserModel user = user(UserRole.ROLE_USER, true);
         when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(user));
 
         runner("  Operator@Example.com ", "operator@example.com", "", "   ").run(null);
 
+        // then
         verify(userRepository).findByEmailIgnoreCase(EMAIL);
         verify(userRepository).save(user);
     }

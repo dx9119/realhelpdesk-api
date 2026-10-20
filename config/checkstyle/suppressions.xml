@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<!--
+  Исключения из правил config/checkstyle/checkstyle.xml.
+
+  Принцип: подавление — только по конкретному правилу (id) и конкретным файлам.
+  Глушить правило целиком по всему проекту нельзя — иначе оно перестаёт ловить
+  новые нарушения.
+-->
+<suppressions>
+
+    <!-- Продакшн-код: тестовые конвенции (given/when/then, имена из трёх сегментов,
+         @DisplayName, package-private, суффикс класса) к нему не применяются. -->
+    <suppress id="NoThreadSleepInTests" files="src[\\/]main[\\/].*"/>
+    <suppress id="TestMethodNamingConvention" files="src[\\/]main[\\/].*"/>
+    <suppress id="RequireDisplayNameOnTests" files="src[\\/]main[\\/].*"/>
+    <suppress id="GivenWhenThenStructure" files="src[\\/]main[\\/].*"/>
+    <suppress id="JUnit5PackagePrivate" files="src[\\/]main[\\/].*"/>
+    <suppress id="NoSpringContextInUnitTests" files="src[\\/]main[\\/].*"/>
+    <suppress id="TestClassSuffix" files="src[\\/]main[\\/].*"/>
+    <suppress id="MethodNameMain" files="src[\\/]test[\\/].*"/>
+
+    <!-- Backoff в очистке refresh-токенов: спящий поток — часть механизма повторов,
+         а не ожидание в тесте. -->
+    <suppress id="NoThreadSleepInTests"
+              files="RefreshTokenCleanupService\.java"/>
+
+    <!-- Helper-классы тестовой инфраструктуры: @Test-методов не содержат, поэтому
+         структура и суффиксы к ним неприменимы. -->
+    <suppress id="GivenWhenThenStructure"
+              files="EmailTemplatesFixture\.java|SseEmitterCapture\.java"/>
+    <suppress id="TestClassSuffix"
+              files="EmailTemplatesFixture\.java|SseEmitterCapture\.java"/>
+
+</suppressions>

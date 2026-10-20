@@ -53,6 +53,7 @@ import static org.mockito.Mockito.when;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.tck.TestObservationRegistry;
+import io.micrometer.observation.tck.TestObservationRegistryAssert;
 
 /**
  * Ручные Observation: имена наблюдений на границах (ticket.create, attachment.upload, mail.send), low-cardinality теги и отсутствие
@@ -95,7 +96,10 @@ class ManualObservationTest {
 
     @Test
     @DisplayName("ticket.create: наблюдение создаётся с low-тегом operation и без id/email в low-cardinality")
-    void ticketCreateObservationIsRecorded() throws Exception {
+    void createTicket_validRequest_recordsTicketCreateObservation() throws Exception {
+
+        // given
+        // when
         TicketManageService service = new TicketManageService(ticketDomainService, currentUserProvider, portalDomainService,
                 paginationAdapter, emailDeliveryService, ticketAccessValidationService, ticketRepository, emailTemplates,
                 notificationPublisher, Mappers.getMapper(TicketMapper.class), observationRegistry,
@@ -110,15 +114,20 @@ class ManualObservationTest {
 
         CreateTicketResponse response = service.createTicket(new CreateTicketRequest("New Issue", null, null, null), PORTAL_ID);
 
+        // then
         assertThat(response.id()).isEqualTo(TICKET_ID);
-        observationRegistry.assertThat().hasObservationWithNameEqualTo("ticket.create").that().hasBeenStarted().hasBeenStopped()
-                .hasLowCardinalityKeyValue("operation", "create").hasHighCardinalityKeyValue("ticket.id", String.valueOf(TICKET_ID));
+        TestObservationRegistryAssert.assertThat(observationRegistry).hasObservationWithNameEqualTo("ticket.create").that().hasBeenStarted()
+                .hasBeenStopped().hasLowCardinalityKeyValue("operation", "create")
+                .hasHighCardinalityKeyValue("ticket.id", String.valueOf(TICKET_ID));
         assertNoForbiddenLowCardinalityKeys();
     }
 
     @Test
     @DisplayName("attachment.upload: наблюдение создаётся с low-тегом operation, ключ объекта — только в high-cardinality")
-    void attachmentUploadObservationIsRecorded() {
+    void uploadAttachment_unreachableMinio_recordsErrorObservation() {
+
+        // given
+        // when
         MinioProperties properties = new MinioProperties();
         properties.setEndpoint("http://minio:9000");
         properties.setAccessKey("minioadmin");
@@ -134,38 +143,47 @@ class ManualObservationTest {
             // ожидаемое исключение: MinIO недоступен в тестовом окружении — важно, что наблюдение с outcome=error записано
         }
 
-        observationRegistry.assertThat().hasObservationWithNameEqualTo("attachment.upload").that().hasBeenStarted()
-                .hasLowCardinalityKeyValue("operation", "upload").hasLowCardinalityKeyValue("outcome", "error");
+        TestObservationRegistryAssert.assertThat(observationRegistry).hasObservationWithNameEqualTo("attachment.upload").that()
+                .hasBeenStarted().hasLowCardinalityKeyValue("operation", "upload").hasLowCardinalityKeyValue("outcome", "error");
+        // then
         assertNoForbiddenLowCardinalityKeys();
     }
 
     @Test
     @DisplayName("mail.send: low-теги operation и event, адрес получателя не попадает ни в один тег")
-    void mailSendObservationIsRecorded() throws Exception {
+    void sendEmail_validMessage_recordsMailSendObservation() throws Exception {
+
+        // given
+        // when
         JavaMailSender mailSender = org.mockito.Mockito.mock(JavaMailSender.class);
         when(mailSender.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         EmailDeliveryService service = emailDeliveryService(mailSender);
 
         service.sendEmail("user@example.com", "Тема", "Текст", NotificationEvent.NEW_TICKET);
 
-        observationRegistry.assertThat().hasObservationWithNameEqualTo("mail.send").that().hasBeenStarted().hasBeenStopped()
-                .hasLowCardinalityKeyValue("operation", "send").hasLowCardinalityKeyValue("event", "NEW_TICKET");
+        TestObservationRegistryAssert.assertThat(observationRegistry).hasObservationWithNameEqualTo("mail.send").that().hasBeenStarted()
+                .hasBeenStopped().hasLowCardinalityKeyValue("operation", "send").hasLowCardinalityKeyValue("event", "NEW_TICKET");
+        // then
         assertNoForbiddenLowCardinalityKeys();
     }
 
     @Test
     @DisplayName("mail.send: ошибка SMTP → наблюдение остановлено с outcome=error (результат наблюдения)")
-    void mailSendFailureSetsOutcomeError() throws Exception {
+    void sendEmail_smtpFailure_recordsErrorOutcome() throws Exception {
+
+        // given
+        // when
         JavaMailSender mailSender = org.mockito.Mockito.mock(JavaMailSender.class);
         when(mailSender.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         org.mockito.Mockito.doThrow(new MailSendException("Connection refused")).when(mailSender).send(any(MimeMessage.class));
         EmailDeliveryService service = emailDeliveryService(mailSender);
 
+        // then
         assertThatThrownBy(() -> service.sendEmail("user@example.com", "Тема", "Текст", NotificationEvent.NEW_TICKET))
                 .isInstanceOf(MailSendException.class);
 
-        observationRegistry.assertThat().hasObservationWithNameEqualTo("mail.send").that().hasBeenStarted().hasBeenStopped()
-                .hasLowCardinalityKeyValue("operation", "send").hasLowCardinalityKeyValue("outcome", "error");
+        TestObservationRegistryAssert.assertThat(observationRegistry).hasObservationWithNameEqualTo("mail.send").that().hasBeenStarted()
+                .hasBeenStopped().hasLowCardinalityKeyValue("operation", "send").hasLowCardinalityKeyValue("outcome", "error");
         assertNoForbiddenLowCardinalityKeys();
     }
 
@@ -186,7 +204,7 @@ class ManualObservationTest {
 
     /** Запрещённые ключи: id, email и прочие ПДн не должны жить в low-cardinality тегах. */
     private void assertNoForbiddenLowCardinalityKeys() {
-        observationRegistry.assertThat().hasHandledContextsThatSatisfy(contexts -> {
+        TestObservationRegistryAssert.assertThat(observationRegistry).hasHandledContextsThatSatisfy(contexts -> {
             for (io.micrometer.observation.Observation.ContextView context : contexts) {
                 for (io.micrometer.common.KeyValue keyValue : context.getLowCardinalityKeyValues()) {
                     String key = keyValue.getKey().toLowerCase();

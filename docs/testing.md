@@ -28,14 +28,16 @@ dev-стеке (`make dev-run` или `make up`). В других средах �
 | База данных | H2 (embedded) для `@DataJpaTest`-слайсов | PostgreSQL 18, Testcontainers |
 | Миграции | Liquibase выключен, схема — `ddl-auto` самого теста | полный Liquibase + `hibernate validate` |
 | Docker | не нужен | нужен (контейнеры PostgreSQL/MinIO) |
+| `spring-boot-docker-compose` | выключен (`spring.docker.compose.enabled=false`) | выключен: контейнеры поднимает Testcontainers, а не compose-стек |
 
 - `@SpringBootTest` в `*Test` запрещён checkstyle (`NoSpringContextInUnitTests`) —
   полный контекст живёт только в `*IT`.
-- Интеграционные наследуют `AbstractIntegrationTest`: один singleton-контейнер
-  PostgreSQL 18 на весь прогон JVM (JDBC-параметры делятся через system properties
-  `it.pg.*` — повторная инициализация в другом classloader'е не поднимает второй контейнер),
-  стоп по выходу из JVM делает Ryuk. Подключение — `@ServiceConnection`, не
-  `@DynamicPropertySource`. Схему создаёт и проверяет Liquibase
+- Интеграционные наследуют `AbstractIntegrationTest`: статические контейнеры
+  PostgreSQL 18 и MinIO — по одному на прогон JVM (повторного старта не будет ни при
+  кэшировании контекстов Spring, ни при загрузке тест-классов другим classloader'ом),
+  стоп по выходу из JVM делает Ryuk. Подключение к БД — `@ServiceConnection`, не
+  `@DynamicPropertySource`; для MinIO Boot не знает `MinioConnectionDetails`, поэтому
+  адрес и учётные данные привязываются явно. Схему создаёт и проверяет Liquibase
   (`db.changelog-master.xml`, `ddl-auto=validate`) — расхождение миграций с entity валит IT.
 
 ## E2E-сценарии

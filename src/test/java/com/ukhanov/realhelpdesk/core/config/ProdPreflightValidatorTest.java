@@ -36,111 +36,159 @@ class ProdPreflightValidatorTest {
 
     @Test
     @DisplayName("Безопасная конфигурация: preflight проходит")
-    void secureConfiguration_passes() {
+    void validate_secureConfiguration_passes() {
+
+        // given
+        // when
         env.withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatCode(() -> new ProdPreflightValidator(env).validate()).doesNotThrowAnyException();
     }
 
     @Test
     @DisplayName("Выключенная капча — старт валится")
-    void captchaDisabled_fails() {
+    void validate_captchaDisabled_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("captcha.enabled", "false").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("captcha.enabled=false");
     }
 
     @Test
     @DisplayName("Не заданный HMAC-секрет капчи — старт валится")
-    void captchaSecretMissing_fails() {
+    void validate_captchaSecretMissing_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("captcha.hmac-secret", "").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("CAPTCHA_HMAC_SECRET");
     }
 
     @Test
     @DisplayName("HMAC-секрет капчи короче 32 байт — старт валится")
-    void captchaSecretTooShort_fails() {
+    void validate_captchaSecretTooShort_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("captcha.hmac-secret", "short-secret").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("короче 32 байт");
     }
 
     @Test
     @DisplayName("Dev-значение HMAC-секрета капчи (dev-only…) — старт валится")
-    void captchaSecretDevValue_fails() {
+    void validate_captchaSecretDevValue_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("captcha.hmac-secret", "dev-only-local-captcha-hmac-secret-0123456789").withProperty("server.ssl.key-store",
                 "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("dev-значение");
     }
 
     @Test
     @DisplayName("SameSite=None без домена cookie — старт валится")
-    void sameSiteNoneWithoutDomain_fails() {
+    void validate_sameSiteNoneWithoutDomain_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("jwt.cookie.same-site", "None").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("jwt.cookie.same-site=None требует jwt.cookie.domain");
     }
 
     @Test
     @DisplayName("localhost в CORS — старт валится")
-    void localhostInCors_fails() {
+    void validate_localhostInCors_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("cors.allowed-origins", "https://localhost.ru,https://example.com").withProperty("server.ssl.key-store",
                 "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("localhost");
     }
 
     @Test
     @DisplayName("Отключённые миграции — старт валится")
-    void liquibaseDisabled_fails() {
+    void validate_liquibaseDisabled_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("spring.liquibase.enabled", "false").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("spring.liquibase.enabled=false");
     }
 
     @Test
     @DisplayName("Контекст seed в миграциях — старт валится: рабочий контур нельзя наполнять фикстурами")
-    void seedMigrationContext_fails() {
+    void validate_seedMigrationContext_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("spring.liquibase.contexts", "schema,seed").withProperty("server.ssl.key-store",
                 "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("seed");
     }
 
     @Test
     @DisplayName("Контекст schema (дефолт) — preflight проходит")
-    void schemaMigrationContext_passes() {
+    void validate_schemaMigrationContext_passes() {
+
+        // given
+        // when
         env.withProperty("spring.liquibase.contexts", "schema").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
+        // then
         assertThatCode(() -> new ProdPreflightValidator(env).validate()).doesNotThrowAnyException();
     }
 
     @Test
     @DisplayName("Самоподписанный keystore CN=localhost — старт валится")
-    void localhostKeystore_fails() {
+    void validate_localhostKeystore_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("server.ssl.key-store", "file:" + keystore("CN=localhost"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("CN=localhost");
     }
 
     @Test
     @DisplayName("Все нарушения перечислены в одном исключении")
-    void allViolationsAreCollected() {
+    void validate_multipleViolations_reportsAllInOneException() {
+
+        // given
+        // when
         env.withProperty("captcha.enabled", "false").withProperty("jwt.cookie.same-site", "None")
                 .withProperty("cors.allowed-origins", "http://localhost:3000").withProperty("spring.liquibase.enabled", "false")
                 .withProperty("server.ssl.key-store", "file:" + keystore("CN=localhost"));
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("captcha.enabled=false").hasMessageContaining("jwt.cookie.same-site=None")
                 .hasMessageContaining("localhost:3000").hasMessageContaining("spring.liquibase.enabled=false")
@@ -149,54 +197,78 @@ class ProdPreflightValidatorTest {
 
     @Test
     @DisplayName("Не заданный MAIL_HOST — старт валится")
-    void mailHostMissing_fails() {
+    void validate_mailHostMissing_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("spring.mail.host", "");
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("MAIL_HOST");
     }
 
     @Test
     @DisplayName("Неразрешённая подстановка ${MAIL_HOST} вместо хоста — старт валится")
-    void mailHostUnresolvedPlaceholder_fails() {
+    void validate_mailHostPlaceholderUnresolved_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("spring.mail.host", "${MAIL_HOST}");
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("MAIL_HOST");
     }
 
     @Test
     @DisplayName("Локальный SMTP dev-стека (MAIL_HOST=smtp) — старт валится")
-    void localMailHost_fails() {
+    void validate_localMailHost_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("spring.mail.host", "smtp");
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("локальный SMTP");
     }
 
     @Test
     @DisplayName("MAIL_PORT не число в диапазоне 1–65535 — старт валится")
-    void invalidMailPort_fails() {
+    void validate_invalidMailPort_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("spring.mail.port", "70000");
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("MAIL_PORT");
     }
 
     @Test
     @DisplayName("Не заданный MAIL_FROM — старт валится")
-    void mailFromMissing_fails() {
+    void validate_mailFromMissing_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("email.from", "");
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("MAIL_FROM");
     }
 
     @Test
     @DisplayName("SMTP_AUTH=true без MAIL_USER — старт валится")
-    void smtpAuthWithoutUser_fails() {
+    void validate_smtpAuthWithoutUser_throwsIllegalState() {
+
+        // given
+        // when
         env.withProperty("spring.mail.username", "");
 
+        // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("MAIL_USER");
     }

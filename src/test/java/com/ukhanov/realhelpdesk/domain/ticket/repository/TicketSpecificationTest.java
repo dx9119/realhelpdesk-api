@@ -83,15 +83,28 @@ class TicketSpecificationTest {
 
     @Test
     @DisplayName("search → ищет по заголовку без учёта регистра")
-    void search_matchesTitleIgnoringCase() {
+    void search_differentCaseQuery_returnsSameMatches() {
+
+        // given
         // t1, t4, t5 — совпадение по заголовку; t2 — по телу ("ошибка 402")
-        assertThat(run(TicketSpecification.search("ОШИБКА"))).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t4.getId(), t5.getId());
+
+        // when
+        Set<Long> result = run(TicketSpecification.search("ОШИБКА"));
+
+        // then
+        assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t4.getId(), t5.getId());
     }
 
     @Test
     @DisplayName("search → ищет по телу заявки")
-    void search_matchesBody() {
-        assertThat(run(TicketSpecification.search("карта"))).containsExactlyInAnyOrder(t2.getId());
+    void search_bodyText_returnsMatchingTickets() {
+
+        // given
+        // when
+        Set<Long> result = run(TicketSpecification.search("карта"));
+
+        // then
+        assertThat(result).containsExactlyInAnyOrder(t2.getId());
     }
 
     @ParameterizedTest
@@ -99,41 +112,76 @@ class TicketSpecificationTest {
     @ValueSource(strings = {"   "})
     @DisplayName("search → пустой или blank строка → спецификация не создаётся")
     void search_blankOrNull_returnsNull(String text) {
-        assertThat(TicketSpecification.search(text)).isNull();
+
+        // given
+        // when
+        Specification<TicketModel> specification = TicketSpecification.search(text);
+
+        // then
+        assertThat(specification).isNull();
     }
 
     @Test
     @DisplayName("search → нет совпадений → пустой результат")
     void search_noMatches_returnsEmpty() {
-        assertThat(run(TicketSpecification.search("несуществующий текст"))).isEmpty();
+
+        // given
+        // when
+        Set<Long> result = run(TicketSpecification.search("несуществующий текст"));
+
+        // then
+        assertThat(result).isEmpty();
     }
 
     @Test
     @DisplayName("search → совпадение только по телу, но не по заголовку → находит заявку")
-    void search_matchesOnlyBodyField() {
-        assertThat(run(TicketSpecification.search("статистику"))).containsExactly(t3.getId());
+    void search_textOnlyInBody_returnsThatTicket() {
+
+        // given
+        // when
+        Set<Long> result = run(TicketSpecification.search("статистику"));
+
+        // then
+        assertThat(result).containsExactly(t3.getId());
     }
 
     @Test
     @DisplayName("search → ищет по ФИО автора: имя и фамилия")
-    void search_matchesAuthorName() {
-        assertThat(run(TicketSpecification.search("алиса"))).containsExactlyInAnyOrder(t1.getId(), t3.getId(), t5.getId());
-        assertThat(run(TicketSpecification.search("СИДОРОВ"))).containsExactlyInAnyOrder(t2.getId(), t4.getId());
+    void search_authorFirstNameOrLastName_returnsAuthorTickets() {
+
+        // given
+        // when
+        Set<Long> byFirstName = run(TicketSpecification.search("алиса"));
+        Set<Long> byLastName = run(TicketSpecification.search("СИДОРОВ"));
+
+        // then
+        assertThat(byFirstName).containsExactlyInAnyOrder(t1.getId(), t3.getId(), t5.getId());
+        assertThat(byLastName).containsExactlyInAnyOrder(t2.getId(), t4.getId());
     }
 
     @Test
     @DisplayName("search → учитывает отчество автора")
-    void search_matchesAuthorMiddleName() {
+    void search_authorMiddleName_returnsAuthorTickets() {
+
+        // given
+        // when
         bob.setMiddleName("Петрович");
 
-        assertThat(run(TicketSpecification.search("петрович"))).containsExactlyInAnyOrder(t2.getId(), t4.getId());
+        Set<Long> result = run(TicketSpecification.search("петрович"));
+
+        // then
+        assertThat(result).containsExactlyInAnyOrder(t2.getId(), t4.getId());
     }
 
     @Test
     @DisplayName("search → совпадение по автору не подмешивает заявки с чужим ФИО")
-    void search_authorMatchDoesNotLeakForeignAuthors() {
+    void search_foreignAuthorQuery_doesNotLeakOtherAuthors() {
+
+        // given
+        // when
         Set<Long> result = run(TicketSpecification.search("борис"));
 
+        // then
         assertThat(result).containsExactlyInAnyOrder(t2.getId(), t4.getId());
         assertThat(result).doesNotContain(t1.getId(), t3.getId(), t5.getId());
     }
@@ -144,36 +192,68 @@ class TicketSpecificationTest {
 
     @Test
     @DisplayName("active → отсекает мягко удалённые заявки")
-    void active_excludesSoftDeleted() {
-        assertThat(run(TicketSpecification.active())).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t3.getId(), t4.getId());
+    void active_softDeletedExists_returnsOnlyActiveTickets() {
+
+        // given
+        // when
+        Set<Long> result = run(TicketSpecification.active());
+
+        // then
+        assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t3.getId(), t4.getId());
     }
 
     @Test
     @DisplayName("inPortals → возвращает только заявки указанных порталов")
-    void inPortals_restrictsToGivenPortals() {
-        assertThat(run(TicketSpecification.inPortals(Set.of(portalA.getId())))).containsExactlyInAnyOrder(t1.getId(), t2.getId(),
-                t3.getId(), t5.getId());
+    void inPortals_singlePortalGiven_returnsOnlyItsTickets() {
+
+        // given
+        // when
+        Set<Long> result = run(TicketSpecification.inPortals(Set.of(portalA.getId())));
+
+        // then
+        assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t3.getId(), t5.getId());
     }
 
     @Test
     @DisplayName("onlyMy → возвращает только заявки автора")
-    void onlyMy_returnsOnlyAuthorTickets() {
-        assertThat(run(TicketSpecification.onlyMy(alice.getId()))).containsExactlyInAnyOrder(t1.getId(), t3.getId(), t5.getId());
+    void onlyMy_userIdGiven_returnsOnlyAuthorTickets() {
+
+        // given
+        // when
+        Set<Long> result = run(TicketSpecification.onlyMy(alice.getId()));
+
+        // then
+        assertThat(result).containsExactlyInAnyOrder(t1.getId(), t3.getId(), t5.getId());
     }
 
     @Test
     @DisplayName("createdAfter/createdBefore → границы диапазона включительные")
-    void createdAfterAndBefore_areInclusive() {
-        assertThat(run(TicketSpecification.createdAfter(D1))).contains(t1.getId());
-        assertThat(run(TicketSpecification.createdBefore(D1))).contains(t1.getId());
-        assertThat(run(TicketSpecification.createdAfter(D1).and(TicketSpecification.createdBefore(D1)))).containsExactly(t1.getId());
+    void createdAfterAndBefore_sameInstantBoundary_returnsTicket() {
+
+        // given
+        // when
+        Set<Long> after = run(TicketSpecification.createdAfter(D1));
+        Set<Long> before = run(TicketSpecification.createdBefore(D1));
+        Set<Long> both = run(TicketSpecification.createdAfter(D1).and(TicketSpecification.createdBefore(D1)));
+
+        // then
+        assertThat(after).contains(t1.getId());
+        assertThat(before).contains(t1.getId());
+        assertThat(both).containsExactly(t1.getId());
     }
 
     @Test
     @DisplayName("withStatus/withPriority → фильтруют по статусу и приоритету")
-    void withStatusAndPriority_filterByEnum() {
-        assertThat(run(TicketSpecification.withStatus(TicketStatus.CLOSED))).containsExactlyInAnyOrder(t2.getId());
-        assertThat(run(TicketSpecification.withPriority(TicketPriority.CRITICAL))).containsExactlyInAnyOrder(t2.getId());
+    void withStatusAndPriority_closedCritical_returnsOnlyMatching() {
+
+        // given
+        // when
+        Set<Long> byStatus = run(TicketSpecification.withStatus(TicketStatus.CLOSED));
+        Set<Long> byPriority = run(TicketSpecification.withPriority(TicketPriority.CRITICAL));
+
+        // then
+        assertThat(byStatus).containsExactlyInAnyOrder(t2.getId());
+        assertThat(byPriority).containsExactlyInAnyOrder(t2.getId());
     }
 
     // ────────────────────────────────────────────────
@@ -183,75 +263,104 @@ class TicketSpecificationTest {
     @Test
     @DisplayName("build → без фильтров → все активные заявки доступных порталов")
     void build_withoutFilters_returnsAllActiveInPortals() {
+
+        // given
+        // when
         Set<Long> result = run(build(null, null, null, null, null, false, Set.of(portalA.getId())));
 
+        // then
         assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t3.getId());
     }
 
     @Test
     @DisplayName("build → isMyTickets=false → не ограничивает по автору")
     void build_isMyTicketsFalse_doesNotFilterByAuthor() {
+
+        // given
+        // when
         Set<Long> result = run(build(null, null, null, null, null, false, Set.of(portalA.getId())));
 
+        // then
         assertThat(result).contains(t2.getId());
     }
 
     @Test
     @DisplayName("build → isMyTickets=true → только заявки текущего пользователя")
     void build_isMyTicketsTrue_filtersByCurrentUser() {
-        Set<Long> result = run(build(null, null, null, null, null, true, Set.of(portalA.getId())));
 
-        assertThat(result).containsExactlyInAnyOrder(t1.getId(), t3.getId());
-
+        // given
+        // when
+        Set<Long> aliceResult = run(build(null, null, null, null, null, true, Set.of(portalA.getId())));
         Set<Long> bobResult = run(build(null, null, null, null, null, true, Set.of(portalA.getId()), bob.getId()));
 
+        // then
+        assertThat(aliceResult).containsExactlyInAnyOrder(t1.getId(), t3.getId());
         assertThat(bobResult).containsExactly(t2.getId());
     }
 
     @Test
     @DisplayName("build → статус и приоритет соединяются по И")
-    void build_statusAndPriorityAreAnded() {
-        // OPEN + CRITICAL одновременно ни у одной заявки нет
+    void build_statusAndPriorityAnded_returnsEmptyResult() {
+
+        // given — OPEN + CRITICAL одновременно ни у одной заявки нет
+
+        // when
         Set<Long> result = run(build(null, null, null, TicketStatus.OPEN, TicketPriority.CRITICAL, false, Set.of(portalA.getId())));
-
-        assertThat(result).isEmpty();
-
         Set<Long> openOnly = run(build(null, null, null, TicketStatus.OPEN, null, false, Set.of(portalA.getId())));
 
+        // then
+        assertThat(result).isEmpty();
         assertThat(openOnly).containsExactly(t1.getId());
     }
 
     @Test
     @DisplayName("build → диапазон дат отсекает заявки вне периода")
-    void build_dateRangeExcludesOutsideTickets() {
-        Set<Long> result = run(build(null, Instant.parse("2025-01-01T00:00:00Z"), Instant.parse("2025-12-31T23:59:59Z"), null, null, false,
-                Set.of(portalA.getId())));
+    void build_oneYearRange_returnsTicketsInsidePeriod() {
 
+        // given
+        // when
+        Instant start = Instant.parse("2025-01-01T00:00:00Z");
+        Instant end = Instant.parse("2025-12-31T23:59:59Z");
+
+        Set<Long> result = run(build(null, start, end, null, null, false, Set.of(portalA.getId())));
+
+        // then
         assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId());
     }
 
     @Test
     @DisplayName("build → строка поиска из пробелов не применяется как фильтр")
     void build_blankSearch_isNotApplied() {
+
+        // given
+        // when
         Set<Long> result = run(build("   ", null, null, null, null, false, Set.of(portalA.getId())));
 
+        // then
         assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t3.getId());
     }
 
     @Test
     @DisplayName("build → все фильтры вместе → точное совпадение")
-    void build_allFiltersCombined() {
-        Set<Long> result = run(build("ошибка", Instant.parse("2025-01-01T00:00:00Z"), Instant.parse("2025-12-31T23:59:59Z"),
-                TicketStatus.OPEN, TicketPriority.HIGH, true, Set.of(portalA.getId())));
+    void build_allFiltersAtOnce_returnsExactMatch() {
 
+        // given
+        // when
+        Instant start = Instant.parse("2025-01-01T00:00:00Z");
+        Instant end = Instant.parse("2025-12-31T23:59:59Z");
+
+        Set<Long> result = run(build("ошибка", start, end, TicketStatus.OPEN, TicketPriority.HIGH, true, Set.of(portalA.getId())));
+
+        // then
         assertThat(result).containsExactly(t1.getId());
     }
 
     @Test
     @DisplayName("build → пустой или null набор порталов → IllegalArgumentException (сервис не вызывает build без порталов)")
     void build_withoutPortals_throws() {
-        assertThatThrownBy(() -> build(null, null, null, null, null, false, Set.of())).isInstanceOf(IllegalArgumentException.class);
 
+        // given / when / then
+        assertThatThrownBy(() -> build(null, null, null, null, null, false, Set.of())).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> build(null, null, null, null, null, false, null)).isInstanceOf(IllegalArgumentException.class);
     }
 

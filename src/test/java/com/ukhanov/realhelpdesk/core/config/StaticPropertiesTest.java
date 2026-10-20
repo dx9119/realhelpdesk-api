@@ -13,69 +13,106 @@ class StaticPropertiesTest {
 
     @Test
     @DisplayName("static.base-url биндится: домен или ip:port с произвольной схемой")
-    void bindsBaseUrl() {
+    void bind_baseUrl_returnsConfiguredBaseUrl() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("static.base-url", "https://cdn.example.com");
 
         StaticProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getBaseUrl()).isEqualTo("https://cdn.example.com");
     }
 
     @Test
     @DisplayName("Хвостовой слэш обрезается — к пути не приклеивается двойной")
-    void trailingSlashStripped() {
+    void bind_baseUrlWithTrailingSlashes_returnsUrlWithoutSlash() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("static.base-url", "https://cdn.example.com///");
 
         StaticProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getBaseUrl()).isEqualTo("https://cdn.example.com");
     }
 
     @Test
     @DisplayName("Пустое значение и пробелы — null: ссылки остаются относительными, как без настройки")
-    void blankIsNull() {
+    void bind_blankBaseUrl_returnsNull() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("static.base-url", "   ");
 
         StaticProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getBaseUrl()).isNull();
     }
 
     @Test
     @DisplayName("Ключ не задан — base-url null, поведение без настройки не меняется")
-    void keyAbsent_defaultsToNull() {
-        assertThat(new StaticProperties().getBaseUrl()).isNull();
-        assertThat(Binder.get(new MockEnvironment()).bind("static", Bindable.of(StaticProperties.class)).isBound()).isFalse();
+    void bind_absentKey_keepsDefaults() {
+
+        // given
+        // when
+        StaticProperties properties = new StaticProperties();
+        MockEnvironment environment = new MockEnvironment();
+
+        boolean bound = Binder.get(environment).bind("static", Bindable.of(StaticProperties.class)).isBound();
+
+        // then
+        assertThat(properties.getBaseUrl()).isNull();
+        assertThat(bound).isFalse();
     }
 
     @Test
     @DisplayName("static.cache-control по умолчанию private, no-store — как до появления настройки")
-    void cacheControlDefaultsToPrivateNoStore() {
-        assertThat(new StaticProperties().getCacheControl()).isEqualTo("private, no-store");
+    void getCacheControl_noConfiguration_returnsPrivateNoStore() {
+
+        // given
+        // when
+        StaticProperties properties = new StaticProperties();
+
+        String cacheControl = properties.getCacheControl();
+
+        // then
+        assertThat(cacheControl).isEqualTo("private, no-store");
     }
 
     @Test
     @DisplayName("static.cache-control биндится: значение для CDN уходит в заголовок как есть")
-    void bindsCacheControl() {
+    void bind_cacheControl_returnsConfiguredValue() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("static.cache-control", "public, max-age=300");
 
         StaticProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getCacheControl()).isEqualTo("public, max-age=300");
     }
 
     @Test
     @DisplayName("Пустой static.cache-control — закрытый дефолт, а не пустой заголовок в ответе")
-    void blankCacheControlFallsBackToDefault() {
+    void bind_blankCacheControl_fallsBackToDefault() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("static.cache-control", "   ");
 
         StaticProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getCacheControl()).isEqualTo("private, no-store");
     }
 

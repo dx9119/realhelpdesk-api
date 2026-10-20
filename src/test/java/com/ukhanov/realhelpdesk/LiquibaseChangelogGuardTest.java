@@ -44,8 +44,12 @@ class LiquibaseChangelogGuardTest {
 
     @Test
     @DisplayName("DML встречается только в seed/ — структурные миграции (changes/, sql/) не содержат данных")
-    void dataChangesetsLiveOnlyInSeed() throws IOException {
+    void changelog_dmlOutsideSeed_returnsEmpty() throws IOException {
+
+        // given
+        // when
         List<Path> files = changelogFiles();
+        // then
         assertThat(files).as("файлы changelog в " + CHANGELOG_DIR).isNotEmpty();
 
         List<String> dmlOutsideSeed = files.stream().filter(file -> !isSeed(file)).filter(LiquibaseChangelogGuardTest::containsDml)
@@ -56,14 +60,19 @@ class LiquibaseChangelogGuardTest {
 
     @Test
     @DisplayName("seed-фикстуры подключены в master и каждый их changeset помечен context=\"seed\"")
-    void seedChangesetsAreIncludedAndTaggedWithContext() throws IOException {
+    void seedChangesets_notIncludedOrUnscoped_fails() throws IOException {
+
+        // given
         List<Path> seedXml;
+        // when
         try (Stream<Path> stream = Files.list(CHANGELOG_DIR.resolve("seed"))) {
             seedXml = stream.filter(path -> path.toString().endsWith(".xml")).sorted().toList();
         }
+        // then
         assertThat(seedXml).as("каталог seed должен существовать и содержать changelog фикстур").isNotEmpty();
 
         String master = stripComments(read(MASTER));
+
         for (Path file : seedXml) {
             String include = CHANGELOG_DIR.relativize(file).toString().replace('\\', '/');
             assertThat(master).as("master должен подключать " + include).contains("file=\"" + include + "\"");

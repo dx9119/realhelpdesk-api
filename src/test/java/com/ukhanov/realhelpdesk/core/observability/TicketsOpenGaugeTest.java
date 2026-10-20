@@ -38,10 +38,14 @@ class TicketsOpenGaugeTest {
 
     @Test
     @DisplayName("Конструктор регистрирует tickets.open только для открытых статусов, description заполнен")
-    void constructor_registersOpenStatusesOnly() {
+    void constructor_validRegistry_registersOpenStatusesOnly() {
+
+        // given
+        // when
         Gauge open = meterRegistry.find("tickets.open").tags("status", "OPEN").gauge();
         Gauge inProgress = meterRegistry.find("tickets.open").tags("status", "IN_PROGRESS").gauge();
 
+        // then
         assertThat(open).isNotNull();
         assertThat(open.getId().getDescription()).isNotBlank();
         assertThat(inProgress).isNotNull();
@@ -51,12 +55,16 @@ class TicketsOpenGaugeTest {
 
     @Test
     @DisplayName("refresh → значения из count-запросов, чтение gauge в БД не ходит")
-    void refresh_updatesCountsAndReadingDoesNotQuery() {
+    void refresh_ticketCounts_updatesGaugesWithoutExtraDbCalls() {
+
+        // given
+        // when
         when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE)).thenReturn(3L);
         when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE)).thenReturn(5L);
 
         ticketsOpenGauge.refresh();
 
+        // then
         assertThat(meterRegistry.find("tickets.open").tags("status", "OPEN").gauge().value()).isEqualTo(3.0);
         assertThat(meterRegistry.find("tickets.open").tags("status", "IN_PROGRESS").gauge().value()).isEqualTo(5.0);
 
@@ -68,15 +76,20 @@ class TicketsOpenGaugeTest {
 
     @Test
     @DisplayName("refresh → пустая база обнуляет значения после предыдущего обновления")
-    void refresh_emptyDatabaseResetsCounts() {
+    void refresh_emptyDatabase_resetsCountsToZero() {
+
+        // given
+        // when
         when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE)).thenReturn(7L);
         when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE)).thenReturn(2L);
         ticketsOpenGauge.refresh();
 
         when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE)).thenReturn(0L);
         when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE)).thenReturn(0L);
+
         ticketsOpenGauge.refresh();
 
+        // then
         assertThat(meterRegistry.find("tickets.open").tags("status", "OPEN").gauge().value()).isZero();
         assertThat(meterRegistry.find("tickets.open").tags("status", "IN_PROGRESS").gauge().value()).isZero();
     }

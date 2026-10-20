@@ -15,9 +15,13 @@ class ClientIpPropertiesTest {
 
     @Test
     @DisplayName("Дефолты: заголовкам не доверяем, приоритет — X-Forwarded-For, берём первый элемент списка")
-    void defaultsAreSecure() {
+    void clientIpProperties_newInstance_returnsSecureDefaults() {
+
+        // given
+        // when
         ClientIpProperties properties = new ClientIpProperties();
 
+        // then
         assertThat(properties.isTrustProxyHeaders()).isFalse();
         assertThat(properties.getForwardedIndex()).isZero();
         assertThat(properties.getHeaders()).containsExactly("X-Forwarded-For", "X-Real-IP", "CF-Connecting-IP", "True-Client-IP",
@@ -26,7 +30,10 @@ class ClientIpPropertiesTest {
 
     @Test
     @DisplayName("Биндинг из конфигурации: флаг, свой список заголовков, индекс элемента (в т.ч. отрицательный)")
-    void bindsFromConfigProperties() {
+    void bind_propertiesFromEnvironment_returnsBoundValues() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("client-ip.trust-proxy-headers", "true");
         environment.setProperty("client-ip.headers", "X-Real-IP,CF-Connecting-IP");
@@ -34,6 +41,7 @@ class ClientIpPropertiesTest {
 
         ClientIpProperties properties = Binder.get(environment).bind("client-ip", Bindable.of(ClientIpProperties.class)).get();
 
+        // then
         assertThat(properties.isTrustProxyHeaders()).isTrue();
         assertThat(properties.getHeaders()).isEqualTo(List.of("X-Real-IP", "CF-Connecting-IP"));
         assertThat(properties.getForwardedIndex()).isEqualTo(-1);

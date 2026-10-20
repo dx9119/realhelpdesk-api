@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -37,7 +38,6 @@ import com.ukhanov.realhelpdesk.feature.ticketmanager.mapper.TicketMapperImpl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -81,8 +81,10 @@ class TicketSearchServiceTest {
 
     @Test
     @DisplayName("searchTickets → успех: находит тикеты по всем фильтрам")
-    void searchTickets_success() {
+    void searchTickets_allFiltersProvided_returnsMatchingPage() {
+
         // given
+        // when
         List<PortalModel> owned = List.of(createPortal(1L));
         List<PortalModel> allowed = List.of(createPortal(2L));
         List<Long> publicIds = List.of(3L);
@@ -95,9 +97,8 @@ class TicketSearchServiceTest {
         ticket.setId(100L);
         Page<TicketModel> page = new PageImpl<>(List.of(ticket), DEFAULT_PAGE, 1);
 
-        when(mockTicketRepository.findAll(any(Specification.class), eq(DEFAULT_PAGE))).thenReturn(page);
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE))).thenReturn(page);
 
-        // when
         PageResponse<TicketResponse> result = service.searchTickets("test search", START_DATE, END_DATE, TicketStatus.OPEN,
                 TicketPriority.HIGH, true, 0, 10, "createdAt", "desc");
 
@@ -115,6 +116,9 @@ class TicketSearchServiceTest {
     @Test
     @DisplayName("searchTickets → нет доступных порталов → возвращает пустую страницу")
     void searchTickets_noAccessiblePortals_returnsEmptyPage() {
+
+        // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
         when(mockPortalRepository.findAllAccessibleByUserId(USER_ID)).thenReturn(List.of());
         when(mockPortalRepository.findPublicPortalIdsWithUserTickets(USER_ID)).thenReturn(List.of());
@@ -122,6 +126,7 @@ class TicketSearchServiceTest {
         PageResponse<TicketResponse> result = service.searchTickets("search", START_DATE, END_DATE, null, null, false, 0, 10, "createdAt",
                 "desc");
 
+        // then
         assertThat(result.content()).isEmpty();
         verifyNoInteractions(mockTicketRepository);
     }
@@ -130,35 +135,38 @@ class TicketSearchServiceTest {
     @Test
     @DisplayName("searchTickets → owned порталы пустые, но есть allowed → поиск продолжается")
     void searchTickets_ownedEmptyButAllowedExists_searchContinues() {
+
         // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of()); // owned пустые
 
         when(mockPortalRepository.findAllAccessibleByUserId(USER_ID)).thenReturn(List.of(createPortal(5L))); // allowed есть
 
         when(mockPortalRepository.findPublicPortalIdsWithUserTickets(USER_ID)).thenReturn(List.of());
 
-        when(mockTicketRepository.findAll(any(Specification.class), eq(DEFAULT_PAGE))).thenReturn(Page.empty(DEFAULT_PAGE));
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
+                .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        // when
         PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 0, 10, "createdAt", "desc");
 
         // then
         assertThat(result.content()).isEmpty();
-        verify(mockTicketRepository).findAll(any(Specification.class), eq(DEFAULT_PAGE));
+        verify(mockTicketRepository).findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE));
     }
 
     // Тест 2: все доступные порталы пустые → сразу пустая страница, без вызова ticketRepository
     @Test
     @DisplayName("searchTickets → все доступные порталы пустые → сразу возвращает пустую страницу")
     void searchTickets_noAccessiblePortalsAtAll_returnsEmptyWithoutQuery() {
+
         // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
 
         when(mockPortalRepository.findAllAccessibleByUserId(USER_ID)).thenReturn(List.of());
 
         when(mockPortalRepository.findPublicPortalIdsWithUserTickets(USER_ID)).thenReturn(List.of());
 
-        // when
         PageResponse<TicketResponse> result = service.searchTickets("любой поиск", START_DATE, END_DATE, TicketStatus.OPEN,
                 TicketPriority.HIGH, false, 0, 10, "createdAt", "desc");
 
@@ -170,30 +178,34 @@ class TicketSearchServiceTest {
     // Тест 3: все фильтры null, но есть хотя бы один портал → поиск идёт
     @Test
     @DisplayName("searchTickets → все фильтры null, но есть порталы → ищет без ограничений")
-    void searchTickets_allFiltersNull_butHasPortals_performsSearch() {
+    void searchTickets_allFiltersNullWithPortals_performsSearch() {
+
         // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(createPortal(1L)));
 
-        when(mockTicketRepository.findAll(any(Specification.class), eq(DEFAULT_PAGE))).thenReturn(Page.empty(DEFAULT_PAGE));
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
+                .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        // when
         PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 0, 10, "createdAt", "desc");
 
         // then
         assertThat(result.content()).isEmpty();
-        verify(mockTicketRepository).findAll(any(Specification.class), eq(DEFAULT_PAGE));
+        verify(mockTicketRepository).findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE));
     }
 
     // Тест 4: isMyTickets = true → должен добавить фильтр по автору
     @Test
     @DisplayName("searchTickets → isMyTickets=true → фильтрует только по автору")
     void searchTickets_isMyTicketsTrue_addsAuthorFilter() {
+
         // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(createPortal(1L)));
 
-        when(mockTicketRepository.findAll(any(Specification.class), eq(DEFAULT_PAGE))).thenReturn(Page.empty(DEFAULT_PAGE));
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
+                .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        // when
         service.searchTickets("bug", null, null, null, null, true, 0, 10, "createdAt", "desc");
 
         // then
@@ -207,8 +219,10 @@ class TicketSearchServiceTest {
 
     @Test
     @DisplayName("searchTickets → маппит модель заявки в TicketResponse")
-    void searchTickets_mapsModelToResponse() {
+    void searchTickets_foundTicket_mapsModelToResponse() {
+
         // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(createPortal(9L)));
 
         PortalModel portal = createPortal(9L);
@@ -228,10 +242,9 @@ class TicketSearchServiceTest {
         ticket.setPortal(portal);
         ticket.setCreatedAt(createdAt);
 
-        when(mockTicketRepository.findAll(any(Specification.class), eq(DEFAULT_PAGE)))
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(new PageImpl<>(List.of(ticket), DEFAULT_PAGE, 1));
 
-        // when
         PageResponse<TicketResponse> result = service.searchTickets("доступ", null, null, null, null, false, 0, 10, "createdAt", "desc");
 
         // then
@@ -253,17 +266,18 @@ class TicketSearchServiceTest {
     @Test
     @DisplayName("searchTickets → заявка без автора и портала → null-поля в ответе")
     void searchTickets_ticketWithoutAuthorAndPortal_mapsNulls() {
+
         // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(createPortal(1L)));
 
-        when(mockTicketRepository.findAll(any(Specification.class), eq(DEFAULT_PAGE)))
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(new PageImpl<>(List.of(createTicket(101L)), DEFAULT_PAGE, 1));
 
-        // when
         PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 0, 10, "createdAt", "desc");
 
-        // then
         TicketResponse response = result.content().get(0);
+        // then
         assertThat(response.authorId()).isNull();
         assertThat(response.portalName()).isNull();
         assertThat(response.portalId()).isNull();
@@ -271,35 +285,38 @@ class TicketSearchServiceTest {
 
     @Test
     @DisplayName("searchTickets → доступные порталы собираются из всех трёх источников текущего пользователя")
-    void searchTickets_queriesAllPortalSourcesForCurrentUser() {
+    void searchTickets_userWithPortals_queriesAllThreePortalSources() {
+
         // given
+        // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
         when(mockPortalRepository.findAllAccessibleByUserId(USER_ID)).thenReturn(List.of(createPortal(5L)));
         when(mockPortalRepository.findPublicPortalIdsWithUserTickets(USER_ID)).thenReturn(List.of());
-        when(mockTicketRepository.findAll(any(Specification.class), eq(DEFAULT_PAGE))).thenReturn(Page.empty(DEFAULT_PAGE));
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
+                .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        // when
         service.searchTickets("поиск", null, null, null, null, false, 0, 10, "createdAt", "desc");
 
         // then
         verify(mockPortalRepository).findAllByOwnerIdOrderByCreatedAtDesc(USER_ID);
         verify(mockPortalRepository).findAllAccessibleByUserId(USER_ID);
         verify(mockPortalRepository).findPublicPortalIdsWithUserTickets(USER_ID);
-        verify(mockTicketRepository).findAll(any(Specification.class), eq(DEFAULT_PAGE));
+        verify(mockTicketRepository).findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE));
     }
 
     @Test
     @DisplayName("searchTickets → пробрасывает page/size/sortBy/order и сохраняет итоги страницы")
-    void searchTickets_passesPaginationAndPreservesTotals() {
+    void searchTickets_secondPageRequested_passesParamsAndKeepsTotals() {
+
         // given
+        // when
         PageRequest secondPage = PageRequest.of(1, 2, Sort.by("title").ascending());
 
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(createPortal(1L)));
 
-        when(mockTicketRepository.findAll(any(Specification.class), eq(secondPage)))
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(secondPage)))
                 .thenReturn(new PageImpl<>(List.of(createTicket(201L), createTicket(202L)), secondPage, 5));
 
-        // when
         PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 1, 2, "title", "asc");
 
         // then
@@ -310,12 +327,14 @@ class TicketSearchServiceTest {
         assertThat(result.size()).isEqualTo(2);
         assertThat(result.last()).isFalse();
 
-        verify(mockTicketRepository).findAll(any(Specification.class), eq(secondPage));
+        verify(mockTicketRepository).findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(secondPage));
     }
 
     @Test
     @DisplayName("searchTickets → недопустимое поле сортировки → ошибка пагинации, запрос в БД не уходит")
     void searchTickets_unknownSortField_isRejected() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.searchTickets(null, null, null, null, null, false, 0, 10, "passwordHash", "desc"))
                 .isInstanceOf(PaginationException.class);
 

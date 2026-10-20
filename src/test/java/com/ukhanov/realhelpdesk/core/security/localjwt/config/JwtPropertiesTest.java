@@ -16,7 +16,10 @@ class JwtPropertiesTest {
 
     @Test
     @DisplayName("Все ключи jwt.* биндятся: секрет, адреса, сроки и cookie")
-    void bindsAllKeys() {
+    void bind_allJwtKeys_populatesProperties() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("jwt.secret-for-gen-jwt", "c2VjcmV0");
         environment.setProperty("jwt.issuer", "https://example.com");
@@ -28,6 +31,7 @@ class JwtPropertiesTest {
 
         JwtProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getSecretForGenJwt()).isEqualTo("c2VjcmV0");
         assertThat(properties.getIssuer()).isEqualTo("https://example.com");
         assertThat(properties.getAudience()).containsExactlyInAnyOrder("https://example.com", "https://back.example.com");
@@ -39,60 +43,85 @@ class JwtPropertiesTest {
 
     @Test
     @DisplayName("jwt.cookie.same-site: регистр не важен — строка превращается в элемент enum SameSite")
-    void sameSiteBindsCaseInsensitively() {
+    void bind_mixedCaseSameSite_mapsToStrictEnum() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("jwt.cookie.same-site", "sTrIcT");
 
         JwtProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getCookie().getSameSite()).isEqualTo(SameSite.STRICT);
     }
 
     @Test
     @DisplayName("Неизвестное значение same-site — биндинг падает, а не уходит в cookie строкой")
-    void unknownSameSiteFailsBinding() {
+    void bind_unknownSameSite_throwsBindException() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("jwt.cookie.same-site", "Sometimes");
 
+        // then
         assertThatThrownBy(() -> bind(environment)).isInstanceOf(BindException.class).hasMessageContaining("jwt.cookie.same-site");
     }
 
     @Test
     @DisplayName("jwt.cookie.same-site по умолчанию None — кросс-доменный фронт")
-    void cookieSameSiteDefaultsToNone() {
+    void bind_withoutSameSite_defaultsToNone() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("jwt.issuer", "https://example.com");
 
         JwtProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getCookie().getSameSite()).isEqualTo(SameSite.NONE);
     }
 
     @Test
     @DisplayName("jwt.cookie.domain не задан — null: cookie остаётся host-only, как до появления ключа")
-    void cookieDomainDefaultsToNull() {
+    void bind_withoutCookieDomain_defaultsToNull() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("jwt.issuer", "https://example.com");
 
         JwtProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getCookie().getDomain()).isNull();
     }
 
     @Test
     @DisplayName("jwt.cookie.domain пустой — null, а не пустая строка в атрибуте Set-Cookie")
-    void blankCookieDomainIsNull() {
+    void cookieDomain_blankValue_normalizesToNull() {
+
+        // given
+        // when
         JwtProperties properties = new JwtProperties();
+
         properties.getCookie().setDomain("   ");
 
+        // then
         assertThat(properties.getCookie().getDomain()).isNull();
     }
 
     @Test
     @DisplayName("Без jwt.* биндинг не срабатывает")
-    void emptyEnvironment_isNotBound() {
+    void bind_emptyEnvironment_isNotBound() {
+
+        // given
+        // when
         BindResult<JwtProperties> result = Binder.get(new MockEnvironment()).bind("jwt", Bindable.of(JwtProperties.class));
 
+        // then
         assertThat(result.isBound()).isFalse();
     }
 

@@ -51,12 +51,16 @@ class ObservabilityRunbookGuardTest {
 
     @Test
     @DisplayName("Биекция: у каждого алерта свой runbook с тем же именем в заголовке")
-    void alertsAndRunbooksMatchOneToOne() throws IOException {
+    void runbooksAndAlerts_have_oneToOneMapping() throws IOException {
+
+        // given
+        // when
         String rules = read(RULES);
         List<String> alerts = matches(rules, ALERT_NAME);
         List<String> runbookUrls = matches(rules, RUNBOOK_URL);
         List<String> files = runbookFiles();
 
+        // then
         assertThat(alerts).as("алерты в %s".formatted(RULES)).isNotEmpty();
         assertThat(runbookUrls).as("у каждого алерта ровно один runbook_url").hasSameSizeAs(alerts);
         assertThat(new TreeSet<>(runbookUrls)).as("runbook_url каждого алерта существует на диске")
@@ -71,16 +75,26 @@ class ObservabilityRunbookGuardTest {
 
     @Test
     @DisplayName("overview.md ссылается на каждый runbook — таблица алертов полна")
-    void overviewLinksEveryRunbook() throws IOException {
+    void overviewDoc_links_coverAllRunbooks() throws IOException {
+
+        // given
+        // when
         Set<String> links = new TreeSet<>(matches(read(OVERVIEW), RUNBOOK_FILE));
+
+        // then
         assertThat(links).containsExactlyInAnyOrderElementsOf(runbookFiles());
     }
 
     @Test
     @DisplayName("Диагностические команды исполняемы: без 404-Tempo, неверных имён и raw-глоб curl")
-    void diagnosticCommandsAreExecutable() throws IOException {
+    void diagnosticCommands_docsContain_noForbiddenPatterns() throws IOException {
+
+        // given
+        // when
         List<Path> docs = new ArrayList<>(runbookPaths());
         docs.add(OVERVIEW);
+
+        // then
         for (Path file : docs) {
             String text = read(file);
             for (String forbidden : FORBIDDEN) {

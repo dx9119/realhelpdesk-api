@@ -17,25 +17,36 @@ class ClientIpResolverTest {
 
     @Test
     @DisplayName("Заголовкам не доверяем — всегда адрес сокета, присланный клиентом заголовок игнорируется")
-    void withoutTrustReturnsSocketAddress() {
+    void resolve_trustDisabled_returnsSocketIp() {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Forwarded-For", "203.0.113.9");
 
+        // then
         assertThat(resolve(trusting(false), request)).isEqualTo(SOCKET_IP);
     }
 
     @Test
     @DisplayName("Доверяем заголовкам — берём адрес из настроенного заголовка, а не из сокета")
-    void withTrustReturnsHeaderAddress() {
+    void resolve_trustEnabled_returnsHeaderIp() {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Forwarded-For", "203.0.113.9");
 
+        // then
         assertThat(resolve(trusting(true), request)).isEqualTo("203.0.113.9");
     }
 
     @Test
     @DisplayName("Порядок заголовков задаёт приоритет: раньше в списке — важнее")
-    void headerOrderDefinesPriority() {
+    void resolve_configuredHeaderOrder_determinesWinner() {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Real-IP", "198.51.100.7");
         request.addHeader("X-Forwarded-For", "203.0.113.9");
@@ -43,16 +54,21 @@ class ClientIpResolverTest {
         ClientIpResolver xffFirst = resolver(true, List.of("X-Forwarded-For", "X-Real-IP"), 0);
         ClientIpResolver realIpFirst = resolver(true, List.of("X-Real-IP", "X-Forwarded-For"), 0);
 
+        // then
         assertThat(resolve(xffFirst, request)).isEqualTo("203.0.113.9");
         assertThat(resolve(realIpFirst, request)).isEqualTo("198.51.100.7");
     }
 
     @Test
     @DisplayName("Из списка X-Forwarded-For берётся элемент с индексом; отрицательный считается справа")
-    void forwardedIndexChoosesEntry() {
+    void resolve_forwardedIndex_selectsEntry() {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Forwarded-For", "203.0.113.9, 198.51.100.7, 10.0.0.1");
 
+        // then
         assertThat(resolve(resolver(true, null, 0), request)).isEqualTo("203.0.113.9");
         assertThat(resolve(resolver(true, null, 1), request)).isEqualTo("198.51.100.7");
         assertThat(resolve(resolver(true, null, -1), request)).isEqualTo("10.0.0.1");
@@ -61,7 +77,10 @@ class ClientIpResolverTest {
 
     @Test
     @DisplayName("Непригодные значения (unknown, пусто) не считаются адресом — проверяется следующий заголовок")
-    void unusableValuesFallThroughToNextHeader() {
+    void resolve_unusableHeaderValues_fallsThroughToNext() {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Forwarded-For", "unknown");
         request.addHeader("X-Real-IP", " ");
@@ -69,23 +88,32 @@ class ClientIpResolverTest {
         ClientIpResolver resolver = resolver(true, List.of("X-Forwarded-For", "X-Real-IP", "CF-Connecting-IP"), 0);
         request.addHeader("CF-Connecting-IP", "203.0.113.9");
 
+        // then
         assertThat(resolve(resolver, request)).isEqualTo("203.0.113.9");
     }
 
     @Test
     @DisplayName("Ни один заголовок не подошёл — адрес сокета")
-    void fallsBackToSocketAddress() {
+    void resolve_noUsableHeaders_returnsSocketIp() {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Forwarded-For", "unknown");
 
+        // then
         assertThat(resolve(trusting(true), request)).isEqualTo(SOCKET_IP);
     }
 
     @Test
     @DisplayName("Приводим значение к чистому адресу: порт, кавычки и формат Forwarded (RFC 7239)")
-    void normalizesRealWorldValues() {
+    void resolve_messyHeaderValues_normalizesToCleanIp() {
+
+        // given
+        // when
         ClientIpResolver resolver = trusting(true);
 
+        // then
         assertThat(resolveWithHeader(resolver, "X-Forwarded-For", "203.0.113.9:8080")).isEqualTo("203.0.113.9");
         assertThat(resolveWithHeader(resolver, "X-Forwarded-For", "\"203.0.113.9\"")).isEqualTo("203.0.113.9");
         assertThat(resolveWithHeader(resolver, "X-Forwarded-For", "2001:db8::1")).isEqualTo("2001:db8::1");
@@ -96,10 +124,14 @@ class ClientIpResolverTest {
 
     @Test
     @DisplayName("Пустые имена заголовков в конфигурации пропускаются, а не ломают определение адреса")
-    void blankHeaderNamesAreSkipped() {
+    void resolve_blankHeaderNames_areSkipped() {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Real-IP", "203.0.113.9");
 
+        // then
         assertThat(resolve(resolver(true, List.of("", " ", "X-Real-IP"), 0), request)).isEqualTo("203.0.113.9");
     }
 

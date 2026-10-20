@@ -66,12 +66,16 @@ class NotificationPublisherTest {
 
     @Test
     @DisplayName("Портал: получатели owner + allowed, автор действия исключён, будит ожидающих")
-    void publishToPortalUsers_skipsActorAndWakesWaiters() {
+    void publishToPortalUsers_actorIsOwner_skipsActorWakesMembers() {
+
+        // given
+        // when
         PortalModel portal = portal(OWNER_ID, SHARED_ID);
 
         publisher.publishToPortalUsers(portal, NotificationEvent.NEW_TICKET, OWNER_ID, TICKET_ID, "Проблема с оплатой");
 
         ArgumentCaptor<NotificationModel> captor = ArgumentCaptor.forClass(NotificationModel.class);
+        // then
         verify(notificationRepository).save(captor.capture());
         NotificationModel saved = captor.getValue();
         assertThat(saved.getRecipientId()).isEqualTo(SHARED_ID);
@@ -88,10 +92,14 @@ class NotificationPublisherTest {
     @Test
     @DisplayName("Все получатели — авторы действий: ничего не сохраняется и не будится")
     void publishToPortalUsers_onlyActor_publishesNothing() {
+
+        // given
+        // when
         PortalModel portal = portal(ACTOR_ID);
 
         publisher.publishToPortalUsers(portal, NotificationEvent.NEW_TICKET, ACTOR_ID, TICKET_ID, "Заявка");
 
+        // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
         verify(waitRegistry, never()).wake(any(Long.class));
         verify(preferencesRepository, never()).findByUserIdIn(anySet());
@@ -99,7 +107,10 @@ class NotificationPublisherTest {
 
     @Test
     @DisplayName("Событие, отключённое в настройках пользователя, не сохраняется; пользователь без настроек получает")
-    void publishToUsers_respectsPreferences() {
+    void publishToUsers_eventDisabledByPrefs_skipsOnlyThatUser() {
+
+        // given
+        // when
         UserNotificationPreferencesModel preferences = new UserNotificationPreferencesModel(SHOULD_NOT,
                 Set.of(NotificationEvent.NEW_MESSAGE));
         when(preferencesRepository.findByUserIdIn(anySet())).thenReturn(List.of(preferences));
@@ -107,6 +118,7 @@ class NotificationPublisherTest {
         publisher.publishToUsers(Set.of(SHOULD_NOT, ANYTHING_OK), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "Заголовок");
 
         ArgumentCaptor<NotificationModel> captor = ArgumentCaptor.forClass(NotificationModel.class);
+        // then
         verify(notificationRepository).save(captor.capture());
         assertThat(captor.getValue().getRecipientId()).isEqualTo(ANYTHING_OK);
         verify(waitRegistry).wake(ANYTHING_OK);
@@ -116,8 +128,12 @@ class NotificationPublisherTest {
     @Test
     @DisplayName("Событие вне каталога in-app не публикуется")
     void publishToUsers_unsupportedEvent_skipped() {
+
+        // given
+        // when
         publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.RECOVERY_PASSWORD, null, null, null, null);
 
+        // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
         verify(preferencesRepository, never()).findByUserIdIn(anySet());
         verify(waitRegistry, never()).wake(any(Long.class));
@@ -126,8 +142,12 @@ class NotificationPublisherTest {
     @Test
     @DisplayName("Внутренняя ошибка не выходит наружу — публикация не валит основную операцию")
     void publishToUsers_repositoryFailure_isSwallowed() {
+
+        // given
+        // when
         when(notificationRepository.save(any(NotificationModel.class))).thenThrow(new IllegalStateException("БД недоступна"));
 
+        // then
         assertThatCode(() -> publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "Т"))
                 .doesNotThrowAnyException();
         verify(waitRegistry, never()).wake(any(Long.class));
@@ -136,10 +156,14 @@ class NotificationPublisherTest {
     @Test
     @DisplayName("При активной транзакции ожидающих будят только после коммита")
     void publishToUsers_activeTransaction_wakesAfterCommit() {
+
+        // given
+        // when
         TransactionSynchronizationManager.initSynchronization();
 
         publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "Заявка");
 
+        // then
         verify(waitRegistry, never()).wake(any(Long.class));
 
         List<TransactionSynchronization> synchronizations = new ArrayList<>(TransactionSynchronizationManager.getSynchronizations());
@@ -152,11 +176,15 @@ class NotificationPublisherTest {
     @Test
     @DisplayName("Длинный заголовок обрезается до 255 символов")
     void publishToUsers_longTitle_truncated() {
+
+        // given
+        // when
         String longTitle = "ы".repeat(300);
 
         publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, longTitle);
 
         ArgumentCaptor<NotificationModel> captor = ArgumentCaptor.forClass(NotificationModel.class);
+        // then
         verify(notificationRepository).save(captor.capture());
         assertThat(captor.getValue().getTitle()).hasSize(255);
     }
@@ -164,8 +192,12 @@ class NotificationPublisherTest {
     @Test
     @DisplayName("Пустой список получателей — ничего не делаем")
     void publishToUsers_emptyRecipients_noop() {
+
+        // given
+        // when
         publisher.publishToUsers(Set.of(), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "З");
 
+        // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
         verify(preferencesRepository, never()).findByUserIdIn(anySet());
     }

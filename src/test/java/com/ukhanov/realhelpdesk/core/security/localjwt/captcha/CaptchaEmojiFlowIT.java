@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.ChallengeResponse;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
 
@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
                 "email.domain=example.com", "client-ip.trust-proxy-headers=true", "captcha.risk-subnet-offender-threshold=2"})
 @DisplayName("Эмодзи-капча: эскалация по риску, wrong_answer и полный поток (HTTP)")
-class CaptchaEmojiFlowIT extends PostgresIntegrationTest {
+class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -87,32 +87,38 @@ class CaptchaEmojiFlowIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Провалы PoW → эмодзи-challenge → неверный ответ → правильный ответ → регистрация: 201")
-    void escalation_wrongThenCorrectAnswer_registers() throws Exception {
-        escalateRiskToEmoji();
+    void register_escalatedChallengeWrongThenCorrect_returnsCreated() throws Exception {
 
+        // given
+        // when
+        escalateRiskToEmoji();
         EmojiChallenge challenge = emojiChallenge(ACTION_REGISTER);
 
         HttpResponse<String> wrong = solveEmoji(challenge.jwt(), List.of(0, 1));
-        assertThat(wrong.statusCode()).as("ответ из двух ячеек никогда не бывает верным").isEqualTo(400);
-        assertThat(code(wrong)).isEqualTo("wrong_answer");
-
         List<Integer> answer = correctAnswer(challenge);
         HttpResponse<String> solved = solveEmoji(challenge.jwt(), answer);
-        assertThat(solved.statusCode()).as("solve принимает верный ответ: %s", solved.body()).isEqualTo(200);
         String token = JSON.readTree(solved.body()).get("captchaToken").asText();
-
         HttpResponse<String> register = post("/api/v1/auth/register", "{\"firstName\":\"Emoji\",\"lastName\":\"Flow\",\"email\":\""
                 + uniqueEmail() + "\",\"password\":\"Sup3rSecret123!\",\"captchaToken\":\"" + token + "\"}");
+
+        // then
+        assertThat(wrong.statusCode()).as("ответ из двух ячеек никогда не бывает верным").isEqualTo(400);
+        assertThat(code(wrong)).isEqualTo("wrong_answer");
+        assertThat(solved.statusCode()).as("solve принимает верный ответ: %s", solved.body()).isEqualTo(200);
         assertThat(register.statusCode()).isEqualTo(201);
     }
 
     @Test
     @DisplayName("После провалов challenge приходит с prompt и сеткой 9 глифов без повторов")
-    void escalatedChallenge_carriesEmojiGrid() throws Exception {
+    void challenge_afterEscalation_carriesEmojiGrid() throws Exception {
+
+        // given
+        // when
         escalateRiskToEmoji();
 
         EmojiChallenge challenge = emojiChallenge(ACTION_REGISTER);
 
+        // then
         assertThat(challenge.prompt()).isNotBlank();
         assertThat(challenge.cells()).hasSize(9).doesNotHaveDuplicates();
     }

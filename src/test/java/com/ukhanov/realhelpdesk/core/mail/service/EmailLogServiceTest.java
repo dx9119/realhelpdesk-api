@@ -34,29 +34,40 @@ class EmailLogServiceTest {
 
     @Test
     @DisplayName("add сохраняет запись журнала")
-    void add_savesEmailLog() {
+    void add_validLog_delegatesSaveToRepository() {
+
+        // given
+        // when
         EmailLog log = new EmailLog("Тема", "noreply@example.com", "user@example.com", NotificationEvent.NEW_TICKET);
 
         service.add(log);
 
+        // then
         verify(repository).save(log);
     }
 
     @Test
     @DisplayName("add(null) — ошибка, сохранение не вызывается")
     void add_null_throwsNpe() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.add(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
     @DisplayName("count считает за окно, заканчивающееся текущим моментом")
-    void countEmailsSentToByEventInWindow_usesWindowEndingNow() {
+    void countEmailsSentToByEventInWindow_durationOneHour_calculatesWindowAroundNow() {
+
+        // given
+        // when
         when(repository.countEmailsByToAndEventBetween(any(), any(), any(), any())).thenReturn(2L);
 
         LocalDateTime before = LocalDateTime.now();
+
         long count = service.countEmailsSentToByEventInWindow("user@example.com", NotificationEvent.RECOVERY_PASSWORD, Duration.ofHours(1));
         LocalDateTime after = LocalDateTime.now();
 
+        // then
         assertThat(count).isEqualTo(2L);
 
         ArgumentCaptor<LocalDateTime> startCaptor = ArgumentCaptor.forClass(LocalDateTime.class);

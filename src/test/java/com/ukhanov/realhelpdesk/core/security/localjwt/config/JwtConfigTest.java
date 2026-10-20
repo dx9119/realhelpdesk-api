@@ -19,9 +19,13 @@ class JwtConfigTest {
 
     @Test
     @DisplayName("Из валидных настроек собирается конфиг с ключом и адресами")
-    void buildsConfigFromValidProperties() {
+    void constructor_validProperties_returnsCompleteConfig() {
+
+        // given
+        // when
         JwtConfig config = new JwtConfig(validProperties());
 
+        // then
         assertThat(config.getJwtKey().getEncoded()).hasSize(32);
         assertThat(config.getIssuer()).isEqualTo("https://example.com");
         assertThat(config.getAudience()).containsExactly("https://example.com");
@@ -31,47 +35,67 @@ class JwtConfigTest {
 
     @Test
     @DisplayName("Пустой секрет — ошибка на старте с именем ключа")
-    void blankSecretFails() {
+    void constructor_blankSecret_throwsIllegalArgument() {
+
+        // given
+        // when
         JwtProperties properties = validProperties();
         properties.setSecretForGenJwt(" ");
 
+        // then
         assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jwt.secret-for-gen-jwt");
     }
 
     @Test
     @DisplayName("Секрет не в Base64 — ошибка с подсказкой про HS256")
-    void secretNotBase64Fails() {
+    void constructor_secretNotBase64_throwsIllegalState() {
+
+        // given
+        // when
         JwtProperties properties = validProperties();
         properties.setSecretForGenJwt("не-base64!");
 
+        // then
         assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Base64");
     }
 
     @Test
     @DisplayName("Пустой issuer — ошибка на старте")
-    void blankIssuerFails() {
+    void constructor_blankIssuer_throwsIllegalArgument() {
+
+        // given
+        // when
         JwtProperties properties = validProperties();
         properties.setIssuer("");
 
+        // then
         assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("jwt.issuer");
     }
 
     @Test
     @DisplayName("Пустая аудитория — ошибка на старте")
-    void emptyAudienceFails() {
+    void constructor_emptyAudience_throwsIllegalArgument() {
+
+        // given
+        // when
         JwtProperties properties = validProperties();
         properties.setAudience(Set.of());
 
+        // then
         assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jwt.audience");
     }
 
     @Test
     @DisplayName("Не положительный срок жизни — ошибка на старте")
-    void nonPositiveExpirationFails() {
+    void constructor_nonPositiveExpiration_throwsIllegalArgument() {
+
+        // given
+        // when
         JwtProperties noAccess = validProperties();
         noAccess.setAccessTokenExpirationSeconds(0);
+        // then
         assertThatThrownBy(() -> new JwtConfig(noAccess)).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jwt.access-token-expiration-seconds");
 
@@ -83,7 +107,9 @@ class JwtConfigTest {
 
     @Test
     @DisplayName("Настройки без обязательных значений — ошибка, а не тихий null")
-    void unboundPropertiesFail() {
+    void constructor_missingProperties_throwsIllegalArgument() {
+
+        // given / when / then
         assertThatThrownBy(() -> new JwtConfig(new JwtProperties())).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jwt.secret-for-gen-jwt");
     }

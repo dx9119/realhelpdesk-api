@@ -53,7 +53,10 @@ class NPlus1GuardTest {
 
     @Test
     @DisplayName("#13: загрузка пользователя по id не тянет refresh-токены (LAZY + @BatchSize)")
-    void userFindById_doesNotLoadRefreshTokens() {
+    void userFindById_withRefreshTokens_queriesOnce() {
+
+        // given
+        // when
         UserModel user = saveUser("user1@example.com");
         for (int i = 0; i < 3; i++) {
             RefreshTokenModel token = new RefreshTokenModel();
@@ -69,13 +72,17 @@ class NPlus1GuardTest {
 
         UserModel loaded = userRepository.findById(user.getId()).orElseThrow();
 
+        // then
         assertThat(loaded.getEmail()).isEqualTo("user1@example.com");
         assertThat((int) stats.getPrepareStatementCount()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("#5: список порталов грузит составы участников батчем, а не по порталу")
-    void portalList_batchesAllowedUsers() {
+    void portalList_withAllowedUsers_usesBatchLoading() {
+
+        // given
+        // when
         UserModel owner = saveUser("owner@example.com");
         UserModel member = saveUser("member@example.com");
         for (int i = 0; i < 20; i++) {
@@ -92,6 +99,8 @@ class NPlus1GuardTest {
         stats.clear();
 
         List<PortalModel> portals = portalRepository.findAllByOwnerIdOrderByCreatedAtDesc(owner.getId());
+
+        // then
         assertThat(portals).hasSize(20);
         assertThat(portals).allMatch(portal -> portal.getAllowedUserIds().size() == 1);
 
@@ -101,7 +110,10 @@ class NPlus1GuardTest {
 
     @Test
     @DisplayName("#2: страница тикетов по фильтру — автор и портал в ответе без N+1")
-    void ticketSearch_fetchesAssociationsWithoutNPlus1() {
+    void ticketSearch_withFilters_returnsPageWithoutNPlus1() {
+
+        // given
+        // when
         UserModel author = saveUser("author@example.com");
         PortalModel portal = savePortal(author, "Портал");
         for (int i = 0; i < 20; i++) {
@@ -120,7 +132,10 @@ class NPlus1GuardTest {
 
         // null-спецификация = «без фильтра», тот же findAll(spec, pageable), что вызывает контроллер поиска
         Specification<TicketModel> noFilter = null;
+
         Page<TicketModel> page = ticketRepository.findAll(noFilter, PageRequest.of(0, 25));
+
+        // then
         assertThat(page.getContent()).hasSize(20);
         assertThat(page.getContent()).allMatch(
                 ticket -> "author@example.com".equals(ticket.getAuthor().getEmail()) && portal.getId().equals(ticket.getPortal().getId()));

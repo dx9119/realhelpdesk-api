@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
+import org.springframework.core.task.support.ContextPropagatingTaskDecorator;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -77,16 +78,9 @@ public class AppConfig {
 
     @Bean
     public TaskDecorator contextPropagatingDecorator() {
-        return delegate -> {
-            // ObservationContext propagates trace/span через ThreadLocal; оборачиваем runnable,
-            // чтобы текущий контекст (из HTTP-запроса или предыдущей задачи) переехал в поток планировщика.
-            io.micrometer.context.ContextSnapshot snapshot = io.micrometer.context.ContextSnapshot.captureAll();
-            return () -> {
-                try (io.micrometer.context.ContextSnapshot.Scope scope = snapshot.setThreadLocals()) {
-                    delegate.run();
-                }
-            };
-        };
+        // ObservationContext propagates trace/span через ThreadLocal; декоратор переносит
+        // текущий контекст (из HTTP-запроса или предыдущей задачи) в поток планировщика.
+        return new ContextPropagatingTaskDecorator();
     }
 
     // Логика аутентификации(загрузка пользователя, проверка пароля)

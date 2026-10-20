@@ -6,17 +6,33 @@
 <!--
   Правила стиля RealHelpDesk.
   Форматирование (отступы, переносы, пробелы) контролирует Spotless — здесь только то,
-  что он не проверяет: нейминг, импорты, дизайн, структура.
+  что он не проверяет: нейминг, импорты, дизайн, структура, стандарты тестов.
+
+  Подавления — config/checkstyle/suppressions.xml (подключается через
+  SuppressionFilter ниже, путь приходит из maven-checkstyle-plugin).
 -->
 <module name="Checker">
     <property name="charset" value="UTF-8"/>
     <property name="severity" value="error"/>
     <property name="fileExtensions" value="java"/>
 
+    <module name="SuppressionFilter">
+        <property name="file" value="${checkstyle.suppressions.file}"/>
+        <property name="optional" value="true"/>
+    </module>
+
     <module name="LineLength">
         <property name="max" value="140"/>
         <property name="ignorePattern"
                   value="^package.*|^import.*|http://|https://|ftp://|^\s*\*"/>
+    </module>
+
+    <!-- Фиксированные паузы в тестах делают прогон медленным и флаки: ожидание
+         условия — Awaitility. В src/main спящий поток легитимен (backoff очистки
+         refresh-токенов), поэтому файл в подавлениях. -->
+    <module name="RegexpSingleline">
+        <property name="id" value="NoThreadSleepInTests"/>
+        <property name="format" value="Thread\.sleep\("/>
     </module>
 
     <!-- Spring-классы (main-класс, @Configuration, @Component): должны иметь
@@ -33,11 +49,52 @@
         <module name="UnusedImports"/>
         <module name="RedundantImport"/>
 
+        <!-- В тестах — только AssertJ: JUnit Assertions дают менее информативные
+             сообщения и смешивают два стиля в одном файле. Пакет нужен для
+             static-импортов членов (Assertions.assertThat), класс — для импорта
+             самого Assertions. -->
+        <module name="IllegalImport">
+            <property name="id" value="NoJUnitAssertions"/>
+            <property name="illegalPkgs" value="org.junit.jupiter.api.Assertions"/>
+            <property name="illegalClasses" value="org.junit.jupiter.api.Assertions"/>
+        </module>
+
+        <!-- JUnit 4 и TestNG в проекте не используются: смешение движков ломает
+             отчёты и @DisplayName. Пакет org.junit перечислять нельзя — под ним
+             живёт и JUnit 5 (org.junit.jupiter). -->
+        <module name="IllegalImport">
+            <property name="id" value="NoJUnit4AndTestNg"/>
+            <property name="illegalPkgs"
+                      value="org.junit.runner,org.junit.runners,org.junit.rules,org.junit.function,org.junit.matchers,org.junit.filters,org.testng"/>
+            <property name="illegalClasses"
+                      value="org.junit.Test,org.junit.Assert,org.junit.Assume,org.junit.Before,org.junit.After,org.junit.BeforeClass,org.junit.AfterClass,org.junit.Ignore,org.junit.Rule,org.junit.ClassRule,org.junit.FixMethodOrder"/>
+        </module>
+
+        <!-- Spring Boot 4 заменил @MockBean/@SpyBean на @MockitoBean/@MockitoSpyBean:
+             старый пакет тянет пересоздание контекста на каждый тест-класс. -->
+        <module name="IllegalImport">
+            <property name="id" value="NoDeprecatedBootTestAnnotations"/>
+            <property name="illegalPkgs" value="org.springframework.boot.test.mock.mockito"/>
+        </module>
+
+        <!-- Вывод в консоль не попадает в логи и не виден в CI-отчётах: в тестах —
+             ассерты, в main — логгер. -->
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="NoSystemOut"/>
+            <property name="format" value="System\.(out|err)\.print|\.printStackTrace\("/>
+        </module>
+
         <!-- Нейминг: PascalCase типы, camelCase методы/поля (с _ для методов тестов), CONST_CASE константы -->
         <module name="PackageName"/>
         <module name="TypeName"/>
         <module name="MethodName">
             <property name="format" value="^[a-z][a-zA-Z0-9]*(_[a-zA-Z0-9]+)*$"/>
+        </module>
+        <!-- В main подчёркиваний нет: имя метода — один camelCase-сегмент
+             (в тестах действует конвенция method_condition_outcome). -->
+        <module name="MethodName">
+            <property name="id" value="MethodNameMain"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- Исключение под конвенцию проекта: private static final Logger logger -->
         <module name="ConstantName">
@@ -47,6 +104,39 @@
         <module name="ParameterName"/>
         <module name="MemberName"/>
         <module name="LocalFinalVariableName"/>
+
+        <!-- Стандарты тестов. Аннотации разбираются по IDENT внутри ANNOTATION:
+             MatchXpath не умеет адресоваться к атрибутам через @text у узла-аннотации. -->
+        <module name="MatchXpath">
+            <property name="id" value="TestMethodNamingConvention"/>
+            <property name="query"
+                      value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][IDENT[not(matches(@text, '^[a-z][a-zA-Z0-9]*_[a-zA-Z0-9]+_[a-zA-Z0-9]+$'))]]"/>
+        </module>
+        <module name="MatchXpath">
+            <property name="id" value="RequireDisplayNameOnTests"/>
+            <property name="query"
+                      value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][not(MODIFIERS/ANNOTATION/IDENT[@text='DisplayName'])]"/>
+        </module>
+        <module name="MatchXpath">
+            <property name="id" value="GivenWhenThenStructure"/>
+            <property name="query"
+                      value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][not(.//COMMENT_CONTENT[contains(@text, 'given')]) or not(.//COMMENT_CONTENT[contains(@text, 'when')]) or not(.//COMMENT_CONTENT[contains(@text, 'then')])]"/>
+        </module>
+        <module name="MatchXpath">
+            <property name="id" value="JUnit5PackagePrivate"/>
+            <property name="query"
+                      value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][MODIFIERS/LITERAL_PUBLIC]"/>
+        </module>
+        <module name="MatchXpath">
+            <property name="id" value="NoSpringContextInUnitTests"/>
+            <property name="query"
+                      value="//CLASS_DEF[MODIFIERS/ANNOTATION/IDENT[@text='SpringBootTest']][IDENT[matches(@text, 'Test$')]]"/>
+        </module>
+        <module name="MatchXpath">
+            <property name="id" value="TestClassSuffix"/>
+            <property name="query"
+                      value="//CLASS_DEF[not(IDENT[matches(@text, '(Test|IT)$')])][.//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']]]"/>
+        </module>
 
         <!-- Дизайн и модификаторы -->
         <module name="FinalClass"/>

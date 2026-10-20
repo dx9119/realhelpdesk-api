@@ -16,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -30,7 +32,7 @@ import io.micrometer.core.instrument.MeterRegistry;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
 @DisplayName("Actuator: управляющий порт, Basic-скрейп и закрытие /actuator на основном порту")
-class ActuatorSecurityTest {
+class ActuatorSecurityIT extends AbstractIntegrationTest {
 
     private static final String METRICS_USER = "test-metrics";
     private static final String METRICS_PASSWORD = "test-password";
@@ -48,7 +50,9 @@ class ActuatorSecurityTest {
 
     @Test
     @DisplayName("health, liveness и readiness отвечают без аутентификации — пробы оркестратора работают")
-    void healthProbesAreOpen() {
+    void healthProbes_withoutCredentials_returnsOk() {
+
+        // given / when / then
         assertThat(get(managementPort, "/actuator/health", null).statusCode()).isEqualTo(200);
         assertThat(get(managementPort, "/actuator/health/liveness", null).statusCode()).isEqualTo(200);
         assertThat(get(managementPort, "/actuator/health/readiness", null).statusCode()).isEqualTo(200);
@@ -56,18 +60,26 @@ class ActuatorSecurityTest {
 
     @Test
     @DisplayName("prometheus без учётных данных — 401: скрейп открыт только сервисной учётке")
-    void prometheusRejectsScrapeWithoutCredentials() {
+    void scrapePrometheus_withoutCredentials_returnsUnauthorized() {
+
+        // given
+        // when
         HttpResponse<String> response = get(managementPort, "/actuator/prometheus", null);
 
+        // then
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.body()).doesNotContain("jvm_memory_used_bytes");
     }
 
     @Test
     @DisplayName("prometheus с Basic-учёткой — 200, метрики JVM и теги application/env на месте")
-    void prometheusAcceptsScrapeWithServiceCredentials() {
+    void scrapePrometheus_withServiceCredentials_returnsMetrics() {
+
+        // given
+        // when
         HttpResponse<String> response = get(managementPort, "/actuator/prometheus", METRICS_USER + ":" + METRICS_PASSWORD);
 
+        // then
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).contains("jvm_memory_used_bytes");
         assertThat(response.body()).contains("application=\"test-app\"").contains("env=\"test\"");
@@ -77,9 +89,12 @@ class ActuatorSecurityTest {
 
     @Test
     @DisplayName("Невыгруженные endpoints (env, heapdump) недоступны даже с учёткой скрейпа")
-    void unexposedEndpointsAreNotServed() {
+    void unexposedEndpoints_withCredentials_returnsErrorStatuses() {
+
+        // given
         String credentials = METRICS_USER + ":" + METRICS_PASSWORD;
 
+        // when / then
         for (String path : new String[]{"/actuator/env", "/actuator/heapdump", "/actuator/configprops", "/actuator/mappings"}) {
             int status = get(managementPort, path, credentials).statusCode();
             assertThat(status).as("статус %s", path).isIn(401, 403, 404);
@@ -88,7 +103,9 @@ class ActuatorSecurityTest {
 
     @Test
     @DisplayName("На основном порту actuator не обслуживается: prometheus не отдаёт метрики")
-    void applicationPortDoesNotServeActuator() {
+    void actuatorOnApplicationPort_requested_returnsNoMetrics() {
+
+        // given / when / then
         assertThat(get(serverPort, "/actuator/prometheus", null).statusCode()).isIn(401, 403, 404);
 
         HttpResponse<String> withCredentials = get(serverPort, "/actuator/prometheus", METRICS_USER + ":" + METRICS_PASSWORD);
@@ -97,8 +114,12 @@ class ActuatorSecurityTest {
 
     @Test
     @DisplayName("Запрос к API попадает в http.server.requests и виден в скрейпе")
-    void httpRequestsAreMeasured() {
+    void apiRequest_afterCall_visibleInScrape() {
+
+        // given
+        // when
         HttpResponse<String> health = get(serverPort, "/api/v1/health", null);
+        // then
         assertThat(health.statusCode()).isEqualTo(200);
 
         HttpResponse<String> scrape = get(managementPort, "/actuator/prometheus", METRICS_USER + ":" + METRICS_PASSWORD);

@@ -12,11 +12,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
 import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -31,6 +32,7 @@ import com.ukhanov.realhelpdesk.feature.notificationmanager.dto.UnreadCountRespo
 import com.ukhanov.realhelpdesk.feature.notificationmanager.exception.NotificationException;
 import com.ukhanov.realhelpdesk.feature.notificationmanager.service.NotificationManageService;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -39,14 +41,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Тесты REST-контракта оповещений (NotificationController)")
@@ -57,13 +51,13 @@ class NotificationControllerTest {
     @Mock
     private NotificationManageService mockNotificationManageService;
 
-    private MockMvc mockMvc;
+    private MockMvcTester mockMvc;
 
     @BeforeEach
     void setUp() {
         NotificationController controller = new NotificationController(mockNotificationManageService);
-        mockMvc = MockMvcBuilders.standaloneSetup(validatedController(controller)).setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+        mockMvc = MockMvcTester.of(List.of(validatedController(controller)),
+                builder -> builder.setControllerAdvice(new GlobalExceptionHandler()).build());
     }
 
     /**
@@ -84,42 +78,56 @@ class NotificationControllerTest {
 
     @Test
     @DisplayName("GET /api/v1/notifications → 200 со списком оповещений")
-    void getNotifications_ok() throws Exception {
+    void getNotifications_defaultPaging_returnsNotificationPage() {
+        // given
         NotificationResponse response = new NotificationResponse(1L, NotificationEvent.NEW_TICKET, 11L, 2L, "Проблема с оплатой", false,
                 Instant.parse("2026-10-05T10:00:00Z"));
         when(mockNotificationManageService.getNotifications(0, 10, "createdAt", "desc", false)).thenReturn(pageOf(response));
 
-        mockMvc.perform(get("/api/v1/notifications")).andExpect(status().isOk()).andExpect(jsonPath("$.content[0].id").value(1))
-                .andExpect(jsonPath("$.content[0].event").value("NEW_TICKET"))
-                .andExpect(jsonPath("$.content[0].title").value("Проблема с оплатой")).andExpect(jsonPath("$.content[0].read").value(false))
-                .andExpect(jsonPath("$.totalElements").value(1));
+        // when
+        MvcTestResult result = mockMvc.get().uri("/api/v1/notifications").exchange();
+
+        // then
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.content[0].id").asNumber().isEqualTo(1);
+        assertThat(result).bodyJson().extractingPath("$.content[0].event").asString().isEqualTo("NEW_TICKET");
+        assertThat(result).bodyJson().extractingPath("$.content[0].title").asString().isEqualTo("Проблема с оплатой");
+        assertThat(result).bodyJson().extractingPath("$.content[0].read").asBoolean().isFalse();
+        assertThat(result).bodyJson().extractingPath("$.totalElements").asNumber().isEqualTo(1);
 
         verify(mockNotificationManageService).getNotifications(0, 10, "createdAt", "desc", false);
     }
 
     @Test
     @DisplayName("GET /api/v1/notifications?unreadOnly=true → проброс фильтра в сервис")
-    void getNotifications_unreadOnlyParam() throws Exception {
+    void getNotifications_unreadOnlyTrue_passesFilterToService() {
+        // given
         when(mockNotificationManageService.getNotifications(1, 5, "createdAt", "desc", true)).thenReturn(pageOf());
 
-        mockMvc.perform(get("/api/v1/notifications").param("page", "1").param("size", "5").param("unreadOnly", "true"))
-                .andExpect(status().isOk());
+        // when / then
+        assertThat(mockMvc.get().uri("/api/v1/notifications").param("page", "1").param("size", "5").param("unreadOnly", "true"))
+                .hasStatusOk();
 
         verify(mockNotificationManageService).getNotifications(1, 5, "createdAt", "desc", true);
     }
 
     @Test
     @DisplayName("GET /api/v1/notifications?page=-1 → 400")
-    void getNotifications_negativePage_badRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/notifications").param("page", "-1")).andExpect(status().isBadRequest());
+    void getNotifications_negativePage_badRequest() {
+        // given / when / then
+        assertThat(mockMvc.get().uri("/api/v1/notifications").param("page", "-1")).hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     @DisplayName("GET /unread-count → 200 со счётчиком")
-    void getUnreadCount_ok() throws Exception {
+    void getUnreadCount_unreadExists_returnsCount() {
+        // given
         when(mockNotificationManageService.getUnreadCount()).thenReturn(new UnreadCountResponse(3L));
 
-        mockMvc.perform(get("/api/v1/notifications/unread-count")).andExpect(status().isOk()).andExpect(jsonPath("$.count").value(3));
+        // when / then
+        MvcTestResult result = mockMvc.get().uri("/api/v1/notifications/unread-count").exchange();
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.count").asNumber().isEqualTo(3);
     }
 
     // ────────────────────────────────────────────────
@@ -128,41 +136,53 @@ class NotificationControllerTest {
 
     @Test
     @DisplayName("GET /wait → async: ответ отдаётся, когда резолвится DeferredResult")
-    void waitForNew_async() throws Exception {
+    void waitForNew_pendingDeferredResult_resolvesWithPage() {
+        // given
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = new DeferredResult<>();
         when(mockNotificationManageService.waitForNew(eq(5L), anyInt(), anyInt())).thenReturn(deferred);
 
-        MvcResult mvcResult = mockMvc.perform(get("/api/v1/notifications/wait").param("afterId", "5")).andExpect(request().asyncStarted())
-                .andReturn();
+        // when
+        MvcTestResult pending = mockMvc.get().uri("/api/v1/notifications/wait").param("afterId", "5").asyncExchange();
+        assertThat(pending).request().hasAsyncStarted(true);
 
         NotificationResponse response = new NotificationResponse(9L, NotificationEvent.CHANGE_TICKET, 11L, 2L, "Заявка", false,
                 Instant.parse("2026-10-05T10:00:00Z"));
         deferred.setResult(ResponseEntity.ok(pageOf(response)));
 
-        mockMvc.perform(asyncDispatch(mvcResult)).andExpect(status().isOk()).andExpect(jsonPath("$.content[0].id").value(9))
-                .andExpect(jsonPath("$.content[0].event").value("CHANGE_TICKET"));
+        // then
+        MvcTestResult resolved = mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(pending.getMvcResult()));
+        assertThat(resolved).hasStatusOk();
+        assertThat(resolved).bodyJson().extractingPath("$.content[0].id").asNumber().isEqualTo(9);
+        assertThat(resolved).bodyJson().extractingPath("$.content[0].event").asString().isEqualTo("CHANGE_TICKET");
     }
 
     @Test
     @DisplayName("GET /wait → пустая страница по таймауту: 200 с content=[]")
-    void waitForNew_timeout_emptyPage() throws Exception {
+    void waitForNew_timeout_emptyPage() {
+        // given
         PageResponse<NotificationResponse> empty = pageOf();
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = new DeferredResult<>(25000L,
                 ResponseEntity.ok(empty));
         when(mockNotificationManageService.waitForNew(anyLong(), anyInt(), anyInt())).thenReturn(deferred);
 
-        MvcResult mvcResult = mockMvc.perform(get("/api/v1/notifications/wait")).andExpect(request().asyncStarted()).andReturn();
+        // when
+        MvcTestResult pending = mockMvc.get().uri("/api/v1/notifications/wait").asyncExchange();
+        assertThat(pending).request().hasAsyncStarted(true);
 
         // имитация таймаута: Spring выставляет timeoutValue как результат (в сервисе это пустая страница)
         deferred.setResult(ResponseEntity.ok(empty));
 
-        mockMvc.perform(asyncDispatch(mvcResult)).andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+        // then
+        MvcTestResult resolved = mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(pending.getMvcResult()));
+        assertThat(resolved).hasStatusOk();
+        assertThat(resolved).bodyJson().extractingPath("$.content").asArray().isEmpty();
     }
 
     @Test
     @DisplayName("GET /wait?timeoutSec=99 → 400 (значение вне 1..30)")
-    void waitForNew_timeoutOutOfRange_badRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/notifications/wait").param("timeoutSec", "99")).andExpect(status().isBadRequest());
+    void waitForNew_timeoutOutOfRange_badRequest() {
+        // given / when / then
+        assertThat(mockMvc.get().uri("/api/v1/notifications/wait").param("timeoutSec", "99")).hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     // ────────────────────────────────────────────────
@@ -171,31 +191,38 @@ class NotificationControllerTest {
 
     @Test
     @DisplayName("GET /stream → async 200 text/event-stream, no-store, делегирует в сервис")
-    void stream_ok() throws Exception {
+    void stream_subscribe_returnsEventStreamWithoutStore() throws Exception {
+        // given
         SseEmitter emitter = new SseEmitter();
         // подготовительный пакет: без него заголовки ответа уходят только при первом оповещении
         emitter.send(SseEmitter.event().comment("connected"));
         when(mockNotificationManageService.subscribe(0L, 10)).thenReturn(emitter);
 
-        mockMvc.perform(get("/api/v1/notifications/stream")).andExpect(request().asyncStarted()).andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM));
+        // when
+        MvcTestResult result = mockMvc.get().uri("/api/v1/notifications/stream").asyncExchange();
+
+        // then
+        assertThat(result).request().hasAsyncStarted(true);
+        assertThat(result).hasStatusOk().hasHeader(HttpHeaders.CACHE_CONTROL, "no-store")
+                .hasContentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM);
 
         verify(mockNotificationManageService).subscribe(0L, 10);
     }
 
     @Test
     @DisplayName("GET /stream?afterId=-1 → 400 (значение вне диапазона), в сервис не уходим")
-    void stream_afterIdNegative_badRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/notifications/stream").param("afterId", "-1")).andExpect(status().isBadRequest());
+    void stream_afterIdNegative_badRequest() {
+        // given / when / then
+        assertThat(mockMvc.get().uri("/api/v1/notifications/stream").param("afterId", "-1")).hasStatus(HttpStatus.BAD_REQUEST);
 
         verifyNoInteractions(mockNotificationManageService);
     }
 
     @Test
     @DisplayName("GET /stream?size=51 → 400 (значение вне 1..50)")
-    void stream_sizeOutOfRange_badRequest() throws Exception {
-        mockMvc.perform(get("/api/v1/notifications/stream").param("size", "51")).andExpect(status().isBadRequest());
+    void stream_sizeOutOfRange_badRequest() {
+        // given / when / then
+        assertThat(mockMvc.get().uri("/api/v1/notifications/stream").param("size", "51")).hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     // ────────────────────────────────────────────────
@@ -204,25 +231,30 @@ class NotificationControllerTest {
 
     @Test
     @DisplayName("PUT /{id}/read → 204")
-    void markRead_noContent() throws Exception {
-        mockMvc.perform(put("/api/v1/notifications/{id}/read", NOTIFICATION_ID)).andExpect(status().isNoContent());
+    void markRead_existingNotification_returnsNoContent() throws NotificationException {
+        // given / when / then
+        assertThat(mockMvc.put().uri("/api/v1/notifications/{id}/read", NOTIFICATION_ID)).hasStatus(HttpStatus.NO_CONTENT);
 
         verify(mockNotificationManageService).markRead(NOTIFICATION_ID);
     }
 
     @Test
     @DisplayName("PUT /{id}/read → уведомление не найдено → 404 problem+json")
-    void markRead_notFound() throws Exception {
+    void markRead_missingNotification_returnsNotFound() throws NotificationException {
+        // given
         doThrow(NotificationException.notFound("Уведомление не найдено")).when(mockNotificationManageService).markRead(NOTIFICATION_ID);
 
-        mockMvc.perform(put("/api/v1/notifications/{id}/read", NOTIFICATION_ID)).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404));
+        // when / then
+        MvcTestResult result = mockMvc.put().uri("/api/v1/notifications/{id}/read", NOTIFICATION_ID).exchange();
+        assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(result).bodyJson().extractingPath("$.status").asNumber().isEqualTo(404);
     }
 
     @Test
     @DisplayName("PUT /read-all → 204")
-    void markAllRead_noContent() throws Exception {
-        mockMvc.perform(put("/api/v1/notifications/read-all")).andExpect(status().isNoContent());
+    void markAllRead_withNotifications_returnsNoContent() {
+        // given / when / then
+        assertThat(mockMvc.put().uri("/api/v1/notifications/read-all")).hasStatus(HttpStatus.NO_CONTENT);
 
         verify(mockNotificationManageService).markAllRead();
     }
@@ -233,55 +265,74 @@ class NotificationControllerTest {
 
     @Test
     @DisplayName("GET /preferences → 200 с событиями и настройками повтора")
-    void getPreferences_ok() throws Exception {
+    void getPreferences_savedPreferences_returnsEventsAndRepeat() throws NotificationException {
+        // given
         when(mockNotificationManageService.getPreferences())
                 .thenReturn(new NotificationPreferencesResponse(Set.of(NotificationEvent.NEW_TICKET), true, 15));
 
-        mockMvc.perform(get("/api/v1/notifications/preferences")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.events[0]").value("NEW_TICKET")).andExpect(jsonPath("$.repeatEnabled").value(true))
-                .andExpect(jsonPath("$.repeatIntervalMinutes").value(15));
+        // when
+        MvcTestResult result = mockMvc.get().uri("/api/v1/notifications/preferences").exchange();
+
+        // then
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.events[0]").asString().isEqualTo("NEW_TICKET");
+        assertThat(result).bodyJson().extractingPath("$.repeatEnabled").asBoolean().isTrue();
+        assertThat(result).bodyJson().extractingPath("$.repeatIntervalMinutes").asNumber().isEqualTo(15);
     }
 
     @Test
     @DisplayName("PUT /preferences → 200: события и настройки повтора возвращаются как сохранённые")
-    void updatePreferences_ok() throws Exception {
+    void updatePreferences_validRequest_returnsSavedPreferences() throws NotificationException {
+        // given
         when(mockNotificationManageService.updatePreferences(any(NotificationPreferencesRequest.class)))
                 .thenReturn(new NotificationPreferencesResponse(Set.of(NotificationEvent.NEW_MESSAGE), false, 5));
         String body = "{\"events\":[\"NEW_MESSAGE\"],\"repeatEnabled\":false,\"repeatIntervalMinutes\":5}";
 
-        mockMvc.perform(put("/api/v1/notifications/preferences").contentType("application/json").content(body)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.events[0]").value("NEW_MESSAGE")).andExpect(jsonPath("$.repeatEnabled").value(false))
-                .andExpect(jsonPath("$.repeatIntervalMinutes").value(5));
+        // when
+        MvcTestResult result = mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(body)
+                .exchange();
+
+        // then
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.events[0]").asString().isEqualTo("NEW_MESSAGE");
+        assertThat(result).bodyJson().extractingPath("$.repeatEnabled").asBoolean().isFalse();
+        assertThat(result).bodyJson().extractingPath("$.repeatIntervalMinutes").asNumber().isEqualTo(5);
     }
 
     @Test
     @DisplayName("PUT /preferences → пустой список событий → 400")
-    void updatePreferences_emptyEvents_badRequest() throws Exception {
+    void updatePreferences_emptyEvents_badRequest() {
+        // given
         String body = "{\"events\":[]}";
 
-        mockMvc.perform(put("/api/v1/notifications/preferences").contentType("application/json").content(body))
-                .andExpect(status().isBadRequest());
+        // when / then
+        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(body))
+                .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     @DisplayName("PUT /preferences → неизвестное событие → 400")
-    void updatePreferences_unknownEvent_badRequest() throws Exception {
+    void updatePreferences_unknownEvent_badRequest() {
+        // given
         String body = "{\"events\":[\"SOME_UNKNOWN_EVENT\"]}";
 
-        mockMvc.perform(put("/api/v1/notifications/preferences").contentType("application/json").content(body))
-                .andExpect(status().isBadRequest());
+        // when / then
+        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(body))
+                .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     @DisplayName("PUT /preferences → интервал повтора вне 1..10080 минут → 400")
-    void updatePreferences_intervalOutOfRange_badRequest() throws Exception {
+    void updatePreferences_intervalOutOfRange_badRequest() {
+        // given
         String tooSmall = "{\"events\":[\"NEW_TICKET\"],\"repeatIntervalMinutes\":0}";
         String tooLarge = "{\"events\":[\"NEW_TICKET\"],\"repeatIntervalMinutes\":10081}";
 
-        mockMvc.perform(put("/api/v1/notifications/preferences").contentType("application/json").content(tooSmall))
-                .andExpect(status().isBadRequest());
-        mockMvc.perform(put("/api/v1/notifications/preferences").contentType("application/json").content(tooLarge))
-                .andExpect(status().isBadRequest());
+        // when / then
+        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(tooSmall))
+                .hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(tooLarge))
+                .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     // ────────────────────────────────────────────────

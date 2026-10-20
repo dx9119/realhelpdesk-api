@@ -117,12 +117,16 @@ class TicketManageServiceTest {
 
     @Test
     @DisplayName("getTicketById → успех")
-    void getTicketById_success() throws TicketException {
+    void getTicketById_existingTicket_returnsTicketResponse() throws TicketException {
+
+        // given
+        // when
         TicketModel ticket = defaultTicket(TICKET_ID);
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket);
 
         TicketResponse response = service.getTicketById(TICKET_ID);
 
+        // then
         assertThat(response).isNotNull();
         verify(mockTicketDomainService).findTicketById(TICKET_ID);
     }
@@ -130,6 +134,8 @@ class TicketManageServiceTest {
     @Test
     @DisplayName("getTicketById → null id → NPE")
     void getTicketById_nullId_throwsNPE() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.getTicketById(null)).isInstanceOf(NullPointerException.class);
     }
 
@@ -139,7 +145,10 @@ class TicketManageServiceTest {
 
     @Test
     @DisplayName("createTicket → успех")
-    void createTicket_success() throws Exception {
+    void createTicket_validRequest_returnsCreatedTicketId() throws Exception {
+
+        // given
+        // when
         CreateTicketRequest request = new CreateTicketRequest("New Issue", null, null, null);
 
         PortalModel portal = defaultPortal(PORTAL_ID);
@@ -150,6 +159,7 @@ class TicketManageServiceTest {
 
         CreateTicketResponse response = service.createTicket(request, PORTAL_ID);
 
+        // then
         assertThat(response.id()).isEqualTo(TICKET_ID);
 
         verify(mockTicketDomainService).saveTicket(ticketCaptor.capture());
@@ -164,7 +174,10 @@ class TicketManageServiceTest {
 
     @Test
     @DisplayName("setTicketStatus → письмо об изменении статуса участникам портала")
-    void setTicketStatus_sendsChangeNotification() throws Exception {
+    void setTicketStatus_withRights_sendsChangeNotification() throws Exception {
+
+        // given
+        // when
         TicketModel ticket = defaultTicket(TICKET_ID);
         PortalModel portal = defaultPortal(PORTAL_ID);
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket);
@@ -174,6 +187,7 @@ class TicketManageServiceTest {
 
         service.setTicketStatus(PORTAL_ID, TICKET_ID, TicketStatus.CLOSED);
 
+        // then
         assertThat(ticket.getTicketStatus()).isEqualTo(TicketStatus.CLOSED);
         verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal),
                 eq(emailTemplates.updateStatusTicketSubject(TICKET_ID, TicketStatus.CLOSED)),
@@ -183,10 +197,14 @@ class TicketManageServiceTest {
     @Test
     @DisplayName("setTicketStatus без прав → TicketException и письма нет")
     void setTicketStatus_withoutRights_sendsNoEmail() throws TicketException, PortalException {
+
+        // given
+        // when
         TicketModel ticket = defaultTicket(TICKET_ID);
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket);
         when(mockTicketAccessValidationService.hasTicketChange(PORTAL_ID, TICKET_ID)).thenReturn(false);
 
+        // then
         assertThatThrownBy(() -> service.setTicketStatus(PORTAL_ID, TICKET_ID, TicketStatus.CLOSED)).isInstanceOf(TicketException.class);
 
         verifyNoInteractions(mockEmailDeliveryService);
@@ -194,7 +212,10 @@ class TicketManageServiceTest {
 
     @Test
     @DisplayName("setTicketPriority → письмо об изменении приоритета участникам портала")
-    void setTicketPriority_sendsChangeNotification() throws Exception {
+    void setTicketPriority_withRights_sendsChangeNotification() throws Exception {
+
+        // given
+        // when
         TicketModel ticket = defaultTicket(TICKET_ID);
         PortalModel portal = defaultPortal(PORTAL_ID);
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket);
@@ -204,6 +225,7 @@ class TicketManageServiceTest {
 
         service.setTicketPriority(PORTAL_ID, TICKET_ID, TicketPriority.HIGH);
 
+        // then
         assertThat(ticket.getTicketPriority()).isEqualTo(TicketPriority.HIGH);
         verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal),
                 eq(emailTemplates.updatePriorityTicketSubject(TICKET_ID, TicketPriority.HIGH)),
@@ -212,7 +234,10 @@ class TicketManageServiceTest {
 
     @Test
     @DisplayName("deleteTicket → письмо об удалении участникам портала")
-    void deleteTicket_sendsDeletedNotification() throws Exception {
+    void deleteTicket_withRights_sendsDeletedNotification() throws Exception {
+
+        // given
+        // when
         TicketModel ticket = defaultTicket(TICKET_ID);
         PortalModel portal = defaultPortal(PORTAL_ID);
         when(mockTicketAccessValidationService.hasTicketChange(PORTAL_ID, TICKET_ID)).thenReturn(true);
@@ -222,6 +247,7 @@ class TicketManageServiceTest {
 
         service.deleteTicket(TICKET_ID, PORTAL_ID);
 
+        // then
         assertThat(ticket.getTicketLiveStatus()).isEqualTo(TicketLiveStatus.DELETE);
         verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), eq(emailTemplates.deletedTicketSubject(TICKET_ID)),
                 eq(emailTemplates.deletedTicketBody(TICKET_ID, "test@user.com")), eq(NotificationEvent.TICKET_DELETED));
@@ -230,8 +256,12 @@ class TicketManageServiceTest {
     @Test
     @DisplayName("deleteTicket без прав владельца → TicketException и письма нет")
     void deleteTicket_withoutRights_sendsNoEmail() throws TicketException, PortalException {
+
+        // given
+        // when
         when(mockTicketAccessValidationService.hasTicketChange(PORTAL_ID, TICKET_ID)).thenReturn(false);
 
+        // then
         assertThatThrownBy(() -> service.deleteTicket(TICKET_ID, PORTAL_ID)).isInstanceOf(TicketException.class);
 
         verifyNoInteractions(mockEmailDeliveryService);
@@ -243,7 +273,10 @@ class TicketManageServiceTest {
 
     @Test
     @DisplayName("getPageTickets → успех")
-    void getPageTickets_success() throws TicketException, PortalException {
+    void getPageTickets_validParams_returnsMappedPage() throws TicketException, PortalException {
+
+        // given
+        // when
         PageRequest pageRequest = PageRequest.of(0, 10);
         when(mockPaginationAdapter.buildPageRequest(eq(0), eq(10), eq("title"), eq("asc"), any())).thenReturn(pageRequest);
 
@@ -260,10 +293,11 @@ class TicketManageServiceTest {
                 .content(List.of(dto)).build();
 
         // Стабим mapToResponse с mappedPage (имитируем, что map уже прошёл)
-        when(mockPaginationAdapter.<TicketResponse>mapToResponse(any(Page.class), eq("title"), eq("asc"))).thenReturn(expected);
+        when(mockPaginationAdapter.<TicketResponse>mapToResponse(any(), eq("title"), eq("asc"))).thenReturn(expected);
 
         PageResponse<TicketResponse> result = service.getPageTickets(PORTAL_ID, 0, 10, "title", "asc");
 
+        // then
         assertThat(result).isNotNull();
         assertThat(result.totalElements()).isEqualTo(1L);
         assertThat(result.content()).hasSize(1);
@@ -275,7 +309,10 @@ class TicketManageServiceTest {
 
     @Test
     @DisplayName("createTicket → tickets.created с тегами priority и access из enum'ов заявки")
-    void createTicket_incrementsTicketsCreatedMetric() throws Exception {
+    void createTicket_newTicket_incrementsTicketsCreatedMetric() throws Exception {
+
+        // given
+        // when
         CreateTicketRequest request = new CreateTicketRequest("New Issue", null, null, null);
         when(mockPortalDomainService.getPortalById(PORTAL_ID)).thenReturn(defaultPortal(PORTAL_ID));
         when(mockTicketDomainService.saveTicket(any())).thenReturn(defaultTicket(TICKET_ID));
@@ -283,13 +320,17 @@ class TicketManageServiceTest {
         service.createTicket(request, PORTAL_ID);
 
         Counter created = meterRegistry.find("tickets.created").tags("priority", "MEDIUM", "access", "CREATOR_AND_PORTAL_USERS").counter();
+        // then
         assertThat(created).isNotNull();
         assertThat(created.count()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("setTicketStatus → переход в CLOSED считает transitions и таймер времени решения")
-    void setTicketStatus_closeCountsTransitionAndResolutionTimer() throws Exception {
+    void setTicketStatus_toClosed_countsTransitionAndResolutionTimer() throws Exception {
+
+        // given
+        // when
         TicketModel ticket = defaultTicket(TICKET_ID);
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket);
         when(mockTicketAccessValidationService.hasTicketChange(PORTAL_ID, TICKET_ID)).thenReturn(true);
@@ -299,6 +340,7 @@ class TicketManageServiceTest {
         service.setTicketStatus(PORTAL_ID, TICKET_ID, TicketStatus.CLOSED);
 
         Counter transition = meterRegistry.find("tickets.status.transitions").tags("from", "OPEN", "to", "CLOSED").counter();
+        // then
         assertThat(transition).isNotNull();
         assertThat(transition.count()).isEqualTo(1);
 

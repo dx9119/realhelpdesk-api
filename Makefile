@@ -55,8 +55,8 @@ build: ## Собрать jar без тестов (package -DskipTests)
 clean: ## Очистить target/
 	$(MVN) clean
 
-compile: ## Компиляция main и test
-	$(MVN) compile test-compile
+compile: ## Компиляция main и test (после checkstyle/spotless из фазы validate)
+	$(MVN) validate test-compile
 
 package: ## Полная сборка: тесты + jar
 	$(MVN) package

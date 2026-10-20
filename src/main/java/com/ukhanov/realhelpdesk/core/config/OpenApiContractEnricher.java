@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -107,18 +108,19 @@ public class OpenApiContractEnricher implements OpenApiCustomizer {
     }
 
     private ContractEntry parseEntry(JsonNode node) {
-        String description = node.get("description") != null ? node.get("description").asText() : null;
+        String description = node.get("description") != null ? node.get("description").stringValue() : null;
         Map<String, Object> example = null;
         JsonNode exampleNode = node.get("example");
         if (exampleNode != null && exampleNode.isObject()) {
-            example = objectMapper.convertValue(exampleNode, Map.class);
+            example = objectMapper.convertValue(exampleNode, new TypeReference<Map<String, Object>>() {
+            });
         }
         Map<String, String> fields = null;
         JsonNode fieldsNode = node.get("fields");
         if (fieldsNode != null && fieldsNode.isObject()) {
             fields = new HashMap<>();
             for (Map.Entry<String, JsonNode> field : fieldsNode.properties()) {
-                fields.put(field.getKey(), field.getValue().asText());
+                fields.put(field.getKey(), field.getValue().stringValue());
             }
         }
         return new ContractEntry(description, example, fields);

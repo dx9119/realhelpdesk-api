@@ -55,11 +55,15 @@ class GetTokenServiceTest {
 
     @Test
     @DisplayName("Предыдущие активные refresh-токены отзываются bulk-UPDATE — старый токен перестаёт быть валидным")
-    void previousActiveTokens_areRevokedOnIssuance() {
+    void getNewTokens_existingActiveTokens_bulkRevokesThem() {
+
+        // given
+        // when
         when(jwtRefreshTokenRepository.updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.REVOKED)).thenReturn(2);
 
         TokensResponse response = service.getNewTokens(user);
 
+        // then
         assertThat(response.refreshToken()).isEqualTo(NEW_REFRESH);
         // прежние токены отзываются одним UPDATE, без поштучного сохранения сущностей
         verify(jwtRefreshTokenRepository).updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.REVOKED);
@@ -68,9 +72,13 @@ class GetTokenServiceTest {
 
     @Test
     @DisplayName("Активных токенов нет — отзывать нечего, сохраняется только новый")
-    void noActiveTokens_nothingRevoked() {
+    void getNewTokens_noActiveTokens_savesOnlyNewToken() {
+
+        // given
+        // when
         service.getNewTokens(user);
 
+        // then
         verify(jwtRefreshTokenRepository).updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.REVOKED);
         verify(saveTokenService, times(1)).saveRefreshToken(any(RefreshTokenModel.class));
         verify(saveTokenService, never()).saveRefreshToken(argThat(token -> token.getStatus() == TokenStatus.REVOKED));
@@ -79,10 +87,14 @@ class GetTokenServiceTest {
     @Test
     @DisplayName("Смена пароля: bulk-отзыв активных токенов со статусом PASSWD_CHANGE")
     void revokeActiveRefreshTokens_passwdChange_usesBulkUpdate() {
+
+        // given
+        // when
         when(jwtRefreshTokenRepository.updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.PASSWD_CHANGE)).thenReturn(3);
 
         int revoked = service.revokeActiveRefreshTokens(user, TokenStatus.PASSWD_CHANGE);
 
+        // then
         assertThat(revoked).isEqualTo(3);
         verify(jwtRefreshTokenRepository).updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.PASSWD_CHANGE);
         verify(saveTokenService, never()).saveRefreshToken(any(RefreshTokenModel.class));

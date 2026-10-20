@@ -94,8 +94,10 @@ class MessageManageServiceTest {
 
     @Test
     @DisplayName("createMessage → создаёт сообщение, меняет статус тикета и отправляет уведомление")
-    void createMessage_successFlow() throws Exception {
+    void createMessage_validRequest_createsMessageAndNotifies() throws Exception {
+
         // given
+        // when
         CreateMessageRequest request = new CreateMessageRequest(MESSAGE_TEXT);
 
         UserModel currentUser = createUser(USER_EMAIL);
@@ -111,7 +113,6 @@ class MessageManageServiceTest {
         savedMessage.setId(777L);
         when(mockMessageDomainService.saveMessage(any(MessageModel.class))).thenReturn(savedMessage);
 
-        // when
         CreateMessageResponse response = service.createMessage(request, TICKET_ID, PORTAL_ID);
 
         // then
@@ -138,8 +139,10 @@ class MessageManageServiceTest {
 
     @Test
     @DisplayName("createMessage → первый ответ пишет tickets.time.to.first.response, переход в IN_PROGRESS считается")
-    void createMessage_firstMessageRecordsTimeToFirstResponse() throws Exception {
+    void createMessage_openTicketFirstMessage_recordsFirstResponseMetric() throws Exception {
+
         // given
+        // when
         CreateMessageRequest request = new CreateMessageRequest(MESSAGE_TEXT);
 
         UserModel currentUser = createUser(USER_EMAIL);
@@ -155,11 +158,10 @@ class MessageManageServiceTest {
         when(mockMessageDomainService.saveMessage(any(MessageModel.class))).thenReturn(savedMessage);
         when(mockMessageDomainService.countByTicketId(TICKET_ID)).thenReturn(0L);
 
-        // when
         service.createMessage(request, TICKET_ID, PORTAL_ID);
 
-        // then
         Timer firstResponse = meterRegistry.find("tickets.time.to.first.response").timer();
+        // then
         assertThat(firstResponse).isNotNull();
         assertThat(firstResponse.count()).isEqualTo(1);
 
@@ -170,8 +172,10 @@ class MessageManageServiceTest {
 
     @Test
     @DisplayName("createMessage → второе сообщение не завышает время первого ответа и не считает переход")
-    void createMessage_secondMessageDoesNotRecordFirstResponse() throws Exception {
+    void createMessage_ticketInProgressSecondMessage_skipsFirstResponseMetric() throws Exception {
+
         // given: в заявке уже есть сообщения и статус уже IN_PROGRESS
+        // when
         CreateMessageRequest request = new CreateMessageRequest(MESSAGE_TEXT);
 
         UserModel currentUser = createUser(USER_EMAIL);
@@ -187,7 +191,6 @@ class MessageManageServiceTest {
         when(mockMessageDomainService.saveMessage(any(MessageModel.class))).thenReturn(savedMessage);
         when(mockMessageDomainService.countByTicketId(TICKET_ID)).thenReturn(1L);
 
-        // when
         service.createMessage(request, TICKET_ID, PORTAL_ID);
 
         // then
@@ -202,6 +205,8 @@ class MessageManageServiceTest {
     @Test
     @DisplayName("createMessage → null request → NPE")
     void createMessage_nullRequest_throwsNPE() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.createMessage(null, TICKET_ID, PORTAL_ID)).isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("Запрос на создание сообщения не должен быть null");
     }
@@ -209,11 +214,15 @@ class MessageManageServiceTest {
     @Test
     @DisplayName("createMessage → тикет не найден → TicketException")
     void createMessage_ticketNotFound_throwsTicketException() throws TicketException {
+
+        // given
+        // when
         CreateMessageRequest request = new CreateMessageRequest(MESSAGE_TEXT);
 
         when(mockCurrentUserProvider.getCurrentUserModel()).thenReturn(createUser(USER_EMAIL));
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenThrow(new TicketException("Тикет не найден"));
 
+        // then
         assertThatThrownBy(() -> service.createMessage(request, TICKET_ID, PORTAL_ID)).isInstanceOf(TicketException.class);
     }
 
@@ -223,7 +232,10 @@ class MessageManageServiceTest {
 
     @Test
     @DisplayName("getAllMessage → возвращает список сообщений")
-    void getAllMessage_returnsMappedResponses() throws MessageException, PortalException {
+    void getAllMessage_existingMessages_returnsMappedResponses() throws MessageException, PortalException {
+
+        // given
+        // when
         MessageModel msg1 = createMessage(null, null, "Сообщение 1");
         msg1.setId(1L);
         MessageModel msg2 = createMessage(null, null, "Сообщение 2");
@@ -239,12 +251,15 @@ class MessageManageServiceTest {
 
         List<MessageResponse> result = service.getAllMessage(TICKET_ID);
 
+        // then
         assertThat(result).hasSize(2).extracting(MessageResponse::messageText).containsExactly("Сообщение 1", "Сообщение 2");
     }
 
     @Test
     @DisplayName("getAllMessage → null ticketId → NPE")
     void getAllMessage_nullTicketId_throwsNPE() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.getAllMessage(null)).isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("ID заявки не должен быть null");
     }
@@ -252,10 +267,14 @@ class MessageManageServiceTest {
     @Test
     @DisplayName("getAllMessage → пустой список сообщений → возвращает пустой список")
     void getAllMessage_noMessages_returnsEmptyList() throws MessageException, PortalException {
+
+        // given
+        // when
         when(mockMessageDomainService.getMessagesByTicketId(TICKET_ID)).thenReturn(List.of());
 
         List<MessageResponse> result = service.getAllMessage(TICKET_ID);
 
+        // then
         assertThat(result).isEmpty();
     }
 

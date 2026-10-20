@@ -93,52 +93,67 @@ class TicketAccessValidationServiceTest {
     @Test
     @DisplayName("Владелец чужого портала не может изменять заявку другого портала")
     void hasTicketChange_ownerOfForeignPortal_denied() throws Exception {
+        // given
         currentUser = attacker;
 
         // атакующий владеет foreignPortal и подставляет его ID в URL
+        // when / then
         assertThat(service.hasTicketChange(FOREIGN_PORTAL_ID, TICKET_ID)).isFalse();
     }
 
     @Test
     @DisplayName("Посторонний пользователь не читает заявку чужого портала")
     void hasTicketAccess_stranger_denied() throws Exception {
+        // given
         currentUser = stranger;
+        // when
         portal.setAllowedUserIds(Set.of());
 
+        // then
         assertThat(service.hasTicketAccess(PORTAL_ID, TICKET_ID)).isFalse();
     }
 
     @Test
     @DisplayName("Заявка с доступом ALL_USERS не читается через чужой portalId")
     void hasTicketAccess_allUsersButForeignPortal_denied() throws Exception {
+        // given
         currentUser = stranger;
+        // when
         ticket.setAccessStatus(TicketAccessStatus.ALL_USERS);
 
+        // then
         assertThat(service.hasTicketAccess(FOREIGN_PORTAL_ID, TICKET_ID)).isFalse();
     }
 
     @Test
     @DisplayName("Владелец портала может изменять заявку своего портала")
     void hasTicketChange_ownerOfOwnPortal_allowed() throws Exception {
+        // given
         currentUser = owner;
 
+        // when / then
         assertThat(service.hasTicketChange(PORTAL_ID, TICKET_ID)).isTrue();
     }
 
     @Test
     @DisplayName("Пользователь с доступом к порталу читает его заявку")
     void hasTicketAccess_allowedUser_allowed() throws Exception {
+        // given
         currentUser = attacker;
 
+        // when / then
         assertThat(service.hasTicketAccess(PORTAL_ID, TICKET_ID)).isTrue();
     }
 
     @Test
     @DisplayName("Автор заявки может её изменять")
     void hasTicketChange_author_allowed() throws Exception {
+        // given
         currentUser = stranger;
+        // when
         ticket.setAuthor(stranger);
 
+        // then
         assertThat(service.hasTicketChange(PORTAL_ID, TICKET_ID)).isTrue();
     }
 

@@ -48,6 +48,15 @@
         <!-- opentelemetry-instrumentation выравнивается с opentelemetry-bom из Spring Boot
              (4.1.1 держит otel 1.62.0 — jdbc 2.28.1-alpha собран именно под эту версию API). -->
         <opentelemetry-instrumentation.version>2.28.1-alpha</opentelemetry-instrumentation.version>
+        <!-- Проверки стиля нельзя обойти флагом -D...skip: качество сборки
+             не должно зависеть от того, что передали в командной строке. -->
+        <checkstyle.skip>false</checkstyle.skip>
+        <spotless.check.skip>false</spotless.check.skip>
+        <!-- Позднее подстановление для инструментов (JaCoCo и подобных): агент
+             Mockito дописывается в argLine самих плагинов после @{argLine}, так
+             инструмент может добавить свой агент, не затирая Mockito. Свойство
+             объявлено всегда (пустым), иначе @{argLine} не резолвится. -->
+        <argLine/>
     </properties>
 
     <dependencyManagement>
@@ -286,25 +295,50 @@
             <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- @ServiceConnection: подключение IT-контекста к контейнеру без ручного
+             @DynamicPropertySource — Boot сам публикует datasource из контейнера. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
 
-        <!-- Mockito -->
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>${mockito.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-junit-jupiter</artifactId>
-            <version>${mockito.version}</version>
-            <scope>test</scope>
-        </dependency>
+        <!-- Mockito приходит транзитивно из spring-boot-starter-test: явные
+             зависимости дублировали бы версию и расходились с BOM. -->
 
     </dependencies>
 
     <build>
         <plugins>
+
+            <!-- Enforcer: сборка на чужой JDK падает сразу в validate, а не на
+                 компиляции с невнятной ошибкой (release фиксирует API, но не
+                 сам рантайм Maven'а). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>${maven-enforcer-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java-version</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireProperty>
+                                    <property>java.version</property>
+                                    <!-- java.version — версия рантайма Maven'а (25.0.4.1), а не
+                                         release из pom: сверяем мажор, иначе правило пропустит JDK 26+. -->
+                                    <regex>^25(\.|$).*</regex>
+                                    <regexMessage>Сборка идёт только на JDK 25 (pom: java.version=25).</regexMessage>
+                                </requireProperty>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 
             <!-- Java Compiler -->
             <plugin>
@@ -316,6 +350,13 @@
                          компилятор с хостового JDK новее целевого пропустит
                          вызовы API, которых нет в Java 25. -->
                     <release>${java.version}</release>
+                    <!-- Предупреждения — ошибки: deprecated и unchecked API не должны
+                         накапливаться незаметно (тесты компилируются тем же плагином). -->
+                    <compilerArgs>
+                        <arg>-Werror</arg>
+                        <arg>-Xlint:deprecation</arg>
+                        <arg>-Xlint:unchecked</arg>
+                    </compilerArgs>
                     <!-- Аннотационные процессоры только здесь (порядок важен):
                          mapstruct-processor генерирует XxxMapperImpl из интерфейсов @Mapper;
                          lombok генерирует геттеры/сеттеры/конструкторы/логгеры;
@@ -363,15 +404,15 @@
                 </configuration>
             </plugin>
 
-            <!-- Surefire: unit tests + Mockito agent -->
+            <!-- Surefire: юнит-тесты. Агент Mockito — в @{argLine}: свойство
+                 подставляется поздно, поэтому инструменты (JaCoCo) могут дописать
+                 свой агент, не затирая Mockito. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <argLine>
-                        -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
-                    </argLine>
+                    <argLine>@{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</argLine>
                     <!-- Интеграционные тесты (*IT) идут только через failsafe: GreenMail (in-memory SMTP)
                          нужен именно им, юнит-прогон его не поднимает -->
                     <excludes>
@@ -386,9 +427,7 @@
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <argLine>
-                        -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
-                    </argLine>
+                    <argLine>@{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</argLine>
                 </configuration>
                 <executions>
                     <execution>
@@ -445,6 +484,9 @@
                 </dependencies>
                 <configuration>
                     <configLocation>config/checkstyle/checkstyle.xml</configLocation>
+                    <!-- Подавления подключаются через SuppressionFilter конфига;
+                         путь передаётся плагином в это свойство. -->
+                    <suppressionsLocation>config/checkstyle/suppressions.xml</suppressionsLocation>
                     <consoleOutput>true</consoleOutput>
                     <failOnViolation>true</failOnViolation>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>

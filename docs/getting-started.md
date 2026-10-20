@@ -159,7 +159,7 @@ make check-ci    # CI-проверки локально: gitleaks + hadolint + t
 Сборка артефактов, если нужен jar без запуска стека:
 
 ```bash
-make compile     # компиляция main и test
+make compile     # компиляция main и test (validate: spotless + checkstyle, затем компиляция)
 make build       # jar без тестов (package -DskipTests)
 make package     # полная сборка: тесты + jar
 make clean       # очистить target/

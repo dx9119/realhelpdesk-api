@@ -20,7 +20,9 @@ class EmailTemplatesWiringTest {
             .withConfiguration(AutoConfigurations.of(MessageSourceAutoConfiguration.class));
 
     @Test
-    void messageSourceIsAutoConfiguredAndReadsMessagesProperties() {
+    @DisplayName("MessageSource автоматически подключается и читает сообщения из properties")
+    void messageSource_autoConfigured_readsMessagesProperties() {
+        // given / when / then
         runner.run(context -> {
             assertThat(context).hasSingleBean(MessageSource.class);
             MessageSource messageSource = context.getBean(MessageSource.class);
@@ -33,7 +35,9 @@ class EmailTemplatesWiringTest {
     }
 
     @Test
-    void emailTemplatesRendersThroughAutoConfiguredMessageSource() {
+    @DisplayName("EmailTemplates рендерит письма через автоконфигурированный MessageSource")
+    void emailTemplates_messageSourceFromContext_rendersLocalizedText() {
+        // given / when / then
         runner.run(context -> {
             EmailTemplates emailTemplates = new EmailTemplates(context.getBean(MessageSource.class),
                     EmailTemplatesFixture.emailProperties());

@@ -9,9 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import com.ukhanov.realhelpdesk.core.config.ClientIpProperties;
 import com.ukhanov.realhelpdesk.core.http.ClientIpResolver;
@@ -24,8 +22,6 @@ import com.ukhanov.realhelpdesk.core.security.localjwt.config.JwtProperties;
 import com.ukhanov.realhelpdesk.feature.usermanager.service.UserManageService;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Атрибут Domain у auth-cookie из jwt.cookie.domain: задан — общий для поддоменов (файлы на отдельном домене); пусто — cookie host-only,
@@ -49,22 +45,25 @@ class AuthControllerCookieDomainTest {
     private UserManageService userManageService;
 
     private JwtProperties jwtProperties;
-    private MockMvc mockMvc;
+    private MockMvcTester mockMvc;
 
     @BeforeEach
     void setUp() {
         jwtProperties = new JwtProperties();
-        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(registrationService, loginService, logoutService, getTokenService,
-                refreshService, jwtProperties, userManageService, new ClientIpResolver(new ClientIpProperties()))).build();
+        mockMvc = MockMvcTester.of(new AuthController(registrationService, loginService, logoutService, getTokenService, refreshService,
+                jwtProperties, userManageService, new ClientIpResolver(new ClientIpProperties())));
     }
 
     @Test
     @DisplayName("jwt.cookie.domain задан — обе cookie (access и refresh) несут Domain=...")
-    void domainConfigured_bothCookiesCarryDomain() throws Exception {
+    void deleteSession_domainConfigured_cookiesCarryDomain() {
+        // given
         jwtProperties.getCookie().setDomain(".example.com");
 
+        // when
         List<String> cookies = setCookies();
 
+        // then
         assertThat(cookies).hasSize(2).allSatisfy(cookie -> assertThat(cookie).contains("Domain=.example.com"));
         assertThat(cookies.get(0)).startsWith("accessToken=");
         assertThat(cookies.get(1)).startsWith("refreshToken=");
@@ -72,14 +71,15 @@ class AuthControllerCookieDomainTest {
 
     @Test
     @DisplayName("jwt.cookie.domain пуст — атрибут Domain не ставится, cookie остаётся host-only")
-    void domainAbsent_noDomainAttribute() throws Exception {
+    void deleteSession_domainAbsent_cookiesStayHostOnly() {
+        // given / when
         List<String> cookies = setCookies();
 
+        // then
         assertThat(cookies).hasSize(2).noneSatisfy(cookie -> assertThat(cookie).containsIgnoringCase("Domain="));
     }
 
-    private List<String> setCookies() throws Exception {
-        MvcResult result = mockMvc.perform(delete("/api/v1/auth/session")).andExpect(status().isNoContent()).andReturn();
-        return result.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
+    private List<String> setCookies() {
+        return mockMvc.delete().uri("/api/v1/auth/session").exchange().getResponse().getHeaders(HttpHeaders.SET_COOKIE);
     }
 }

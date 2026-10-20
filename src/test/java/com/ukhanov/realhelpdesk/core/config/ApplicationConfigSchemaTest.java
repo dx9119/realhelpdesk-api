@@ -45,7 +45,7 @@ class ApplicationConfigSchemaTest {
      * Ключи, которым позволено содержать литерал: {@code spring.config.import} подключает application-domains.properties — значение это
      * адрес файла, а не переменная окружения. {@code spring.jpa.hibernate.ddl-auto} закреплён в коде (validate): режим, изменяющий схему,
      * нельзя оставить на откуп окружения — им управляют только миграции Liquibase; исключение отдельно охраняется
-     * {@link #ddlAutoIsPinnedToValidateAndNeverDestructive()}. {@code server.ssl.enabled=${SSL_ENABLED:true}} — HTTPS включён по умолчанию
+     * {@link #ddlAuto_pinnedToValidate_neverDestructive()}. {@code server.ssl.enabled=${SSL_ENABLED:true}} — HTTPS включён по умолчанию
      * (контейнер/рабочий контур), дефолт после двоеточия позволяет выключить его инлайном (IDEA-запуск: SSL_ENABLED=false), не добавляя
      * ключ в infrastructure/.env. Остальные — константы, одинаковые для всех окружений: пул Hikari, батчи Hibernate, graceful shutdown и
      * actuator (их меняют правкой файла с ревью, а не подменой env).
@@ -126,20 +126,27 @@ class ApplicationConfigSchemaTest {
 
     @Test
     @DisplayName("application*.properties — чистая схема: только обязательные ${VAR}, без дефолтов и литералов")
-    void applicationPropertiesIsSchemaWithoutValues() throws Exception {
+    void applicationProperties_allValuesAreVariables_returnsPureSchema() throws Exception {
+
+        // given
+        // when
         Properties schema = loadSchema();
 
         List<String> notSchema = schema.stringPropertyNames().stream().sorted().filter(name -> !NON_SCHEMA_KEYS.contains(name))
                 .filter(name -> !SCHEMA_VALUE.matcher(schema.getProperty(name)).matches())
                 .map(name -> name + "=" + schema.getProperty(name)).toList();
 
+        // then
         assertThat(schema.stringPropertyNames()).as("схема должна содержать свойства").isNotEmpty();
         assertThat(notSchema).as("значения вне вида ${VAR} (дефолт или литерал в коде)").isEmpty();
     }
 
     @Test
     @DisplayName("Переменные схемы и ключи infrastructure/docker-compose.yaml + infrastructure/.env.example совпадают один в один")
-    void everySchemaVariableIsDeclaredInComposeOrEnvExample() throws Exception {
+    void schemaVariables_declaredInComposeOrEnvExample_noUnresolvedVariables() throws Exception {
+
+        // given
+        // when
         Properties schema = loadSchema();
 
         Set<String> schemaVariables = schema.stringPropertyNames().stream().map(schema::getProperty)
@@ -148,6 +155,7 @@ class ApplicationConfigSchemaTest {
         Set<String> composeKeys = composeAppEnvironment();
         Set<String> envExampleKeys = appKeysOfEnvExample();
 
+        // then
         assertThat(composeKeys.stream().filter(envExampleKeys::contains).toList())
                 .as("одно значение может быть задано только в одном месте: infrastructure/.env.example или services.app.environment")
                 .isEmpty();
@@ -160,9 +168,13 @@ class ApplicationConfigSchemaTest {
 
     @Test
     @DisplayName("ddl-auto закреплён в коде: validate, деструктивный режим не появится в конфигурации среды")
-    void ddlAutoIsPinnedToValidateAndNeverDestructive() throws Exception {
+    void ddlAuto_pinnedToValidate_neverDestructive() throws Exception {
+
+        // given
+        // when
         Properties schema = loadSchema();
 
+        // then
         assertThat(schema.getProperty("spring.jpa.hibernate.ddl-auto")).as("режим схемы задан в коде, а не в окружении")
                 .isEqualTo("validate");
 

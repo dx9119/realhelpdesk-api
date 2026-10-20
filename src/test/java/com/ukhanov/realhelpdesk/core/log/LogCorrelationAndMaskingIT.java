@@ -15,6 +15,8 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -26,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "logging.level.com.ukhanov.realhelpdesk=DEBUG"})
 @ExtendWith(OutputCaptureExtension.class)
 @DisplayName("Корреляция traceId/spanId и маскирование ПДн в логах")
-class LogCorrelationAndMaskingTest {
+class LogCorrelationAndMaskingIT extends AbstractIntegrationTest {
 
     private static final String EMAIL = "john.doe@example.com";
 
@@ -42,9 +44,13 @@ class LogCorrelationAndMaskingTest {
 
     @Test
     @DisplayName("Запрос восстановления пароля: в логе traceId/spanId и маскированный email, полного адреса нет")
-    void passwordReset_logsTraceIdAndMaskedEmail(CapturedOutput output) throws IOException, InterruptedException {
+    void passwordReset_unknownUser_logsTraceAndMaskedEmail(CapturedOutput output) throws IOException, InterruptedException {
+
+        // given
+        // when
         HttpResponse<String> response = post("/api/v1/users/password-resets", "{\"email\":\"" + EMAIL + "\"}");
 
+        // then
         assertThat(response.statusCode()).as("пользователь не найден — 401").isEqualTo(401);
         String logs = capture(output);
         assertThat(logs).as("корреляция из OTel в строке лога").containsPattern(TRACE_AND_SPAN_COLUMNS);
@@ -54,9 +60,13 @@ class LogCorrelationAndMaskingTest {
 
     @Test
     @DisplayName("Отказ во входе: пароль и email из запроса в лог не попадают")
-    void loginFailure_doesNotLogPasswordOrEmail(CapturedOutput output) throws IOException, InterruptedException {
+    void login_invalidCredentials_doesNotLogPasswordOrEmail(CapturedOutput output) throws IOException, InterruptedException {
+
+        // given
+        // when
         HttpResponse<String> response = post("/api/v1/auth/login", "{\"email\":\"" + EMAIL + "\",\"password\":\"" + PASSWORD + "\"}");
 
+        // then
         assertThat(response.statusCode()).as("неверные учётные данные — 401").isEqualTo(401);
         String logs = capture(output);
         assertThat(logs).as("пароль не должен попадать в лог").doesNotContain(PASSWORD);

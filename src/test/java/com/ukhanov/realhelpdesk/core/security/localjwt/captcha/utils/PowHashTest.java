@@ -12,15 +12,23 @@ class PowHashTest {
 
     @Test
     @DisplayName("hash считает SHA-256 от UTF-8 строки — как JS-виджет")
-    void hash_matchesKnownVector() {
+    void hash_knownInput_returnsSha256Hex() {
+
+        // given
         // sha256("hello") из RFC/констант
+
+        // when
         String actual = HexFormat.of().formatHex(PowHash.hash("hello"));
+
+        // then
         assertThat(actual).isEqualTo("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
     }
 
     @Test
     @DisplayName("Ведущие нулевые биты: пусто, один бит, целый нулевой байт, 4 бита")
-    void leadingZeroBits_counts() {
+    void leadingZeroBits_sampleBytes_returnsExpectedBitCounts() {
+
+        // given / when / then
         assertThat(PowHash.leadingZeroBits(bytes("ffffffff"))).isZero();
         assertThat(PowHash.leadingZeroBits(bytes("7f"))).isEqualTo(1);
         assertThat(PowHash.leadingZeroBits(bytes("01"))).isEqualTo(7);
@@ -32,10 +40,15 @@ class PowHashTest {
 
     @Test
     @DisplayName("meets: nonce проходит при набранной сложности и проваливается при бо́льшей")
-    void meets_checksDifficulty() {
+    void meets_nonceAtFourBits_returnsTrueAndFalseByDifficulty() {
+
+        // given
         String salt = "cafebabe";
         // подбираем nonce под 4 нуля — на это уходит миллисекунды
+        // when
         String nonce = bruteForce(salt, 4);
+
+        // then
         assertThat(PowHash.meets(salt, nonce, 4)).isTrue();
         assertThat(PowHash.meets(salt, nonce, 20)).isFalse();
         assertThat(PowHash.meets(salt, "0", 4)).isFalse();
@@ -43,8 +56,13 @@ class PowHashTest {
 
     @Test
     @DisplayName("Формат строки: hash(salt:nonce) — с двоеточием, порядок аргументов важен")
-    void meets_includesColon() {
+    void meets_saltNonceJoinedWithColon_passesOnlyWithSeparator() {
+
+        // given
+        // when
         String nonce = bruteForce("s", 4);
+
+        // then
         assertThat(PowHash.meets("s", nonce, 4)).isTrue();
         // та же пара, но без двоеточия не решит
         assertThat(PowHash.leadingZeroBits(PowHash.hash("s" + nonce))).isLessThan(4);

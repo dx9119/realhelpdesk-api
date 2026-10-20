@@ -11,11 +11,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.ukhanov.realhelpdesk.core.config.StaticProperties;
 import com.ukhanov.realhelpdesk.core.exception.GlobalExceptionHandler;
@@ -25,20 +26,12 @@ import com.ukhanov.realhelpdesk.feature.attachmentmanager.dto.FileDownload;
 import com.ukhanov.realhelpdesk.feature.attachmentmanager.exception.AttachmentException;
 import com.ukhanov.realhelpdesk.feature.attachmentmanager.service.AttachmentManageService;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Тесты REST-контракта контроллера вложений (AttachmentController)")
@@ -53,14 +46,14 @@ class AttachmentControllerTest {
     @Mock
     private AttachmentManageService mockAttachmentManageService;
 
-    private MockMvc mockMvc;
+    private MockMvcTester mockMvc;
     private StaticProperties staticProperties;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         staticProperties = new StaticProperties();
-        mockMvc = MockMvcBuilders.standaloneSetup(new AttachmentController(mockAttachmentManageService, staticProperties))
-                .setControllerAdvice(new GlobalExceptionHandler()).build();
+        mockMvc = MockMvcTester.of(List.of(new AttachmentController(mockAttachmentManageService, staticProperties)),
+                builder -> builder.setControllerAdvice(new GlobalExceptionHandler()).build());
     }
 
     // ────────────────────────────────────────────────
@@ -69,39 +62,54 @@ class AttachmentControllerTest {
 
     @Test
     @DisplayName("POST .../attachments (multipart) → 201 + Location на вложение")
-    void uploadAttachment_returnsCreatedWithLocation() throws Exception {
+    void uploadAttachment_validMultipart_returnsCreatedWithLocation() throws Exception {
+        // given
         when(mockAttachmentManageService.uploadAttachment(any(MockMultipartFile.class), eq("Вот отчёт"), eq(PORTAL_ID), eq(TICKET_ID)))
                 .thenReturn(attachmentResponse());
-
         MockMultipartFile file = new MockMultipartFile("file", "report.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT);
 
-        mockMvc.perform(multipart(UPLOAD_PATH, PORTAL_ID, TICKET_ID).file(file).param("messageText", "Вот отчёт"))
-                .andExpect(status().isCreated()).andExpect(header().string("Location", "/api/v1/portals/5/tickets/77/attachments/15"))
-                .andExpect(jsonPath("$.id").value(15)).andExpect(jsonPath("$.fileName").value("report.pdf"))
-                .andExpect(jsonPath("$.sizeBytes").value(FILE_CONTENT.length))
-                .andExpect(jsonPath("$.downloadUrl").value("/api/v1/portals/5/tickets/77/attachments/15"));
+        // when
+        MvcTestResult result = mockMvc.post().uri(UPLOAD_PATH, PORTAL_ID, TICKET_ID).multipart().file(file)
+                .param("messageText", "Вот отчёт").exchange();
+
+        // then
+        assertThat(result).hasStatus(HttpStatus.CREATED).hasHeader("Location", "/api/v1/portals/5/tickets/77/attachments/15");
+        assertThat(result).bodyJson().extractingPath("$.id").asNumber().isEqualTo(15);
+        assertThat(result).bodyJson().extractingPath("$.fileName").asString().isEqualTo("report.pdf");
+        assertThat(result).bodyJson().extractingPath("$.sizeBytes").asNumber().isEqualTo(FILE_CONTENT.length);
+        assertThat(result).bodyJson().extractingPath("$.downloadUrl").asString().isEqualTo("/api/v1/portals/5/tickets/77/attachments/15");
     }
 
     @Test
     @DisplayName("Location повторяет downloadUrl: при заданном static.base-url — абсолютный origin раздачи")
-    void uploadAttachment_locationFollowsDownloadUrl() throws Exception {
+    void uploadAttachment_absoluteDownloadUrl_returnsSameLocation() throws Exception {
+        // given
         AttachmentResponse response = attachmentResponse("https://cdn.example.com/api/v1/portals/5/tickets/77/attachments/15");
         when(mockAttachmentManageService.uploadAttachment(any(MockMultipartFile.class), eq("Вот отчёт"), eq(PORTAL_ID), eq(TICKET_ID)))
                 .thenReturn(response);
-
         MockMultipartFile file = new MockMultipartFile("file", "report.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT);
 
-        mockMvc.perform(multipart(UPLOAD_PATH, PORTAL_ID, TICKET_ID).file(file).param("messageText", "Вот отчёт"))
-                .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "https://cdn.example.com/api/v1/portals/5/tickets/77/attachments/15"));
+        // when
+        MvcTestResult result = mockMvc.post().uri(UPLOAD_PATH, PORTAL_ID, TICKET_ID).multipart().file(file)
+                .param("messageText", "Вот отчёт").exchange();
+
+        // then
+        assertThat(result).hasStatus(HttpStatus.CREATED).hasHeader("Location",
+                "https://cdn.example.com/api/v1/portals/5/tickets/77/attachments/15");
     }
 
     @Test
     @DisplayName("POST .../attachments без части file → 400 (problem+json), сервис не вызывается")
-    void uploadAttachment_withoutFile_returnsBadRequestProblem() throws Exception {
-        mockMvc.perform(multipart(UPLOAD_PATH, PORTAL_ID, TICKET_ID).param("messageText", "без файла")).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400)).andExpect(jsonPath("$.title").value("Bad Request"))
-                .andExpect(jsonPath("$.detail").value("Отсутствует обязательная часть запроса 'file'"));
+    void uploadAttachment_missingFilePart_returnsBadRequestProblem() throws Exception {
+        // given / when
+        MvcTestResult result = mockMvc.post().uri(UPLOAD_PATH, PORTAL_ID, TICKET_ID).multipart().param("messageText", "без файла")
+                .exchange();
+
+        // then
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(result).bodyJson().extractingPath("$.status").asNumber().isEqualTo(400);
+        assertThat(result).bodyJson().extractingPath("$.title").asString().isEqualTo("Bad Request");
+        assertThat(result).bodyJson().extractingPath("$.detail").asString().isEqualTo("Отсутствует обязательная часть запроса 'file'");
 
         verify(mockAttachmentManageService, never()).uploadAttachment(any(), any(), any(), any());
     }
@@ -109,11 +117,17 @@ class AttachmentControllerTest {
     @Test
     @DisplayName("POST .../attachments с текстом длиннее 8000 символов → 400 с ошибкой поля messageText")
     void uploadAttachment_tooLongMessageText_returnsValidationError() throws Exception {
+        // given
         String longText = "а".repeat(8001);
         MockMultipartFile file = new MockMultipartFile("file", "report.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT);
 
-        mockMvc.perform(multipart(UPLOAD_PATH, PORTAL_ID, TICKET_ID).file(file).param("messageText", longText))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.messageText").exists());
+        // when
+        MvcTestResult result = mockMvc.post().uri(UPLOAD_PATH, PORTAL_ID, TICKET_ID).multipart().file(file).param("messageText", longText)
+                .exchange();
+
+        // then
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(result).bodyJson().hasPath("$.errors.messageText");
 
         verify(mockAttachmentManageService, never()).uploadAttachment(any(), any(), any(), any());
     }
@@ -124,12 +138,20 @@ class AttachmentControllerTest {
 
     @Test
     @DisplayName("GET .../attachments → 200 со списком метаданных")
-    void getAttachments_returnsList() throws Exception {
+    void getAttachments_existingAttachments_returnsList() throws Exception {
+        // given
         when(mockAttachmentManageService.getAttachments(PORTAL_ID, TICKET_ID)).thenReturn(List.of(attachmentResponse()));
 
-        mockMvc.perform(get(UPLOAD_PATH, PORTAL_ID, TICKET_ID)).andExpect(status().isOk()).andExpect(jsonPath("$.items[0].id").value(15))
-                .andExpect(jsonPath("$.items[0].fileName").value("report.pdf")).andExpect(jsonPath("$.items[0].messageId").value(900))
-                .andExpect(jsonPath("$.items[0].uploadedById").value(42)).andExpect(jsonPath("$.total").value(1));
+        // when
+        MvcTestResult result = mockMvc.get().uri(UPLOAD_PATH, PORTAL_ID, TICKET_ID).exchange();
+
+        // then
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.items[0].id").asNumber().isEqualTo(15);
+        assertThat(result).bodyJson().extractingPath("$.items[0].fileName").asString().isEqualTo("report.pdf");
+        assertThat(result).bodyJson().extractingPath("$.items[0].messageId").asNumber().isEqualTo(900);
+        assertThat(result).bodyJson().extractingPath("$.items[0].uploadedById").asNumber().isEqualTo(42);
+        assertThat(result).bodyJson().extractingPath("$.total").asNumber().isEqualTo(1);
     }
 
     // ────────────────────────────────────────────────
@@ -138,100 +160,138 @@ class AttachmentControllerTest {
 
     @Test
     @DisplayName("GET .../attachments/{id} → 200 с байтами, заголовками скачивания и Accept-Ranges")
-    void downloadAttachment_returnsFileWithDownloadHeaders() throws Exception {
+    void downloadAttachment_noRange_returnsFileWithDownloadHeaders() throws Exception {
+        // given
         when(mockAttachmentManageService.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null))
                 .thenReturn(fullDownload("Отчёт за месяц.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT));
 
-        MvcResult started = mockMvc.perform(get(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID))
-                .andExpect(status().isOk()).andExpect(header().string("Content-Type", MediaType.APPLICATION_PDF_VALUE))
-                .andExpect(header().string("Content-Disposition", containsString("attachment")))
-                .andExpect(header().string("Content-Disposition", containsString("filename*=UTF-8''")))
-                .andExpect(header().string("Cache-Control", "private, no-store")).andExpect(header().string("Accept-Ranges", "bytes"))
-                .andExpect(header().longValue("Content-Length", FILE_CONTENT.length)).andExpect(request().asyncStarted()).andReturn();
+        // when
+        MvcTestResult started = mockMvc.get().uri(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID).asyncExchange();
 
-        mockMvc.perform(asyncDispatch(started)).andExpect(status().isOk()).andExpect(content().bytes(FILE_CONTENT));
+        // then
+        assertThat(started).hasStatusOk().hasHeader("Content-Type", MediaType.APPLICATION_PDF_VALUE)
+                .hasHeader("Cache-Control", "private, no-store").hasHeader("Accept-Ranges", "bytes");
+        assertThat(started.getResponse().getHeader("Content-Disposition")).contains("attachment").contains("filename*=UTF-8''");
+        assertThat(started.getResponse().getContentLengthLong()).isEqualTo(FILE_CONTENT.length);
+        assertThat(started).request().hasAsyncStarted(true);
+
+        MvcTestResult resolved = mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(started.getMvcResult()));
+        assertThat(resolved).hasStatusOk().body().isEqualTo(FILE_CONTENT);
     }
 
     @Test
     @DisplayName("Cache-Control берётся из static.cache-control: значение уходит в ответ как есть")
-    void downloadAttachment_usesConfiguredCacheControl() throws Exception {
+    void downloadAttachment_configuredCacheControl_returnsItAsIs() throws Exception {
+        // given
         staticProperties.setCacheControl("public, max-age=300");
         when(mockAttachmentManageService.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null))
                 .thenReturn(fullDownload("Отчёт.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT));
 
-        MvcResult started = mockMvc.perform(get(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID))
-                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "public, max-age=300"))
-                .andExpect(request().asyncStarted()).andReturn();
+        // when
+        MvcTestResult started = mockMvc.get().uri(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID).asyncExchange();
 
-        mockMvc.perform(asyncDispatch(started)).andExpect(status().isOk()).andExpect(content().bytes(FILE_CONTENT));
+        // then
+        assertThat(started).hasStatusOk().hasHeader("Cache-Control", "public, max-age=300");
+        assertThat(started).request().hasAsyncStarted(true);
+
+        MvcTestResult resolved = mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(started.getMvcResult()));
+        assertThat(resolved).hasStatusOk().body().isEqualTo(FILE_CONTENT);
     }
 
     @Test
     @DisplayName("GET .../attachments/{id} c Range → 206, Content-Range и только запрошенные байты")
-    void downloadAttachment_withRange_returnsPartialContent() throws Exception {
+    void downloadAttachment_validRange_returnsPartialContent() throws Exception {
+        // given
         byte[] fragment = "file-".getBytes(StandardCharsets.UTF_8);
         when(mockAttachmentManageService.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, "bytes=0-4"))
                 .thenReturn(partialDownload("Отчёт.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT.length, 0, 4, fragment));
 
-        MvcResult started = mockMvc
-                .perform(get(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID).header("Range", "bytes=0-4"))
-                .andExpect(status().isPartialContent()).andExpect(header().string("Content-Range", "bytes 0-4/" + FILE_CONTENT.length))
-                .andExpect(header().string("Accept-Ranges", "bytes")).andExpect(header().longValue("Content-Length", fragment.length))
-                .andExpect(request().asyncStarted()).andReturn();
+        // when
+        MvcTestResult started = mockMvc.get().uri(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID)
+                .header("Range", "bytes=0-4").asyncExchange();
 
-        mockMvc.perform(asyncDispatch(started)).andExpect(status().isPartialContent()).andExpect(content().bytes(fragment));
+        // then
+        assertThat(started).hasStatus(HttpStatus.PARTIAL_CONTENT).hasHeader("Content-Range", "bytes 0-4/" + FILE_CONTENT.length)
+                .hasHeader("Accept-Ranges", "bytes");
+        assertThat(started.getResponse().getContentLengthLong()).isEqualTo(fragment.length);
+        assertThat(started).request().hasAsyncStarted(true);
+
+        MvcTestResult resolved = mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(started.getMvcResult()));
+        assertThat(resolved).hasStatus(HttpStatus.PARTIAL_CONTENT).body().isEqualTo(fragment);
     }
 
     @Test
     @DisplayName("GET .../attachments/{id} c Range за концом файла → 416 с Content-Range «bytes * / size», поток не открывается")
     void downloadAttachment_unsatisfiableRange_returnsRequestedRangeNotSatisfiable() throws Exception {
+        // given
         when(mockAttachmentManageService.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, "bytes=9999-"))
                 .thenReturn(unsatisfiableDownload("Отчёт.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT.length));
 
-        mockMvc.perform(get(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID).header("Range", "bytes=9999-"))
-                .andExpect(status().isRequestedRangeNotSatisfiable())
-                .andExpect(header().string("Content-Range", "bytes */" + FILE_CONTENT.length))
-                .andExpect(header().string("Cache-Control", "private, no-store")).andExpect(header().string("Accept-Ranges", "bytes"));
+        // when
+        MvcTestResult result = mockMvc.get().uri(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID)
+                .header("Range", "bytes=9999-").exchange();
+
+        // then
+        assertThat(result).hasStatus(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                .hasHeader("Content-Range", "bytes */" + FILE_CONTENT.length).hasHeader("Cache-Control", "private, no-store")
+                .hasHeader("Accept-Ranges", "bytes");
     }
 
     @Test
     @DisplayName("GET .../attachments/{id} c If-Range → Range игнорируется (валидаторов не отдаём), ответ 200 целиком")
     void downloadAttachment_withIfRange_ignoresRange() throws Exception {
+        // given
         when(mockAttachmentManageService.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null))
                 .thenReturn(fullDownload("Отчёт.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT));
 
-        MvcResult started = mockMvc
-                .perform(get(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID).header("Range", "bytes=0-4")
-                        .header("If-Range", "\"abc\""))
-                .andExpect(status().isOk()).andExpect(header().doesNotExist("Content-Range")).andExpect(request().asyncStarted())
-                .andReturn();
+        // when
+        MvcTestResult started = mockMvc.get().uri(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID)
+                .header("Range", "bytes=0-4").header("If-Range", "\"abc\"").asyncExchange();
 
-        mockMvc.perform(asyncDispatch(started)).andExpect(status().isOk()).andExpect(content().bytes(FILE_CONTENT));
+        // then
+        assertThat(started).hasStatusOk();
+        assertThat(started.getResponse().getHeader("Content-Range")).isNull();
+        assertThat(started).request().hasAsyncStarted(true);
+
+        MvcTestResult resolved = mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(started.getMvcResult()));
+        assertThat(resolved).hasStatusOk().body().isEqualTo(FILE_CONTENT);
         verify(mockAttachmentManageService).downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null);
     }
 
     @Test
     @DisplayName("GET .../attachments/{id} с несколькими диапазонами → сервис отдаёт FULL, ответ 200 целиком")
     void downloadAttachment_multipleRanges_fallsBackToFullResponse() throws Exception {
+        // given
         when(mockAttachmentManageService.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, "bytes=0-1,5-6"))
                 .thenReturn(fullDownload("Отчёт.pdf", MediaType.APPLICATION_PDF_VALUE, FILE_CONTENT));
 
-        MvcResult started = mockMvc
-                .perform(get(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID).header("Range", "bytes=0-1,5-6"))
-                .andExpect(status().isOk()).andExpect(header().doesNotExist("Content-Range")).andExpect(request().asyncStarted())
-                .andReturn();
+        // when
+        MvcTestResult started = mockMvc.get().uri(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID)
+                .header("Range", "bytes=0-1,5-6").asyncExchange();
 
-        mockMvc.perform(asyncDispatch(started)).andExpect(status().isOk()).andExpect(content().bytes(FILE_CONTENT));
+        // then
+        assertThat(started).hasStatusOk();
+        assertThat(started.getResponse().getHeader("Content-Range")).isNull();
+        assertThat(started).request().hasAsyncStarted(true);
+
+        MvcTestResult resolved = mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(started.getMvcResult()));
+        assertThat(resolved).hasStatusOk().body().isEqualTo(FILE_CONTENT);
     }
 
     @Test
     @DisplayName("GET .../attachments/{id} файла нет → 404 problem+json")
-    void downloadAttachment_unknown_returnsNotFoundProblem() throws Exception {
+    void downloadAttachment_unknownAttachment_returnsNotFoundProblem() throws Exception {
+        // given
         when(mockAttachmentManageService.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null))
                 .thenThrow(AttachmentException.notFound("Файл не найден"));
 
-        mockMvc.perform(get(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404)).andExpect(jsonPath("$.detail").value("Файл не найден"));
+        // when
+        MvcTestResult result = mockMvc.get().uri(UPLOAD_PATH + "/{attachmentId}", PORTAL_ID, TICKET_ID, ATTACHMENT_ID).exchange();
+
+        // then
+        assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(result).bodyJson().extractingPath("$.status").asNumber().isEqualTo(404);
+        assertThat(result).bodyJson().extractingPath("$.detail").asString().isEqualTo("Файл не найден");
     }
 
     // ────────────────────────────────────────────────

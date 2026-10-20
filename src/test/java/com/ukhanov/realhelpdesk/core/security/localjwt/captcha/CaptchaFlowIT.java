@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.ChallengeResponse;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
 
@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
                 "email.domain=example.com"})
 @DisplayName("PoW-капча: полный поток challenge → solve → register (HTTP)")
-class CaptchaFlowIT extends PostgresIntegrationTest {
+class CaptchaFlowIT extends AbstractIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -73,76 +73,106 @@ class CaptchaFlowIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("challenge → верный nonce → solve → регистрация с токеном: 201")
-    void fullFlow_registersUser() throws Exception {
+    void register_validCaptchaToken_returnsCreated() throws Exception {
+
+        // given
+        // when
         Challenge challenge = challenge(ACTION_REGISTER);
         String token = solve(challenge);
 
         HttpResponse<String> register = registerBody(registerJson(token, null, uniqueEmail()));
 
+        // then
         assertThat(register.statusCode()).isEqualTo(201);
     }
 
     @Test
     @DisplayName("Регистрация без captcha-токена → 400 с code=missing_token")
-    void registerWithoutToken_missingToken() throws Exception {
-        HttpResponse<String> response = registerBody(registerJson(null, null, uniqueEmail()));
+    void register_noCaptchaToken_returnsMissingToken() throws Exception {
 
+        // given
+        // when
+        String body = registerJson(null, null, uniqueEmail());
+
+        HttpResponse<String> response = registerBody(body);
+
+        // then
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(code(response)).isEqualTo("missing_token");
     }
 
     @Test
     @DisplayName("Повторное использование токена → 400 с code=replayed")
-    void reusedToken_replayed() throws Exception {
-        String token = solve(challenge(ACTION_REGISTER));
+    void register_reusedCaptchaToken_returnsReplayed() throws Exception {
 
+        // given
+        // when
+        String token = solve(challenge(ACTION_REGISTER));
+        // then
         assertThat(registerBody(registerJson(token, null, uniqueEmail())).statusCode()).isEqualTo(201);
 
         HttpResponse<String> replay = registerBody(registerJson(token, null, uniqueEmail()));
+
         assertThat(replay.statusCode()).isEqualTo(400);
         assertThat(code(replay)).isEqualTo("replayed");
     }
 
     @Test
     @DisplayName("Токен действия email-code предъявлен на регистрацию → 400 с code=wrong_action")
-    void wrongActionToken_rejected() throws Exception {
+    void register_tokenOfOtherAction_returnsWrongAction() throws Exception {
+
+        // given
+        // when
         String token = solve(challenge("email-code"));
 
         HttpResponse<String> response = registerBody(registerJson(token, null, uniqueEmail()));
 
+        // then
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(code(response)).isEqualTo("wrong_action");
     }
 
     @Test
     @DisplayName("Заполненное honeypot-поле website → 400 с code=honeypot даже с валидным токеном")
-    void honeypotFilled_rejected() throws Exception {
+    void register_filledHoneypot_returnsHoneypot() throws Exception {
+
+        // given
+        // when
         String token = solve(challenge(ACTION_REGISTER));
 
         HttpResponse<String> response = registerBody(registerJson(token, "https://spam.example", uniqueEmail()));
 
+        // then
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(code(response)).isEqualTo("honeypot");
     }
 
     @Test
     @DisplayName("solve с нерешённым nonce → 400 с code=pow_failed")
-    void wrongNonce_powFailed() throws Exception {
+    void solve_wrongNonce_returnsPowFailed() throws Exception {
+
+        // given
+        // when
         Challenge challenge = challenge(ACTION_REGISTER);
         String wrongNonce = nonceThatDoesNotSolve(challenge);
 
         HttpResponse<String> response = post("/api/v1/captcha/solve",
                 "{\"challengeId\":\"" + challenge.jwt + "\",\"nonce\":\"" + wrongNonce + "\"}");
 
+        // then
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(code(response)).isEqualTo("pow_failed");
     }
 
     @Test
     @DisplayName("Легаси GET /api/v1/captcha больше не существует → 401 (вне белого списка)")
-    void legacyGetCaptcha_gone() throws Exception {
+    void getCaptcha_legacyEndpoint_returnsUnauthorized() throws Exception {
+
+        // given
+        // when
         HttpResponse<String> response = send(HttpRequest.newBuilder(URI.create(url("/api/v1/captcha?capId=x"))).GET().build());
 
+        // then
         assertThat(response.statusCode()).isEqualTo(401);
     }
 

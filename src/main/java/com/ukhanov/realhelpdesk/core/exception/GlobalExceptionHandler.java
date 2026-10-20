@@ -241,7 +241,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
         logger.warn("Загружаемый файл превышает лимит: {}", ex.getMessage());
         markObserved(ex, request);
-        return ProblemResponses.entity(HttpStatus.PAYLOAD_TOO_LARGE, "Файл превышает допустимый размер", request);
+        return ProblemResponses.entity(HttpStatus.CONTENT_TOO_LARGE, "Файл превышает допустимый размер", request);
     }
 
     /** Отсутствующая часть multipart (например, file у загрузки вложения) — 400, а не 500 из общего обработчика. */

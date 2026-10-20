@@ -84,11 +84,15 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("challenge: тип pow, challengeId — подписанный JWT, соль/сложность совпадают с подписью")
-    void challenge_returnsPowAssignment() throws Exception {
+    void challenge_registeredAction_returnsPowAssignment() throws Exception {
+
+        // given
+        // when
         Instant before = Instant.now();
 
         ChallengeResponse response = service.challenge(ACTION, IP);
 
+        // then
         assertThat(response.type()).isEqualTo(ChallengeResponse.TYPE_POW);
         assertThat(response.params().salt()).hasSize(32).matches("[0-9a-f]{32}");
         assertThat(response.params().difficulty()).isEqualTo(DIFFICULTY);
@@ -105,7 +109,9 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("challenge с неизвестным действием — INVALID, метрика не растёт")
-    void challenge_unknownAction_invalid() {
+    void challenge_unknownAction_throwsInvalid() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.challenge("other", IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.INVALID);
 
@@ -119,11 +125,15 @@ class CaptchaServiceTest {
     @Test
     @DisplayName("Эскалация: провалы разных IP одной подсети дают эмодзи-задание (9 глифов)")
     void challenge_distributedSubnet_escalatesToEmoji() throws Exception {
+
+        // given
+        // when
         riskService.recordFailure(IP);
         riskService.recordFailure(IP_SAME_SUBNET);
 
         ChallengeResponse response = service.challenge(ACTION, IP);
 
+        // then
         assertThat(response.type()).isEqualTo(ChallengeResponse.TYPE_EMOJI);
         assertThat(response.params().prompt()).isNotBlank();
         assertThat(response.params().cells()).hasSize(9).doesNotHaveDuplicates();
@@ -139,6 +149,9 @@ class CaptchaServiceTest {
     @Test
     @DisplayName("Мягкий риск не поднимает сложность выше максимума PoW (кламп 26)")
     void challenge_softRisk_clampsDifficultyToMax() throws CaptchaException {
+
+        // given
+        // when
         properties.setPowDifficulty(CaptchaTokenService.MAX_POW_DIFFICULTY - 2);
         properties.setRiskElevatedDifficultyBonus(5);
         riskService.recordFailure(IP);
@@ -146,17 +159,22 @@ class CaptchaServiceTest {
 
         ChallengeResponse response = service.challenge(ACTION, IP);
 
+        // then
         assertThat(response.params().difficulty()).isEqualTo(CaptchaTokenService.MAX_POW_DIFFICULTY);
     }
 
     @Test
     @DisplayName("Мягкий риск одного IP (NAT) усложняет PoW, но эмодзи не выдаёт")
     void challenge_singleIpSoftRisk_elevatesPowDifficulty() throws Exception {
+
+        // given
+        // when
         riskService.recordFailure(IP);
         riskService.recordFailure(IP);
 
         ChallengeResponse response = service.challenge(ACTION, IP);
 
+        // then
         assertThat(response.type()).isEqualTo(ChallengeResponse.TYPE_POW);
         assertThat(response.params().difficulty()).isEqualTo(DIFFICULTY + DIFFICULTY_BONUS);
         CaptchaTokenService.ChallengeClaims claims = tokenService.parseChallenge(response.challengeId());
@@ -166,22 +184,30 @@ class CaptchaServiceTest {
     @Test
     @DisplayName("Эскалация выключена флагом — распределённая подсеть всё равно получает PoW")
     void challenge_emojiDisabled_staysPow() throws CaptchaException {
+
+        // given
+        // when
         properties.setEmojiEnabled(false);
         riskService.recordFailure(IP);
         riskService.recordFailure(IP_SAME_SUBNET);
 
         ChallengeResponse response = service.challenge(ACTION, IP);
 
+        // then
         assertThat(response.type()).isEqualTo(ChallengeResponse.TYPE_POW);
     }
 
     @Test
     @DisplayName("Провалы до порога не эскалируют")
     void challenge_belowThreshold_staysPow() throws CaptchaException {
+
+        // given
+        // when
         riskService.recordFailure(IP);
 
         ChallengeResponse response = service.challenge(ACTION, IP);
 
+        // then
         assertThat(response.type()).isEqualTo(ChallengeResponse.TYPE_POW);
         assertThat(response.params().difficulty()).isEqualTo(DIFFICULTY);
     }
@@ -193,12 +219,16 @@ class CaptchaServiceTest {
     @Test
     @DisplayName("solve с верным nonce возвращает подписанный captcha-токен с источником pow")
     void solve_correctNonce_returnsCaptchaToken() throws Exception {
+
+        // given
+        // when
         ChallengeResponse challenge = service.challenge(ACTION, IP);
         String nonce = solve(challenge);
 
         SolveResponse response = service.solve(challenge.challengeId(), nonce, null, IP);
 
         CaptchaTokenService.CaptchaTokenClaims claims = tokenService.parseCaptchaToken(response.captchaToken(), ACTION);
+        // then
         assertThat(claims.jti()).hasSize(32);
         assertThat(claims.challengeIssuedAt()).isNotNull();
         assertThat(claims.source()).isEqualTo(CaptchaTokenService.LEVEL_POW);
@@ -206,10 +236,14 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("solve с неверным nonce — POW_FAILED, провалы учитываются в риске до порога эскалации")
-    void solve_wrongNonce_powFailed_andRiskRecorded() throws CaptchaException {
+    void solve_wrongNonce_recordsRiskUntilThreshold() throws CaptchaException {
+
+        // given
+        // when
         ChallengeResponse challenge = service.challenge(ACTION, IP);
         String wrongNonce = wrongNonce(challenge);
 
+        // then
         assertThatThrownBy(() -> service.solve(challenge.challengeId(), wrongNonce, null, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.POW_FAILED);
 
@@ -230,19 +264,27 @@ class CaptchaServiceTest {
     @Test
     @DisplayName("solve эмодзи с верными индексами ячеек — токен с источником emoji")
     void solve_correctEmojiAnswer_returnsToken() throws Exception {
+
+        // given
+        // when
         ChallengeResponse challenge = escalatedEmojiChallenge();
 
         SolveResponse response = service.solve(challenge.challengeId(), null, List.of(0, 3, 5), IP);
 
         CaptchaTokenService.CaptchaTokenClaims claims = tokenService.parseCaptchaToken(response.captchaToken(), ACTION);
+        // then
         assertThat(claims.source()).isEqualTo(CaptchaTokenService.LEVEL_EMOJI);
     }
 
     @Test
     @DisplayName("solve эмодзи с неверным набором ячеек — WRONG_ANSWER и провал в риске")
-    void solve_wrongEmojiAnswer_reason() throws CaptchaException {
+    void solve_wrongEmojiAnswer_returnsWrongAnswer() throws CaptchaException {
+
+        // given
+        // when
         ChallengeResponse challenge = escalatedEmojiChallenge();
 
+        // then
         assertThatThrownBy(() -> service.solve(challenge.challengeId(), null, List.of(1, 2), IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.WRONG_ANSWER);
 
@@ -251,9 +293,13 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("solve эмодзи с пустым, выходящим за сетку или повторяющимся ответом — WRONG_ANSWER")
-    void solve_invalidEmojiAnswer_reason() throws Exception {
+    void solve_invalidEmojiAnswer_returnsWrongAnswer() throws Exception {
+
+        // given
+        // when
         ChallengeResponse challenge = escalatedEmojiChallenge();
 
+        // then
         assertThatThrownBy(() -> service.solve(challenge.challengeId(), null, List.of(), IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.WRONG_ANSWER);
         assertThatThrownBy(() -> service.solve(challenge.challengeId(), null, List.of(9), IP)).isInstanceOf(CaptchaException.class)
@@ -270,34 +316,46 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("Повторное решение того же challenge — REPLAYED")
-    void solve_replay_rejected() throws Exception {
+    void solve_sameChallengeTwice_returnsReplayed() throws Exception {
+
+        // given
+        // when
         ChallengeResponse challenge = service.challenge(ACTION, IP);
         String nonce = solve(challenge);
         service.solve(challenge.challengeId(), nonce, null, IP);
 
+        // then
         assertThatThrownBy(() -> service.solve(challenge.challengeId(), nonce, null, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.REPLAYED);
     }
 
     @Test
     @DisplayName("Подделанный challenge — INVALID, решение не принимается")
-    void solve_tamperedChallenge_invalid() throws CaptchaException {
+    void solve_tamperedChallenge_returnsInvalid() throws CaptchaException {
+
+        // given
+        // when
         ChallengeResponse challenge = service.challenge(ACTION, IP);
         String jwt = challenge.challengeId();
         String tampered = jwt.substring(0, jwt.length() - 2) + "aa";
 
+        // then
         assertThatThrownBy(() -> service.solve(tampered, "0", null, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.INVALID);
     }
 
     @Test
     @DisplayName("Истёкший challenge — EXPIRED")
-    void solve_expiredChallenge_expired() {
+    void solve_expiredChallenge_returnsExpired() {
+
+        // given
+        // when
         Instant past = Instant.now().minusSeconds(600);
         String expired = Jwts.builder().claim("typ", CaptchaTokenService.TYPE_CHALLENGE).claim("act", ACTION).claim("cid", "cid")
                 .claim("lvl", CaptchaTokenService.LEVEL_POW).claim("salt", "salt").claim("dif", DIFFICULTY).issuedAt(Date.from(past))
                 .expiration(Date.from(past.plusSeconds(300))).signWith(key).compact();
 
+        // then
         assertThatThrownBy(() -> service.solve(expired, "0", null, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.EXPIRED);
     }
@@ -308,10 +366,14 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("verify принимает свежий токен, пишет успех и сбрасывает риск IP")
-    void verify_validToken_success_andRiskReset() throws Exception {
+    void verify_validToken_recordsSuccessAndResetsRisk() throws Exception {
+
+        // given
+        // when
         String token = tokenService.issueCaptchaToken(ACTION, Instant.now(), CaptchaTokenService.LEVEL_POW);
         riskService.recordFailure(IP);
         riskService.recordFailure(IP);
+        // then
         assertThat(riskService.riskLevel(IP)).isEqualTo(CaptchaRiskService.Risk.ELEVATED);
 
         service.verify(token, ACTION, IP);
@@ -323,7 +385,9 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("verify без токена — MISSING_TOKEN с фиксацией промаха")
-    void verify_missingToken_reason() {
+    void verify_missingToken_returnsMissingToken() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.verify(null, ACTION, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.MISSING_TOKEN);
 
@@ -333,29 +397,41 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("Токен чужого действия — WRONG_ACTION")
-    void verify_wrongAction_reason() {
+    void verify_tokenOfOtherAction_returnsWrongAction() {
+
+        // given
+        // when
         String token = tokenService.issueCaptchaToken(CaptchaTokenService.ACTION_EMAIL_CODE, Instant.now(), CaptchaTokenService.LEVEL_POW);
 
+        // then
         assertThatThrownBy(() -> service.verify(token, ACTION, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.WRONG_ACTION);
     }
 
     @Test
     @DisplayName("Повторный предъявленный токен — REPLAYED")
-    void verify_replay_rejected() throws Exception {
+    void verify_sameTokenTwice_returnsReplayed() throws Exception {
+
+        // given
+        // when
         String token = tokenService.issueCaptchaToken(ACTION, Instant.now(), CaptchaTokenService.LEVEL_POW);
         service.verify(token, ACTION, IP);
 
+        // then
         assertThatThrownBy(() -> service.verify(token, ACTION, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.REPLAYED);
     }
 
     @Test
     @DisplayName("Отправка раньше minimum-fill — TOO_FAST с типом токена в метрике")
-    void verify_tooFast_reason() {
+    void verify_submittedTooFast_returnsTooFast() {
+
+        // given
+        // when
         properties.setMinFillSeconds(5);
         String token = tokenService.issueCaptchaToken(ACTION, Instant.now().minusSeconds(1), CaptchaTokenService.LEVEL_EMOJI);
 
+        // then
         assertThatThrownBy(() -> service.verify(token, ACTION, IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.TOO_FAST);
 
@@ -364,10 +440,16 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("Капча выключена — fail-open, даже без токена регистрация проходит")
-    void verify_disabled_passes() throws CaptchaException {
+    void verify_captchaDisabled_passes() throws CaptchaException {
+
+        // given
+        // when
         properties.setEnabled(false);
 
         service.verify(null, ACTION, IP);
+
+        // then
+        verifyNoInteractions(authMetrics);
     }
 
     // ────────────────────────────────────────────────
@@ -376,10 +458,15 @@ class CaptchaServiceTest {
 
     @Test
     @DisplayName("Заполненный honeypot — HONEYPOT, даже при выключенной капче; пробелы считаются пустым полем")
-    void verifyRegistration_honeypotFilled_rejected() throws CaptchaException {
+    void verifyRegistration_filledHoneypot_returnsHoneypot() throws CaptchaException {
+
+        // given
+        // when
         properties.setEnabled(false);
 
         service.verifyRegistration(null, "   ", IP);
+
+        // then
         assertThatThrownBy(() -> service.verifyRegistration(null, "https://spam.example", IP)).isInstanceOf(CaptchaException.class)
                 .extracting(e -> ((CaptchaException) e).getReason()).isEqualTo(CaptchaReason.HONEYPOT);
         verify(authMetrics).record(AuthMetrics.TYPE_CAPTCHA, AuthMetrics.RESULT_FAILURE);
@@ -389,10 +476,14 @@ class CaptchaServiceTest {
     @Test
     @DisplayName("Пустой honeypot — проверка уходит в обычный verify токена")
     void verifyRegistration_emptyHoneypot_delegatesToVerify() throws Exception {
+
+        // given
+        // when
         String token = tokenService.issueCaptchaToken(ACTION, Instant.now(), CaptchaTokenService.LEVEL_POW);
 
         service.verifyRegistration(token, "", IP);
 
+        // then
         verify(captchaMetrics).verification(true, CaptchaReason.OK, CaptchaMetrics.TYPE_POW);
     }
 

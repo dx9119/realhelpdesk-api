@@ -22,7 +22,8 @@ class AttachmentAccessPolicyTest {
 
     @Test
     @DisplayName("Сообщения и вложения используют одно и то же выражение @PreAuthorize")
-    void messagesAndAttachmentsShareAccessExpression() {
+    void preAuthorize_ticketAccessMethods_returnsSameExpression() {
+        // given / when / then
         assertThat(preAuthorize(MessageController.class, "createMessage")).isEqualTo(TICKET_ACCESS);
         assertThat(preAuthorize(MessageController.class, "getAllMessages")).isEqualTo(TICKET_ACCESS);
         assertThat(preAuthorize(AttachmentController.class, "uploadAttachment")).isEqualTo(TICKET_ACCESS);

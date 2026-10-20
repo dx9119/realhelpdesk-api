@@ -36,46 +36,62 @@ class MailHealthIndicatorTest {
 
     @Test
     @DisplayName("testConnection прошёл → UP с host и port")
-    void smtpReachableIsUp() {
+    void health_smtpReachable_returnsUpWithHostAndPort() {
+
+        // given
+        // when
         stubConnectionDetails();
 
         Health health = indicator.health();
 
+        // then
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails()).containsEntry("host", "smtp.example.com").containsEntry("port", 587);
     }
 
     @Test
     @DisplayName("Сервер недоступен → DOWN; адрес получателя в детали не попадает")
-    void smtpUnreachableIsDown() throws Exception {
+    void health_connectionFailure_returnsDownWithHostOnly() throws Exception {
+
+        // given
+        // when
         stubConnectionDetails();
         doThrow(new MessagingException("Could not connect to SMTP host")).when(mailSender).testConnection();
 
         Health health = indicator.health();
 
+        // then
         assertThat(health.getStatus()).isEqualTo(Status.DOWN);
         assertThat(health.getDetails()).containsEntry("host", "smtp.example.com");
     }
 
     @Test
     @DisplayName("Отправитель, отличный от JavaMailSenderImpl → UP с пометкой skipped (проверять нечем)")
-    void nonJavaMailSenderIsSkipped() {
+    void health_nonJavaMailSender_returnsUpSkipped() {
+
+        // given
+        // when
         MailHealthIndicator fallback = new MailHealthIndicator(mock(JavaMailSender.class));
 
         Health health = fallback.health();
 
+        // then
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails()).containsEntry("state", "skipped");
     }
 
     @Test
     @DisplayName("Результат кэшируется: повторный опрос в течение TTL не перепроверяет SMTP")
-    void resultIsCached() throws Exception {
+    void health_repeatedPollWithinTtl_testsSmtpOnce() throws Exception {
+
+        // given
+        // when
         stubConnectionDetails();
 
         indicator.health();
         indicator.health();
 
+        // then
         verify(mailSender, times(1)).testConnection();
     }
 

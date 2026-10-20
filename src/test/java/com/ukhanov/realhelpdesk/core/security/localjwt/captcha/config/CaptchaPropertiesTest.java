@@ -14,18 +14,25 @@ class CaptchaPropertiesTest {
 
     @Test
     @DisplayName("captcha.enabled биндится из конфигурации")
-    void bindsEnabled() {
+    void bind_enabledProperty_mapsToTrue() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("captcha.enabled", "true");
 
         CaptchaProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getEnabled()).isTrue();
     }
 
     @Test
     @DisplayName("Ключи риск-движка и эмодзи-эскалации биндятся из конфигурации")
-    void bindsRiskEngine() {
+    void bind_riskAndEmojiKeys_bindsConfiguredValues() {
+
+        // given
+        // when
         MockEnvironment environment = new MockEnvironment();
         environment.setProperty("captcha.emoji-enabled", "true");
         environment.setProperty("captcha.risk-failure-threshold", "5");
@@ -33,6 +40,7 @@ class CaptchaPropertiesTest {
 
         CaptchaProperties properties = bind(environment);
 
+        // then
         assertThat(properties.getEmojiEnabled()).isTrue();
         assertThat(properties.getRiskFailureThreshold()).isEqualTo(5);
         assertThat(properties.getRiskFailureWindowSeconds()).isEqualTo(600);
@@ -40,9 +48,13 @@ class CaptchaPropertiesTest {
 
     @Test
     @DisplayName("Без captcha.* биндинг не срабатывает")
-    void emptyEnvironment_isNotBound() {
+    void bind_emptyEnvironment_isNotBound() {
+
+        // given
+        // when
         BindResult<CaptchaProperties> result = Binder.get(new MockEnvironment()).bind("captcha", Bindable.of(CaptchaProperties.class));
 
+        // then
         assertThat(result.isBound()).isFalse();
     }
 

@@ -101,7 +101,9 @@ class AttachmentManageServiceTest {
 
     @Test
     @DisplayName("Конструктор без настройки статики — ошибка, а не NPE в момент сборки URL")
-    void constructor_rejectsNullStaticProperties() {
+    void constructor_nullStaticProperties_throwsNullPointerException() {
+
+        // given / when / then
         assertThatThrownBy(() -> new AttachmentManageService(mockStorageService, mockAttachmentDomainService, mockMessageDomainService,
                 mockMessageManageService, mockTicketDomainService, mockCurrentUserProvider, attachmentMapper, null,
                 new BusinessMetrics(meterRegistry))).isInstanceOf(NullPointerException.class).hasMessageContaining("staticProperties");
@@ -113,7 +115,10 @@ class AttachmentManageServiceTest {
 
     @Test
     @DisplayName("uploadAttachment → файл в MinIO, отдельное сообщение в заявке и вложение в БД, ответ с downloadUrl")
-    void uploadAttachment_successFlow() throws Exception {
+    void uploadAttachment_validFile_savesToMinioMessageAndDb() throws Exception {
+
+        // given
+        // when
         MockMultipartFile file = mockFile("report.pdf", "application/pdf");
         givenTicketInPortal();
         givenCurrentUser();
@@ -129,6 +134,7 @@ class AttachmentManageServiceTest {
 
         AttachmentResponse response = service.uploadAttachment(file, "Вот отчёт", PORTAL_ID, TICKET_ID);
 
+        // then
         assertThat(response.id()).isEqualTo(ATTACHMENT_ID);
         assertThat(response.messageId()).isEqualTo(MESSAGE_ID);
         assertThat(response.ticketId()).isEqualTo(TICKET_ID);
@@ -158,6 +164,9 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("uploadAttachment → текст не передан → сообщение подписывается именем файла")
     void uploadAttachment_blankMessageText_defaultsToFileCaption() throws Exception {
+
+        // given
+        // when
         MockMultipartFile file = mockFile("report.pdf", "application/pdf");
         givenTicketInPortal();
         givenCurrentUser();
@@ -168,6 +177,7 @@ class AttachmentManageServiceTest {
 
         service.uploadAttachment(file, "   ", PORTAL_ID, TICKET_ID);
 
+        // then
         verify(mockMessageManageService).createMessage(requestCaptor.capture(), eq(TICKET_ID), eq(PORTAL_ID));
         assertThat(requestCaptor.getValue().messageText()).isEqualTo("Файл: report.pdf");
     }
@@ -175,6 +185,9 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("uploadAttachment → имя с путём и чужой Content-Type → имя вычищено, тип приведён к octet-stream")
     void uploadAttachment_untrustedFileNameAndContentType_isSanitized() throws Exception {
+
+        // given
+        // when
         MockMultipartFile file = mockFile("C:\\fakepath\\report.PDF", "text/html; charset=utf-8");
         givenTicketInPortal();
         givenCurrentUser();
@@ -189,6 +202,7 @@ class AttachmentManageServiceTest {
 
         AttachmentResponse response = service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID);
 
+        // then
         assertThat(response.fileName()).isEqualTo("report.PDF");
         assertThat(response.contentType()).isEqualTo("application/octet-stream");
         verify(mockStorageService).upload(keyCaptor.capture(), any(InputStream.class), anyLong(), eq("application/octet-stream"));
@@ -202,11 +216,15 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("uploadAttachment → пустой файл → 400, ничего не сохраняется")
     void uploadAttachment_emptyFile_throwsBadRequest() {
+
+        // given
+        // when
         MockMultipartFile empty = new MockMultipartFile("file", "empty.txt", "text/plain", new byte[0]);
 
-        AttachmentException exception = catchThrowableOfType(() -> service.uploadAttachment(empty, null, PORTAL_ID, TICKET_ID),
-                AttachmentException.class);
+        AttachmentException exception = catchThrowableOfType(AttachmentException.class,
+                () -> service.uploadAttachment(empty, null, PORTAL_ID, TICKET_ID));
 
+        // then
         assertThat(exception.getStatus().value()).isEqualTo(400);
         verifyNoInteractions(mockStorageService, mockMessageManageService, mockAttachmentDomainService);
     }
@@ -214,9 +232,13 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("uploadAttachment → заявка другого портала → 404, в хранилище не пишем")
     void uploadAttachment_foreignTicket_throwsNotFoundWithoutStorageWrite() throws Exception {
+
+        // given
+        // when
         MockMultipartFile file = mockFile("report.pdf", "application/pdf");
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket(OTHER_PORTAL_ID));
 
+        // then
         assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID)).isInstanceOf(TicketException.class);
 
         verifyNoInteractions(mockStorageService, mockMessageManageService);
@@ -225,10 +247,14 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("uploadAttachment → хранилище недоступно → ошибка уходит наверх, сообщение не создаётся")
     void uploadAttachment_storageFailure_doesNotCreateMessage() throws Exception {
+
+        // given
+        // when
         MockMultipartFile file = mockFile("report.pdf", "application/pdf");
         givenTicketInPortal();
         doThrow(new StorageException("MinIO down")).when(mockStorageService).upload(any(), any(), anyLong(), any());
 
+        // then
         assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID)).isInstanceOf(StorageException.class);
 
         verifyNoInteractions(mockMessageManageService);
@@ -237,11 +263,15 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("uploadAttachment → сообщение не создалось → объект в MinIO удаляется (осиротевшего файла не остаётся)")
     void uploadAttachment_messageFailure_removesUploadedObject() throws Exception {
+
+        // given
+        // when
         MockMultipartFile file = mockFile("report.pdf", "application/pdf");
         givenTicketInPortal();
         when(mockMessageManageService.createMessage(any(CreateMessageRequest.class), eq(TICKET_ID), eq(PORTAL_ID)))
                 .thenThrow(new MessagingException("smtp down"));
 
+        // then
         assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID)).isInstanceOf(MessagingException.class);
 
         verify(mockStorageService).delete(keyCaptor.capture());
@@ -254,12 +284,16 @@ class AttachmentManageServiceTest {
 
     @Test
     @DisplayName("getAttachments → метаданные файлов заявки, заявка проверена на портал")
-    void getAttachments_returnsMappedResponses() throws Exception {
+    void getAttachments_ticketWithAttachments_returnsMappedResponses() throws Exception {
+
+        // given
+        // when
         givenTicketInPortal();
         when(mockAttachmentDomainService.getAttachmentsForTicket(TICKET_ID, PORTAL_ID)).thenReturn(List.of(attachment()));
 
         List<AttachmentResponse> responses = service.getAttachments(PORTAL_ID, TICKET_ID);
 
+        // then
         assertThat(responses).hasSize(1);
         AttachmentResponse response = responses.getFirst();
         assertThat(response.fileName()).isEqualTo("report.pdf");
@@ -270,8 +304,12 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("getAttachments → заявка чужого портала → 404, файлы не читаем")
     void getAttachments_foreignTicket_throwsNotFound() throws Exception {
+
+        // given
+        // when
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket(OTHER_PORTAL_ID));
 
+        // then
         assertThatThrownBy(() -> service.getAttachments(PORTAL_ID, TICKET_ID)).isInstanceOf(TicketException.class);
 
         verifyNoInteractions(mockAttachmentDomainService);
@@ -284,11 +322,15 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("downloadAttachment без Range → метаданные из БД, байты — поток из MinIO целиком")
     void downloadAttachment_withoutRange_returnsMetadataAndFullStream() throws Exception {
+
+        // given
+        // when
         when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID)).thenReturn(attachment());
         when(mockStorageService.download(STORAGE_KEY)).thenReturn(new ByteArrayInputStream(CONTENT));
 
         FileDownload download = service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null);
 
+        // then
         assertThat(download.fileName()).isEqualTo("report.pdf");
         assertThat(download.contentType()).isEqualTo("application/pdf");
         assertThat(download.sizeBytes()).isEqualTo((long) CONTENT.length);
@@ -300,11 +342,15 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("downloadAttachment с Range → в MinIO читается только фрагмент [start, end]")
     void downloadAttachment_range_readsOnlyFragment() throws Exception {
+
+        // given
+        // when
         when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID)).thenReturn(attachment());
         when(mockStorageService.download(STORAGE_KEY, 3, 5)).thenReturn(new ByteArrayInputStream(new byte[5]));
 
         FileDownload download = service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, "bytes=3-7");
 
+        // then
         assertThat(download.isPartial()).isTrue();
         assertThat(download.range().start()).isEqualTo(3);
         assertThat(download.range().end()).isEqualTo(7);
@@ -316,10 +362,14 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("downloadAttachment с Range за концом файла → 416-результат, соединение с MinIO не открывается")
     void downloadAttachment_unsatisfiableRange_opensNoStream() throws Exception {
+
+        // given
+        // when
         when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID)).thenReturn(attachment());
 
         FileDownload download = service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, "bytes=999-");
 
+        // then
         assertThat(download.isUnsatisfiable()).isTrue();
         assertThat(download.content()).isNull();
         assertThat(download.range().contentRange(CONTENT.length)).isEqualTo("bytes */" + CONTENT.length);
@@ -329,12 +379,16 @@ class AttachmentManageServiceTest {
     @Test
     @DisplayName("downloadAttachment → файла нет в заявке → 404, в хранилище не обращаемся")
     void downloadAttachment_unknownAttachment_throwsNotFound() throws Exception {
+
+        // given
+        // when
         when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID))
                 .thenThrow(AttachmentException.notFound("Файл не найден"));
 
-        AttachmentException exception = catchThrowableOfType(() -> service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null),
-                AttachmentException.class);
+        AttachmentException exception = catchThrowableOfType(AttachmentException.class,
+                () -> service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null));
 
+        // then
         assertThat(exception.getStatus().value()).isEqualTo(404);
         verifyNoInteractions(mockStorageService);
     }

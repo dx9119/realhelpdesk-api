@@ -78,9 +78,13 @@ class NotificationRepeatServiceTest {
 
     @Test
     @DisplayName("Кандидатов нет — ни сохранений, ни пробуждения")
-    void noCandidates_noop() throws Exception {
+    void repeatDueNotifications_noCandidates_performsNoWrites() throws Exception {
+
+        // given
+        // when
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
         verify(notificationPublisher, never()).wakeAfterCommit(any());
         verify(emailDeliveryService, never()).sendUserNotification(any(), any(), any(), any(), any());
@@ -88,13 +92,17 @@ class NotificationRepeatServiceTest {
 
     @Test
     @DisplayName("Без строки настроек: источник старше 30 минут → напоминание с группой источника, ожидающих будят")
-    void dueWithoutPreferences_createsReminderAndWakes() {
+    void repeatDueNotifications_staleSourceNoPreferences_createsReminderAndWakes() {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
 
         service.repeatDueNotifications();
 
         ArgumentCaptor<NotificationModel> captor = ArgumentCaptor.forClass(NotificationModel.class);
+        // then
         verify(notificationRepository, times(1)).save(captor.capture());
         NotificationModel reminder = captor.getValue();
         assertThat(reminder.getRecipientId()).isEqualTo(USER_ID);
@@ -108,7 +116,10 @@ class NotificationRepeatServiceTest {
 
     @Test
     @DisplayName("Напоминание наследует group_id, если источник уже копия")
-    void reminderInheritsSourceGroup() throws Exception {
+    void repeatDueNotifications_sourceCopyWithGroup_inheritsSourceGroup() throws Exception {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
         source.setId(SOURCE_GROUP_ID);
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
@@ -116,25 +127,33 @@ class NotificationRepeatServiceTest {
         service.repeatDueNotifications();
 
         ArgumentCaptor<NotificationModel> captor = ArgumentCaptor.forClass(NotificationModel.class);
+        // then
         verify(notificationRepository, times(1)).save(captor.capture());
         assertThat(captor.getValue().getGroupId()).isEqualTo(SOURCE_GROUP_ID);
     }
 
     @Test
     @DisplayName("Интервал не истёк — напоминания нет")
-    void notYetDue_noReminder() {
+    void repeatDueNotifications_intervalNotElapsed_savesNothing() {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(5 * 60));
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
         verify(notificationPublisher, never()).wakeAfterCommit(any());
     }
 
     @Test
     @DisplayName("Повтор выключен в настройках — напоминания нет")
-    void repeatDisabled_noReminder() {
+    void repeatDueNotifications_repeatDisabled_savesNothing() {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
         UserNotificationPreferencesModel preferences = preferences(true, 30, Set.of(NotificationEvent.NEW_TICKET));
         preferences.setRepeatEnabled(false);
@@ -143,13 +162,17 @@ class NotificationRepeatServiceTest {
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
         verify(notificationPublisher, never()).wakeAfterCommit(any());
     }
 
     @Test
     @DisplayName("Событие выключено в настройках — напоминания нет")
-    void eventDisabled_noReminder() {
+    void repeatDueNotifications_eventDisabled_savesNothing() {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
         UserNotificationPreferencesModel preferences = preferences(true, 30, Set.of(NotificationEvent.CHANGE_TICKET));
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
@@ -157,13 +180,17 @@ class NotificationRepeatServiceTest {
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
         verify(notificationPublisher, never()).wakeAfterCommit(any());
     }
 
     @Test
     @DisplayName("Пользовательский интервал учитывается вместо 30 минут по умолчанию")
-    void customInterval_respected() {
+    void repeatDueNotifications_customOneMinuteInterval_createsReminder() {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(2 * 60));
         UserNotificationPreferencesModel everyMinute = preferences(true, 1, Set.of(NotificationEvent.NEW_TICKET));
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
@@ -171,13 +198,17 @@ class NotificationRepeatServiceTest {
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, times(1)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
     }
 
     @Test
     @DisplayName("Повтор: создаёт in-app напоминание и отправляет письмо-напоминание")
-    void repeat_sendsInAppReminderAndEmail() throws Exception {
+    void repeatDueNotifications_dueWithRecipient_sendsInAppAndEmail() throws Exception {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
         UserModel recipient = new UserModel();
@@ -187,6 +218,7 @@ class NotificationRepeatServiceTest {
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, times(1)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
         verify(emailDeliveryService, times(1)).sendUserNotification(eq("user@example.com"), any(), any(), eq(NotificationEvent.NEW_TICKET),
@@ -196,6 +228,9 @@ class NotificationRepeatServiceTest {
     @Test
     @DisplayName("Повтор: без ticketId/portalId — email не отправляется, in-app — да")
     void repeat_noTicketId_emailSkipped() throws Exception {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
         source.setTicketId(null);
         source.setPortalId(null);
@@ -203,6 +238,7 @@ class NotificationRepeatServiceTest {
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, times(1)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
         verify(emailDeliveryService, never()).sendUserNotification(any(), any(), any(), any(), any());
@@ -211,12 +247,16 @@ class NotificationRepeatServiceTest {
     @Test
     @DisplayName("Повтор: удалённый получатель — email не падает, in-app — да")
     void repeat_deletedRecipient_emailSkipped() throws Exception {
+
+        // given
+        // when
         NotificationModel source = source(Instant.now().minusSeconds(31 * 60));
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source));
         when(userDomainService.getUsersByIds(anySet())).thenReturn(Map.of());
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, times(1)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
         verify(emailDeliveryService, never()).sendUserNotification(any(), any(), any(), any(), any());
@@ -224,7 +264,10 @@ class NotificationRepeatServiceTest {
 
     @Test
     @DisplayName("Повтор: несколько получателей — все получают in-app и email")
-    void repeat_multipleRecipients() throws Exception {
+    void repeatDueNotifications_twoRecipients_notifiesBoth() throws Exception {
+
+        // given
+        // when
         NotificationModel source1 = source(Instant.now().minusSeconds(31 * 60));
         source1.setRecipientId(USER_ID);
         NotificationModel source2 = source(Instant.now().minusSeconds(31 * 60));
@@ -240,6 +283,7 @@ class NotificationRepeatServiceTest {
 
         service.repeatDueNotifications();
 
+        // then
         verify(notificationRepository, times(2)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(any());
         verify(emailDeliveryService, times(1)).sendUserNotification(eq("user1@example.com"), any(), any(), any(), eq(USER_ID));

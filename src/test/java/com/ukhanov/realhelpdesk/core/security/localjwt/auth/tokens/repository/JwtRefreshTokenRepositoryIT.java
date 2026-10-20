@@ -14,7 +14,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.data.domain.PageRequest;
 
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.TokenStatus;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @DataJpaTest
 @DisplayName("Батч-очистка jwt_tokens (JwtRefreshTokenRepository)")
-class JwtRefreshTokenRepositoryIT extends PostgresIntegrationTest {
+class JwtRefreshTokenRepositoryIT extends AbstractIntegrationTest {
 
     private static final Instant NOW = Instant.now();
     private static final Instant CUTOFF = NOW.minusSeconds(3600);
@@ -53,13 +53,17 @@ class JwtRefreshTokenRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Оценка объёма и выборка порции: только строки старше порога, нужной группы и не больше батча")
-    void estimateAndSelectBatch() {
+    void estimateAndSelectBatch_mixedAges_returnsOnlyRowsBeforeCutoff() {
+
+        // given
+        // when
         UUID revokedOld = save(TokenStatus.REVOKED, OLD);
         UUID activeOld = save(TokenStatus.ACTIVE, OLD);
         UUID revokedFresh = save(TokenStatus.REVOKED, FRESH);
         save(TokenStatus.ACTIVE, FRESH);
 
         // оценка объёма считает только строки старше порога
+        // then
         assertThat(repository.countByStatusNotAndCreatedAtBefore(TokenStatus.ACTIVE, CUTOFF)).isEqualTo(1);
         assertThat(repository.countByStatusAndCreatedAtBefore(TokenStatus.ACTIVE, CUTOFF)).isEqualTo(1);
 
@@ -74,24 +78,32 @@ class JwtRefreshTokenRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Сортировка старыми первыми: батч всегда забирает самые старые строки")
-    void oldestFirst() {
+    void findInactiveIdsBefore_mixedAges_returnsOldestRowsFirst() {
+
+        // given
+        // when
         UUID oldest = save(TokenStatus.REVOKED, NOW.minusSeconds(9000));
         UUID middle = save(TokenStatus.REVOKED, NOW.minusSeconds(8000));
         save(TokenStatus.REVOKED, FRESH);
 
+        // then
         assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 1))).containsExactly(oldest);
         assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 2))).containsExactly(oldest, middle);
     }
 
     @Test
     @DisplayName("Пакетное удаление: удаляет только переданные id, остальные строки не трогает")
-    void deleteBatchByIds() {
+    void deleteByUuidIn_mixedStatuses_deletesOnlyGivenIds() {
+
+        // given
+        // when
         UUID first = save(TokenStatus.REVOKED, OLD);
         UUID second = save(TokenStatus.REVOKED, OLD);
         UUID kept = save(TokenStatus.ACTIVE, OLD);
 
         int deleted = repository.deleteByUuidIn(List.of(first, second));
 
+        // then
         assertThat(deleted).isEqualTo(2);
         assertThat(repository.findById(first)).isEmpty();
         assertThat(repository.findById(second)).isEmpty();

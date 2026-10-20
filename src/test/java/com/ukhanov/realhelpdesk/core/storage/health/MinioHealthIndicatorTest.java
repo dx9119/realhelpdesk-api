@@ -42,47 +42,63 @@ class MinioHealthIndicatorTest {
 
     @Test
     @DisplayName("Бакет существует → UP с именем бакета")
-    void bucketExistsIsUp() throws Exception {
+    void health_bucketExists_returnsUpWithBucket() throws Exception {
+
+        // given
+        // when
         when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
 
         Health health = indicator.health();
 
+        // then
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails()).containsEntry("bucket", "attachments");
     }
 
     @Test
     @DisplayName("Бакета ещё нет → UP: создаётся при первом обращении, это не сбой")
-    void bucketNotCreatedYetIsUp() throws Exception {
+    void health_bucketMissing_returnsUpNotCreatedYet() throws Exception {
+
+        // given
+        // when
         when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(false);
 
         Health health = indicator.health();
 
+        // then
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails()).containsEntry("state", "not created yet");
     }
 
     @Test
     @DisplayName("MinIO недоступен → DOWN с endpoint в деталях")
-    void minioUnreachableIsDown() throws Exception {
+    void health_minioUnreachable_returnsDownWithEndpoint() throws Exception {
+
+        // given
+        // when
         when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenAnswer(invocation -> {
             throw new IOException("Connection refused");
         });
 
         Health health = indicator.health();
 
+        // then
         assertThat(health.getStatus()).isEqualTo(Status.DOWN);
         assertThat(health.getDetails()).containsEntry("endpoint", "http://minio:9000");
     }
 
     @Test
     @DisplayName("Результат кэшируется: повторный опрос в течение TTL не ходит в MinIO")
-    void resultIsCached() throws Exception {
+    void health_repeatedPollWithinTtl_callsMinioOnce() throws Exception {
+
+        // given
+        // when
         when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
 
         indicator.health();
         indicator.health();
 
+        // then
         verify(minioClient, times(1)).bucketExists(any(BucketExistsArgs.class));
     }
 }

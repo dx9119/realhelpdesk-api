@@ -84,13 +84,17 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("Список: unreadOnly=true идёт в непрочитанные, маппинг в PageResponse")
-    void getNotifications_unreadOnly() {
+    void getNotifications_unreadOnly_returnsUnreadPageResponse() {
+
+        // given
+        // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "Проблема с оплатой");
         when(notificationRepository.findByRecipientIdAndReadFalse(eq(USER_ID), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(model), PageRequest.of(0, 10), 1));
 
         PageResponse<NotificationResponse> response = service.getNotifications(0, 10, "createdAt", "desc", true);
 
+        // then
         assertThat(response.content()).hasSize(1);
         assertThat(response.content().get(0).event()).isEqualTo(NotificationEvent.NEW_TICKET);
         assertThat(response.content().get(0).title()).isEqualTo("Проблема с оплатой");
@@ -100,12 +104,16 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("Список: непрочитанные=false идёт в общий список")
-    void getNotifications_all() {
+    void getNotifications_unreadOnlyFalse_usesGeneralQuery() {
+
+        // given
+        // when
         when(notificationRepository.findByRecipientId(eq(USER_ID), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
 
         PageResponse<NotificationResponse> response = service.getNotifications(0, 10, "createdAt", "desc", false);
 
+        // then
         assertThat(response.content()).isEmpty();
         verify(notificationRepository, never()).findByRecipientIdAndReadFalse(eq(USER_ID), any(PageRequest.class));
     }
@@ -113,17 +121,23 @@ class NotificationManageServiceTest {
     @Test
     @DisplayName("Список: недопустимое поле сортировки → PaginationException")
     void getNotifications_badSortField_throwsPaginationException() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.getNotifications(0, 10, "recipientId", "desc", false)).isInstanceOf(PaginationException.class);
         verify(notificationRepository, never()).findByRecipientId(any(), any(PageRequest.class));
     }
 
     @Test
     @DisplayName("Счётчик непрочитанных возвращает число из репозитория")
-    void getUnreadCount() {
+    void getUnreadCount_unreadPresent_returnsRepositoryCount() {
+
+        // given
+        // when
         when(notificationRepository.countByRecipientIdAndReadFalse(USER_ID)).thenReturn(5L);
 
         UnreadCountResponse response = service.getUnreadCount();
 
+        // then
         assertThat(response.count()).isEqualTo(5L);
     }
 
@@ -134,8 +148,12 @@ class NotificationManageServiceTest {
     @Test
     @DisplayName("markRead: чужое или несуществующее уведомление → 404")
     void markRead_notOwned_throwsNotFound() {
+
+        // given
+        // when
         when(notificationRepository.findByIdAndRecipientId(NOTIFICATION_ID, USER_ID)).thenReturn(Optional.empty());
 
+        // then
         assertThatThrownBy(() -> service.markRead(NOTIFICATION_ID)).isInstanceOf(NotificationException.class)
                 .hasMessageContaining("не найдено");
         verify(notificationRepository, never()).markGroupReadByRecipientId(anyLong(), anyLong());
@@ -144,6 +162,9 @@ class NotificationManageServiceTest {
     @Test
     @DisplayName("markRead: непрочитанный оригинал гасит группу по его id")
     void markRead_unread_marksGroupById() throws NotificationException {
+
+        // given
+        // when
         NotificationModel model = mock(NotificationModel.class);
         when(model.getId()).thenReturn(NOTIFICATION_ID);
         when(model.getGroupId()).thenReturn(null);
@@ -152,6 +173,7 @@ class NotificationManageServiceTest {
 
         service.markRead(NOTIFICATION_ID);
 
+        // then
         verify(notificationRepository).markGroupReadByRecipientId(USER_ID, NOTIFICATION_ID);
         verify(notificationRepository, never()).save(any(NotificationModel.class));
     }
@@ -159,6 +181,9 @@ class NotificationManageServiceTest {
     @Test
     @DisplayName("markRead: напоминание гасит группу по group_id первоисточника")
     void markRead_reminder_marksSourceGroup() throws NotificationException {
+
+        // given
+        // when
         NotificationModel model = mock(NotificationModel.class);
         when(model.getId()).thenReturn(NOTIFICATION_ID);
         when(model.getGroupId()).thenReturn(55L);
@@ -167,12 +192,16 @@ class NotificationManageServiceTest {
 
         service.markRead(NOTIFICATION_ID);
 
+        // then
         verify(notificationRepository).markGroupReadByRecipientId(USER_ID, 55L);
     }
 
     @Test
     @DisplayName("markRead: уже прочитанное → группа не трогается")
     void markRead_alreadyRead_skipsUpdate() throws NotificationException {
+
+        // given
+        // when
         NotificationModel model = mock(NotificationModel.class);
         when(model.getId()).thenReturn(NOTIFICATION_ID);
         when(model.isRead()).thenReturn(true);
@@ -180,16 +209,21 @@ class NotificationManageServiceTest {
 
         service.markRead(NOTIFICATION_ID);
 
+        // then
         verify(notificationRepository, never()).markGroupReadByRecipientId(anyLong(), anyLong());
     }
 
     @Test
     @DisplayName("markAllRead: массовое обновление через репозиторий")
-    void markAllRead() {
+    void markAllRead_unreadRowsPresent_delegatesToRepository() {
+
+        // given
+        // when
         when(notificationRepository.markAllReadByRecipientId(USER_ID)).thenReturn(3);
 
         service.markAllRead();
 
+        // then
         verify(notificationRepository).markAllReadByRecipientId(USER_ID);
     }
 
@@ -199,11 +233,15 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("Настройки без сохранённой строки → все события каталога, повтор включён на 30 минут")
-    void getPreferences_defaultsToAllSupportedEvents() {
+    void getPreferences_noSavedRow_returnsCatalogDefaults() {
+
+        // given
+        // when
         when(preferencesRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
 
         NotificationPreferencesResponse response = service.getPreferences();
 
+        // then
         assertThat(response.events()).containsExactlyInAnyOrderElementsOf(NotificationPublisher.SUPPORTED_EVENTS);
         assertThat(response.repeatEnabled()).isTrue();
         assertThat(response.repeatIntervalMinutes()).isEqualTo(UserNotificationPreferencesModel.DEFAULT_REPEAT_INTERVAL_MINUTES);
@@ -211,7 +249,10 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("Настройки: сохранённая строка возвращается как есть, включая повтор")
-    void getPreferences_savedRowReturned() {
+    void getPreferences_savedRow_returnsStoredValues() {
+
+        // given
+        // when
         UserNotificationPreferencesModel saved = new UserNotificationPreferencesModel(USER_ID, Set.of(NotificationEvent.NEW_MESSAGE));
         saved.setRepeatEnabled(false);
         saved.setRepeatIntervalMinutes(5);
@@ -219,6 +260,7 @@ class NotificationManageServiceTest {
 
         NotificationPreferencesResponse response = service.getPreferences();
 
+        // then
         assertThat(response.events()).containsExactly(NotificationEvent.NEW_MESSAGE);
         assertThat(response.repeatEnabled()).isFalse();
         assertThat(response.repeatIntervalMinutes()).isEqualTo(5);
@@ -227,9 +269,13 @@ class NotificationManageServiceTest {
     @Test
     @DisplayName("Настройки: событие вне каталога → 400")
     void updatePreferences_unsupportedEvent_throwsBadRequest() {
+
+        // given
+        // when
         NotificationPreferencesRequest request = new NotificationPreferencesRequest(Set.of(NotificationEvent.RECOVERY_PASSWORD), null,
                 null);
 
+        // then
         assertThatThrownBy(() -> service.updatePreferences(request)).isInstanceOf(NotificationException.class)
                 .hasMessageContaining("Неподдерживаемые события");
         verify(preferencesRepository, never()).save(any(UserNotificationPreferencesModel.class));
@@ -237,12 +283,16 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("Настройки: без строки создаётся с дефолтами повтора, со строкой — повтор меняется")
-    void updatePreferences_createsAndUpdates() throws NotificationException {
+    void updatePreferences_missingThenExistingRow_createsThenUpdates() throws NotificationException {
+
+        // given
+        // when
         when(preferencesRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
         NotificationPreferencesRequest request = new NotificationPreferencesRequest(Set.of(NotificationEvent.NEW_TICKET), null, null);
 
         NotificationPreferencesResponse created = service.updatePreferences(request);
 
+        // then
         assertThat(created.events()).containsExactly(NotificationEvent.NEW_TICKET);
         assertThat(created.repeatEnabled()).isTrue();
         assertThat(created.repeatIntervalMinutes()).isEqualTo(UserNotificationPreferencesModel.DEFAULT_REPEAT_INTERVAL_MINUTES);
@@ -269,6 +319,9 @@ class NotificationManageServiceTest {
     @Test
     @DisplayName("Настройки: null полей повтора не меняет сохранённые значения")
     void updatePreferences_nullRepeat_keepsCurrent() throws NotificationException {
+
+        // given
+        // when
         UserNotificationPreferencesModel existing = new UserNotificationPreferencesModel(USER_ID, Set.of(NotificationEvent.NEW_TICKET));
         existing.setRepeatEnabled(false);
         existing.setRepeatIntervalMinutes(7);
@@ -277,6 +330,7 @@ class NotificationManageServiceTest {
         NotificationPreferencesResponse response = service
                 .updatePreferences(new NotificationPreferencesRequest(Set.of(NotificationEvent.NEW_TICKET), null, null));
 
+        // then
         assertThat(response.repeatEnabled()).isFalse();
         assertThat(response.repeatIntervalMinutes()).isEqualTo(7);
         assertThat(existing.isRepeatEnabled()).isFalse();
@@ -289,13 +343,17 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("wait: новые уже есть → ответ сразу, без регистрации в реестре")
-    void waitForNew_immediateResult() {
+    void waitForNew_newRowsAvailable_returnsImmediately() {
+
+        // given
+        // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(5L), any(PageRequest.class)))
                 .thenReturn(List.of(model));
 
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = service.waitForNew(5L, 25, 10);
 
+        // then
         assertThat(deferred.hasResult()).isTrue();
         assertThat(deferred.getResult()).isInstanceOf(ResponseEntity.class);
         @SuppressWarnings("unchecked")
@@ -309,13 +367,17 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("wait: новых нет → регистрация ожидателя, пробуждение отдаёт появившиеся оповещения")
-    void waitForNew_waitsAndWakes() {
+    void waitForNew_noNewRows_registersAndResolvesOnWake() {
+
+        // given
+        // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
                 .thenReturn(List.of()).thenReturn(List.of(model));
 
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = service.waitForNew(0L, 25, 10);
 
+        // then
         assertThat(deferred.hasResult()).isFalse();
         ArgumentCaptor<Runnable> onWakeCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(waitRegistry).register(eq(USER_ID), onWakeCaptor.capture());
@@ -333,12 +395,16 @@ class NotificationManageServiceTest {
     @Test
     @DisplayName("wait: пробуждение без новых строк не резолвитDeferredResult — клиент продолжает ждать")
     void waitForNew_wakeWithoutRows_keepsWaiting() {
+
+        // given
+        // when
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
                 .thenReturn(List.of()).thenReturn(List.of());
 
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = service.waitForNew(0L, 25, 10);
 
         ArgumentCaptor<Runnable> onWakeCaptor = ArgumentCaptor.forClass(Runnable.class);
+        // then
         verify(waitRegistry).register(eq(USER_ID), onWakeCaptor.capture());
         onWakeCaptor.getValue().run();
 
@@ -347,12 +413,16 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("wait: курсор afterId и размер страницы уходят в запрос")
-    void waitForNew_passesCursorAndSize() {
+    void waitForNew_customCursorAndSize_passesToQuery() {
+
+        // given
+        // when
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), anyLong(), any(PageRequest.class)))
                 .thenReturn(List.of());
 
         service.waitForNew(99L, 25, 5);
 
+        // then
         verify(notificationRepository).findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(99L), eq(PageRequest.of(0, 5)));
     }
 
@@ -362,13 +432,17 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("stream: первый пакет — комментарий connected, подписка в реестре ожидающих")
-    void subscribe_connectedCommentAndRegisters() {
+    void subscribe_emptyBackfill_sendsConnectedCommentAndRegisters() {
+
+        // given
+        // when
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
                 .thenReturn(List.of());
 
         SseEmitter emitter = service.subscribe(0L, 10);
         SseEmitterCapture.Capture capture = SseEmitterCapture.attach(emitter);
 
+        // then
         assertThat(capture.payloads()).hasSize(1);
         assertThat(capture.payloads().get(0)).isInstanceOf(String.class).asString().contains("connected");
         verify(waitRegistry).register(eq(USER_ID), any(Runnable.class));
@@ -377,7 +451,10 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("stream: при подключении сразу отдаётся backfill всего новее курсора (event: notification)")
-    void subscribe_backfillsExistingRows() {
+    void subscribe_existingRows_sendsBackfillOnConnect() {
+
+        // given
+        // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
         model.setId(7L);
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
@@ -386,6 +463,7 @@ class NotificationManageServiceTest {
         SseEmitter emitter = service.subscribe(0L, 10);
         SseEmitterCapture.Capture capture = SseEmitterCapture.attach(emitter);
 
+        // then
         assertThat(capture.payloads()).anyMatch(payload -> payload instanceof String text && text.contains("event:notification"));
         List<NotificationResponse> sent = capture.payloads().stream().filter(NotificationResponse.class::isInstance)
                 .map(NotificationResponse.class::cast).toList();
@@ -397,7 +475,10 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("stream: wake отдаёт новые строки и заново ставит подписку в реестр (wake снимает ожидающих один раз)")
-    void subscribe_wakePushesAndReregisters() {
+    void subscribe_wakeWithNewRows_pushesAndReregisters() {
+
+        // given
+        // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
         model.setId(7L);
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
@@ -407,6 +488,7 @@ class NotificationManageServiceTest {
         SseEmitterCapture.Capture capture = SseEmitterCapture.attach(emitter);
 
         ArgumentCaptor<Runnable> wakeCaptor = ArgumentCaptor.forClass(Runnable.class);
+        // then
         verify(waitRegistry).register(eq(USER_ID), wakeCaptor.capture());
 
         // имитация: публикатор будит подписчика
@@ -418,7 +500,10 @@ class NotificationManageServiceTest {
 
     @Test
     @DisplayName("stream: закрытие канала снимает подписку с реестра")
-    void subscribe_completionUnregisters() {
+    void subscribe_channelCompleted_unregistersWaiter() {
+
+        // given
+        // when
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
                 .thenReturn(List.of());
 
@@ -427,12 +512,16 @@ class NotificationManageServiceTest {
 
         emitter.complete();
 
+        // then
         verify(waitRegistry).unregister(eq(USER_ID), any(Runnable.class));
     }
 
     @Test
     @DisplayName("stream: таймаут канала снимает подписку с реестра")
-    void subscribe_timeoutUnregisters() {
+    void subscribe_channelTimedOut_unregistersWaiter() {
+
+        // given
+        // when
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
                 .thenReturn(List.of());
 
@@ -441,12 +530,16 @@ class NotificationManageServiceTest {
 
         capture.fireTimeout();
 
+        // then
         verify(waitRegistry).unregister(eq(USER_ID), any(Runnable.class));
     }
 
     @Test
     @DisplayName("Фолбэк: одно wake будит и long polling, и SSE из одного реестра ожидающих")
-    void fallback_wakeDrivesBothChannels() {
+    void wake_sharedRegistry_drivesBothChannels() {
+
+        // given
+        // when
         NotificationWaitRegistry realRegistry = new NotificationWaitRegistry();
         NotificationManageService sharedService = new NotificationManageService(notificationRepository, preferencesRepository,
                 currentUserProvider, new PaginationAdapter(), realRegistry, Mappers.getMapper(NotificationMapper.class));
@@ -454,10 +547,11 @@ class NotificationManageServiceTest {
         model.setId(7L);
         // порядок выборок: backfill подписки и немедленная проверка wait — пусто; после wake — строки обоим
         when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
-                .thenReturn(List.of(), List.of(), List.of(model), List.of(model));
+                .thenReturn(List.of()).thenReturn(List.of()).thenReturn(List.of(model)).thenReturn(List.of(model));
 
         SseEmitter emitter = sharedService.subscribe(0L, 10);
         SseEmitterCapture.attach(emitter);
+        // then
         assertThat(realRegistry.waiterCount(USER_ID)).isEqualTo(1);
 
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = sharedService.waitForNew(0L, 25, 10);

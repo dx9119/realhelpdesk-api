@@ -12,7 +12,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserRole;
 import com.ukhanov.realhelpdesk.core.security.user.repository.UserRepository;
@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
 @DisplayName("Оператор-бутстрап на старте контекста")
-class OperatorBootstrapIT extends PostgresIntegrationTest {
+class OperatorBootstrapIT extends AbstractIntegrationTest {
 
     @DynamicPropertySource
     static void operatorBootstrapEmails(DynamicPropertyRegistry registry) {
@@ -38,7 +38,8 @@ class OperatorBootstrapIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Подтверждённые из списка становятся ROLE_OPERATOR (независимо от регистра), отсутствующие и неподтверждённые — нет")
-    void startupPromotesConfiguredOperators() {
+    void operatorBootstrap_mixedUserStates_promotesOnlyVerified() {
+        // given / when / then
         assertThat(userRepository.findByEmailIgnoreCase("verified-operator@example.com"))
                 .hasValueSatisfying(user -> assertThat(user.getUserRole()).isEqualTo(UserRole.ROLE_OPERATOR));
         assertThat(userRepository.findByEmailIgnoreCase("VERIFIED-Operator2@example.com")).as("регистр email в списке не важен")

@@ -44,21 +44,29 @@ class CreatedAtPrePersistTest {
 
     @Test
     @DisplayName("TicketModel → дата не задана → createdAt = текущее время")
-    void ticket_setsCreatedAtWhenAbsent() {
+    void ticket_absentCreatedAt_setsCurrentTime() {
+
+        // given
+        // when
         UserModel author = user();
         em.persist(author);
         PortalModel portal = portal(author);
         em.persist(portal);
 
         TicketModel ticket = ticket(author, portal);
+
         em.persist(ticket);
 
+        // then
         assertCreatedAtIsNow(reload(ticket, TicketModel.class).getCreatedAt());
     }
 
     @Test
     @DisplayName("TicketModel → дата задана → createdAt не перезаписывается")
-    void ticket_keepsPresetCreatedAt() {
+    void ticket_presetCreatedAt_keepsOriginal() {
+
+        // given
+        // when
         UserModel author = user();
         em.persist(author);
         PortalModel portal = portal(author);
@@ -66,8 +74,10 @@ class CreatedAtPrePersistTest {
 
         TicketModel ticket = ticket(author, portal);
         ticket.setCreatedAt(PRESET);
+
         em.persist(ticket);
 
+        // then
         assertThat(reload(ticket, TicketModel.class).getCreatedAt()).isEqualTo(PRESET);
     }
 
@@ -77,26 +87,36 @@ class CreatedAtPrePersistTest {
 
     @Test
     @DisplayName("PortalModel → дата не задана → createdAt = текущее время")
-    void portal_setsCreatedAtWhenAbsent() {
+    void portal_absentCreatedAt_setsCurrentTime() {
+
+        // given
+        // when
         UserModel owner = user();
         em.persist(owner);
 
         PortalModel portal = portal(owner);
+
         em.persist(portal);
 
+        // then
         assertCreatedAtIsNow(reload(portal, PortalModel.class).getCreatedAt());
     }
 
     @Test
     @DisplayName("PortalModel → дата задана → createdAt не перезаписывается")
-    void portal_keepsPresetCreatedAt() {
+    void portal_presetCreatedAt_keepsOriginal() {
+
+        // given
+        // when
         UserModel owner = user();
         em.persist(owner);
 
         PortalModel portal = portal(owner);
         portal.setCreatedAt(PRESET);
+
         em.persist(portal);
 
+        // then
         assertThat(reload(portal, PortalModel.class).getCreatedAt()).isEqualTo(PRESET);
     }
 
@@ -106,15 +126,22 @@ class CreatedAtPrePersistTest {
 
     @Test
     @DisplayName("MessageModel → дата не задана → createdAt = текущее время")
-    void message_setsCreatedAtWhenAbsent() {
+    void message_absentCreatedAt_setsCurrentTime() {
+
+        // given
+        // when
         MessageModel message = persistedMessage();
 
+        // then
         assertCreatedAtIsNow(reload(message, MessageModel.class).getCreatedAt());
     }
 
     @Test
     @DisplayName("MessageModel → дата задана → createdAt не перезаписывается")
-    void message_keepsPresetCreatedAt() {
+    void message_presetCreatedAt_keepsOriginal() {
+
+        // given
+        // when
         UserModel author = user();
         em.persist(author);
         PortalModel portal = portal(author);
@@ -124,8 +151,10 @@ class CreatedAtPrePersistTest {
 
         MessageModel message = message(ticket, author);
         message.setCreatedAt(PRESET);
+
         em.persist(message);
 
+        // then
         assertThat(reload(message, MessageModel.class).getCreatedAt()).isEqualTo(PRESET);
     }
 
@@ -135,20 +164,30 @@ class CreatedAtPrePersistTest {
 
     @Test
     @DisplayName("UserModel → дата не задана → createdAt = текущее время")
-    void user_setsCreatedAtWhenAbsent() {
+    void user_absentCreatedAt_setsCurrentTime() {
+
+        // given
+        // when
         UserModel user = user();
+
         em.persist(user);
 
+        // then
         assertCreatedAtIsNow(reload(user, UserModel.class).getCreatedAt());
     }
 
     @Test
     @DisplayName("UserModel → дата задана → createdAt не перезаписывается")
-    void user_keepsPresetCreatedAt() {
+    void user_presetCreatedAt_keepsOriginal() {
+
+        // given
+        // when
         UserModel user = user();
         setCreatedAtDirectly(user, PRESET);
+
         em.persist(user);
 
+        // then
         assertThat(reload(user, UserModel.class).getCreatedAt()).isEqualTo(PRESET);
     }
 
@@ -158,26 +197,36 @@ class CreatedAtPrePersistTest {
 
     @Test
     @DisplayName("RefreshTokenModel → дата не задана → createdAt = текущее время")
-    void refreshToken_setsCreatedAtWhenAbsent() {
+    void refreshToken_absentCreatedAt_setsCurrentTime() {
+
+        // given
+        // when
         UserModel owner = user();
         em.persist(owner);
 
         RefreshTokenModel token = token(owner);
+
         em.persist(token);
 
+        // then
         assertCreatedAtIsNow(reload(token, RefreshTokenModel.class).getCreatedAt());
     }
 
     @Test
     @DisplayName("RefreshTokenModel → дата задана → createdAt не перезаписывается")
-    void refreshToken_keepsPresetCreatedAt() {
+    void refreshToken_presetCreatedAt_keepsOriginal() {
+
+        // given
+        // when
         UserModel owner = user();
         em.persist(owner);
 
         RefreshTokenModel token = token(owner);
         setCreatedAtDirectly(token, PRESET);
+
         em.persist(token);
 
+        // then
         assertThat(reload(token, RefreshTokenModel.class).getCreatedAt()).isEqualTo(PRESET);
     }
 

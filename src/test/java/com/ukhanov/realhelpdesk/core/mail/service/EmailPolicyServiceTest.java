@@ -48,25 +48,35 @@ class EmailPolicyServiceTest {
 
     @Test
     @DisplayName("Нет записи в стоп-листе — письмо уходит")
-    void noRecord_notBlocked() {
+    void isStopList_noRecord_returnsFalse() {
+
+        // given / when / then
         assertThat(service.isStopList(EMAIL, NotificationEvent.RECOVERY_PASSWORD)).isFalse();
         assertThat(service.isStopList(EMAIL, NotificationEvent.NEW_TICKET)).isFalse();
     }
 
     @Test
     @DisplayName("Уровень NONE — письмо уходит")
-    void none_notBlocked() {
+    void isStopList_noneLevel_returnsFalse() {
+
+        // given
+        // when
         muteLevel(NotificationEvent.NONE);
 
+        // then
         assertThat(service.isStopList(EMAIL, NotificationEvent.NEW_TICKET)).isFalse();
         assertThat(service.isStopList(EMAIL, NotificationEvent.CHANGE_TICKET)).isFalse();
     }
 
     @Test
     @DisplayName("Отписка от CHANGE_TICKET не блокирует восстановление пароля")
-    void changeTicketMute_doesNotBlockRecoveryPassword() {
+    void isStopList_changeTicketMute_recoveryPasswordNotBlocked() {
+
+        // given
+        // when
         muteLevel(NotificationEvent.CHANGE_TICKET);
 
+        // then
         assertThat(service.isStopList(EMAIL, NotificationEvent.RECOVERY_PASSWORD)).isFalse();
         assertThat(service.isStopList(EMAIL, NotificationEvent.NEW_SYSTEM_MESSAGE)).isFalse();
         assertThat(service.isStopList(EMAIL, NotificationEvent.CHANGE_TICKET)).isTrue();
@@ -74,9 +84,13 @@ class EmailPolicyServiceTest {
 
     @Test
     @DisplayName("Уровень NEW_TICKET_OR_MESSAGE глушит только новые заявки и сообщения")
-    void newTicketOrMessage_blocksOnlyNewTicketAndMessage() {
+    void muteLevel_newTicketOrMessage_blocksNewTicketAndMessage() {
+
+        // given
+        // when
         muteLevel(NotificationEvent.NEW_TICKET_OR_MESSAGE);
 
+        // then
         assertThat(service.isStopList(EMAIL, NotificationEvent.NEW_TICKET)).isTrue();
         assertThat(service.isStopList(EMAIL, NotificationEvent.NEW_MESSAGE)).isTrue();
         assertThat(service.isStopList(EMAIL, NotificationEvent.RECOVERY_PASSWORD)).isFalse();
@@ -85,9 +99,13 @@ class EmailPolicyServiceTest {
 
     @Test
     @DisplayName("Глушится только совпавшее событие")
-    void exactEventMatch_only() {
+    void muteLevel_exactEventMatch_blocksOnlySameEvent() {
+
+        // given
+        // when
         muteLevel(NotificationEvent.NEW_TICKET);
 
+        // then
         assertThat(service.isStopList(EMAIL, NotificationEvent.NEW_TICKET)).isTrue();
         assertThat(service.isStopList(EMAIL, NotificationEvent.NEW_MESSAGE)).isFalse();
         assertThat(service.isStopList(EMAIL, NotificationEvent.CHANGE_TICKET)).isFalse();
@@ -97,6 +115,8 @@ class EmailPolicyServiceTest {
     @Test
     @DisplayName("isStopList(null) — ошибка")
     void isStopList_nullEmail_throwsNpe() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.isStopList(null, NotificationEvent.NEW_TICKET)).isInstanceOf(NullPointerException.class);
     }
 
@@ -107,8 +127,12 @@ class EmailPolicyServiceTest {
     @Test
     @DisplayName("Отписка без записи создаёт новую с выбранным уровнем")
     void addToStopList_withoutRecord_savesNewEntry() {
+
+        // given
+        // when
         service.addToStopList(NotificationEvent.NEW_TICKET);
 
+        // then
         verify(repository).save(argThat(
                 (UnsubscribedEmail entry) -> EMAIL.equals(entry.getEmail()) && entry.getMuteEvent() == NotificationEvent.NEW_TICKET));
     }
@@ -116,11 +140,15 @@ class EmailPolicyServiceTest {
     @Test
     @DisplayName("Повторная отписка обновляет уровень у существующей записи")
     void addToStopList_withRecord_updatesExistingEntry() {
+
+        // given
+        // when
         UnsubscribedEmail existing = new UnsubscribedEmail(EMAIL, NotificationEvent.NEW_TICKET);
         when(repository.findByEmail(EMAIL)).thenReturn(Optional.of(existing));
 
         service.addToStopList(NotificationEvent.CHANGE_TICKET);
 
+        // then
         verify(repository).save(same(existing));
         assertThat(existing.getMuteEvent()).isEqualTo(NotificationEvent.CHANGE_TICKET);
     }
@@ -128,6 +156,8 @@ class EmailPolicyServiceTest {
     @Test
     @DisplayName("Отписка с null-уровнем — ошибка, ничего не сохраняется")
     void addToStopList_nullLevel_throwsNpe() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.addToStopList(null)).isInstanceOf(NullPointerException.class);
 
         verify(repository, never()).save(any());
@@ -139,15 +169,21 @@ class EmailPolicyServiceTest {
 
     @Test
     @DisplayName("Удаление отписки удаляет запись текущего пользователя")
-    void deleteFromStopList_removesCurrentUsersRecord() {
+    void deleteFromStopList_anyUserId_removesCurrentUsersRecord() {
+
+        // given
+        // when
         service.deleteFromStopList(42L);
 
+        // then
         verify(repository).deleteByEmail(EMAIL);
     }
 
     @Test
     @DisplayName("Удаление отписки с null-токеном — ошибка")
     void deleteFromStopList_nullToken_throwsNpe() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.deleteFromStopList(null)).isInstanceOf(NullPointerException.class);
 
         verify(repository, never()).deleteByEmail(anyString());
@@ -160,18 +196,26 @@ class EmailPolicyServiceTest {
     @Test
     @DisplayName("Информация об отписке без записи — уровень NONE")
     void getEmailInfo_withoutRecord_returnsNone() {
+
+        // given
+        // when
         EmailInfoResponse response = service.getEmailInfo();
 
+        // then
         assertThat(response.muteLevel()).isEqualTo(NotificationEvent.NONE);
     }
 
     @Test
     @DisplayName("Информация об отписке возвращает сохранённый уровень")
     void getEmailInfo_withRecord_returnsMuteLevel() {
+
+        // given
+        // when
         muteLevel(NotificationEvent.NEW_MESSAGE);
 
         EmailInfoResponse response = service.getEmailInfo();
 
+        // then
         assertThat(response.muteLevel()).isEqualTo(NotificationEvent.NEW_MESSAGE);
     }
 

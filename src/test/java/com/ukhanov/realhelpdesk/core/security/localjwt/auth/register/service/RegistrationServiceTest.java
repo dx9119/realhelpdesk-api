@@ -68,7 +68,10 @@ class RegistrationServiceTest {
 
     @Test
     @DisplayName("Успешная регистрация: уведомление админу и письмо подтверждения пользователю")
-    void addUser_sendsAdminAndConfirmationEmails() throws Exception {
+    void addUser_uniqueEmail_sendsAdminAndConfirmationEmails() throws Exception {
+
+        // given
+        // when
         when(userDomainService.isUserExistsByEmail(EMAIL)).thenReturn(false);
         when(passwordEncoder.encode(PASSWORD)).thenReturn("encoded-hash");
         when(userDomainService.saveUser(any())).thenAnswer(invocation -> {
@@ -79,6 +82,7 @@ class RegistrationServiceTest {
 
         UserModel user = service.addUser(request());
 
+        // then
         verify(emailDeliveryService).sendAdminNotification(eq("Новая регистрация:" + EMAIL), anyString(),
                 eq(NotificationEvent.NEW_SYSTEM_MESSAGE));
 
@@ -94,8 +98,12 @@ class RegistrationServiceTest {
     @Test
     @DisplayName("Занятая почта: ошибка и ни одного письма")
     void addUser_duplicateEmail_throwsWithoutEmails() {
+
+        // given
+        // when
         when(userDomainService.isUserExistsByEmail(EMAIL)).thenReturn(true);
 
+        // then
         assertThatThrownBy(() -> service.addUser(request())).isInstanceOf(RegistrationException.class)
                 .hasMessageContaining("Почта уже используется");
 
@@ -105,8 +113,12 @@ class RegistrationServiceTest {
     @Test
     @DisplayName("Короткий пароль: ошибка и ни одного письма")
     void addUser_shortPassword_throwsWithoutEmails() {
+
+        // given
+        // when
         when(userDomainService.isUserExistsByEmail(EMAIL)).thenReturn(false);
 
+        // then
         assertThatThrownBy(() -> service.addUser(new RegisterRequest("Имя", "Фамилия", null, null, EMAIL, "short", null, null)))
                 .isInstanceOf(RegistrationException.class).hasMessageContaining("Минимальная длина пароля");
 
@@ -116,15 +128,21 @@ class RegistrationServiceTest {
     @Test
     @DisplayName("null-запрос — ошибка")
     void addUser_nullRequest_throwsNpe() {
+
+        // given / when / then
         assertThatThrownBy(() -> service.addUser(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
     @DisplayName("Непройденная капча: пользователь не создаётся, письма не уходят")
     void processRegistration_captchaFailed_noUserCreated() throws Exception {
+
+        // given
+        // when
         doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.POW_FAILED)).when(captchaService).verifyRegistration(any(),
                 any(), any());
 
+        // then
         assertThatThrownBy(() -> service.processRegistration(request(), "127.0.0.1")).isInstanceOf(CaptchaException.class);
 
         verify(captchaService).verifyRegistration(null, null, "127.0.0.1");
@@ -133,11 +151,15 @@ class RegistrationServiceTest {
 
     @Test
     @DisplayName("Honeypot-поле из запроса уходит в проверку капчи")
-    void processRegistration_passesHoneypotToCaptcha() throws Exception {
+    void processRegistration_honeypotFilled_passesToCaptcha() throws Exception {
+
+        // given
+        // when
         doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.HONEYPOT)).when(captchaService).verifyRegistration(any(),
                 eq("bot-filled"), any());
 
         RegisterRequest withHoneypot = new RegisterRequest("Имя", "Фамилия", "token-123", "bot-filled", EMAIL, PASSWORD, null, null);
+        // then
         assertThatThrownBy(() -> service.processRegistration(withHoneypot, "127.0.0.1")).isInstanceOf(CaptchaException.class);
 
         verify(captchaService).verifyRegistration("token-123", "bot-filled", "127.0.0.1");

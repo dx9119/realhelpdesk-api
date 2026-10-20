@@ -112,11 +112,15 @@ class EmailDeliveryServiceTest {
 
     @Test
     @DisplayName("Письмо собирается в MIME, отправляется и пишется в журнал")
-    void sendEmail_buildsMimeMessageAndWritesLog() throws Exception {
+    void sendEmail_validInput_buildsMimeAndWritesLog() throws Exception {
+
+        // given
+        // when
         service.sendEmail(RECIPIENT, "Тема письма", "Текст письма", NotificationEvent.NEW_TICKET);
 
         MimeMessage message = singleSentMessage();
 
+        // then
         assertThat(message.getSubject()).isEqualTo("Тема письма");
         assertThat(message.getAllRecipients()).hasSize(1);
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
@@ -139,12 +143,16 @@ class EmailDeliveryServiceTest {
 
     @Test
     @DisplayName("Ошибка SMTP → mail.sent{result=failure} и исключение наружу")
-    void sendEmail_smtpFailureCountsFailedMetric() {
+    void sendEmail_smtpFailure_countsFailedMetric() {
+
+        // given
+        // when
         doThrow(new MailSendException("Connection refused")).when(mailSender).send(any(MimeMessage.class));
 
-        MailSendException exception = catchThrowableOfType(
-                () -> service.sendEmail(RECIPIENT, "Тема письма", "Текст письма", NotificationEvent.NEW_TICKET), MailSendException.class);
+        MailSendException exception = catchThrowableOfType(MailSendException.class,
+                () -> service.sendEmail(RECIPIENT, "Тема письма", "Текст письма", NotificationEvent.NEW_TICKET));
 
+        // then
         assertThat(exception).isNotNull();
         Counter failure = meterRegistry.find("mail.sent").tags("type", "NEW_TICKET", "result", "failure").counter();
         assertThat(failure).isNotNull();
@@ -155,10 +163,14 @@ class EmailDeliveryServiceTest {
     @Test
     @DisplayName("Адрес в стоп-листе: письмо не отправляется и не попадает в журнал")
     void sendEmail_recipientInStopList_skipsDeliveryAndLog() throws Exception {
+
+        // given
+        // when
         when(emailPolicyService.isStopList(RECIPIENT, NotificationEvent.NEW_MESSAGE)).thenReturn(true);
 
         service.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_MESSAGE);
 
+        // then
         verify(emailLogService, never()).add(any(EmailLog.class));
         verify(mailSender, never()).createMimeMessage();
         verify(mailSender, never()).send(any(MimeMessage.class));
@@ -169,34 +181,45 @@ class EmailDeliveryServiceTest {
     @Test
     @DisplayName("Стоп-лист по событию не мешает отправке другого события")
     void sendEmail_otherEventNotMuted_isDelivered() throws Exception {
+
+        // given
+        // when
         when(emailPolicyService.isStopList(RECIPIENT, NotificationEvent.NEW_MESSAGE)).thenReturn(true);
 
         service.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.RECOVERY_PASSWORD);
 
+        // then
         assertThat(sentMessages()).hasSize(1);
     }
 
     @Test
     @DisplayName("Восстановление пароля: отправлено меньше лимита — письмо уходит")
     void sendEmail_recoveryPasswordWithinLimit_isDelivered() throws Exception {
+
+        // given
+        // when
         when(emailLogService.countEmailsSentToByEventInWindow(eq(RECIPIENT), eq(NotificationEvent.RECOVERY_PASSWORD),
                 eq(Duration.ofSeconds(86400)))).thenReturn(2L);
 
         service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст", NotificationEvent.RECOVERY_PASSWORD);
 
+        // then
         assertThat(sentMessages()).hasSize(1);
     }
 
     @Test
     @DisplayName("Восстановление пароля: лимит исчерпан — 429, письмо не уходит и в журнал не пишется")
     void sendEmail_recoveryPasswordOverLimit_throwsTooManyRequestsWithoutDelivery() {
+
+        // given
+        // when
         when(emailLogService.countEmailsSentToByEventInWindow(eq(RECIPIENT), eq(NotificationEvent.RECOVERY_PASSWORD),
                 eq(Duration.ofSeconds(86400)))).thenReturn(3L);
 
-        EmailAccessDeniedException exception = catchThrowableOfType(
-                () -> service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст", NotificationEvent.RECOVERY_PASSWORD),
-                EmailAccessDeniedException.class);
+        EmailAccessDeniedException exception = catchThrowableOfType(EmailAccessDeniedException.class,
+                () -> service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст", NotificationEvent.RECOVERY_PASSWORD));
 
+        // then
         assertThat(exception).isNotNull();
         assertThat(exception.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(exception.getMessage()).contains("86400");
@@ -207,8 +230,12 @@ class EmailDeliveryServiceTest {
     @Test
     @DisplayName("Событие, отличное от восстановления пароля, лимитер не трогает")
     void sendEmail_otherEvent_doesNotTouchRateLimiter() throws Exception {
+
+        // given
+        // when
         service.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_TICKET);
 
+        // then
         verify(emailLogService, never()).countEmailsSentToByEventInWindow(anyString(), any(), any());
         assertThat(sentMessages()).hasSize(1);
     }
@@ -219,17 +246,25 @@ class EmailDeliveryServiceTest {
 
     @Test
     @DisplayName("Админское уведомление уходит на email.notify из конфига")
-    void sendAdminNotification_targetsNotifyAddress() throws Exception {
+    void sendAdminNotification_configuredNotify_targetsAdminAddress() throws Exception {
+
+        // given
+        // when
         service.sendAdminNotification("Тема", "Текст", NotificationEvent.NEW_SYSTEM_MESSAGE);
 
+        // then
         assertThat(recipientsOfSentMessages()).containsExactly(ADMIN);
     }
 
     @Test
     @DisplayName("Пользовательское уведомление уходит на адрес получателя")
-    void sendUserNotification_targetsUserAddress() throws Exception {
+    void sendUserNotification_validRecipient_targetsUserAddress() throws Exception {
+
+        // given
+        // when
         service.sendUserNotification(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_MESSAGE);
 
+        // then
         assertThat(recipientsOfSentMessages()).containsExactly(RECIPIENT);
     }
 
@@ -239,7 +274,10 @@ class EmailDeliveryServiceTest {
 
     @Test
     @DisplayName("Уведомление по порталу уходит владельцу и всем допущенным пользователям")
-    void initNotifyPortalUsers_sendsToOwnerAndAllowedUsers() throws Exception {
+    void initNotifyPortalUsers_portalWithAllowedUsers_notifiesOwnerAndMembers() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portalWith(1L, Set.of(2L, 3L));
         stubUser(1L, "owner@example.com");
         stubUser(2L, "second@example.com");
@@ -247,6 +285,7 @@ class EmailDeliveryServiceTest {
 
         service.initNotifyPortalUsers(portal, "Тема", "Текст", NotificationEvent.NEW_TICKET);
 
+        // then
         assertThat(recipientsOfSentMessages()).containsExactlyInAnyOrder("owner@example.com", "second@example.com", "third@example.com");
         verify(mailSender, times(3)).send(any(MimeMessage.class));
     }
@@ -254,11 +293,15 @@ class EmailDeliveryServiceTest {
     @Test
     @DisplayName("Без списка допущенных пользователей письмо уходит только владельцу портала")
     void initNotifyPortalUsers_withoutAllowedUsers_sendsOnlyToOwner() throws Exception {
+
+        // given
+        // when
         PortalModel portal = portalWith(1L, null);
         stubUser(1L, "owner@example.com");
 
         service.initNotifyPortalUsers(portal, "Тема", "Текст", NotificationEvent.NEW_PORTAL);
 
+        // then
         assertThat(recipientsOfSentMessages()).containsExactly("owner@example.com");
     }
 
@@ -269,10 +312,14 @@ class EmailDeliveryServiceTest {
     @Test
     @DisplayName("Неверный код подтверждения — 403, пользователь не сохраняется")
     void confirmEmail_wrongToken_throwsForbidden() {
+
+        // given
+        // when
         UserModel user = currentUserWithToken(111L);
 
-        EmailAccessDeniedException exception = catchThrowableOfType(() -> service.confirmEmail(222L), EmailAccessDeniedException.class);
+        EmailAccessDeniedException exception = catchThrowableOfType(EmailAccessDeniedException.class, () -> service.confirmEmail(222L));
 
+        // then
         assertThat(exception).isNotNull();
         assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(user.isEmailVerified()).isFalse();
@@ -282,10 +329,14 @@ class EmailDeliveryServiceTest {
     @Test
     @DisplayName("Верный код подтверждения — адрес помечается подтверждённым и сохраняется")
     void confirmEmail_correctToken_marksEmailVerified() {
+
+        // given
+        // when
         UserModel user = currentUserWithToken(111L);
 
         service.confirmEmail(111L);
 
+        // then
         assertThat(user.isEmailVerified()).isTrue();
         verify(userDomainService).saveUser(user);
     }
@@ -296,12 +347,16 @@ class EmailDeliveryServiceTest {
 
     @Test
     @DisplayName("Код подтверждения уходит текущему пользователю с телом из шаблона")
-    void sendConfirmCode_sendsCodeToCurrentUser() throws Exception {
+    void sendConfirmCode_currentUserWithToken_sendsCodeFromTemplate() throws Exception {
+
+        // given
+        // when
         currentUserWithToken(987654L);
 
         service.sendConfirmCode();
 
         MimeMessage message = singleSentMessage();
+        // then
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
         assertThat(message.getSubject()).isEqualTo(emailTemplates.registrationCodeSubject());
         assertThat(contentOf(message)).contains("987654");

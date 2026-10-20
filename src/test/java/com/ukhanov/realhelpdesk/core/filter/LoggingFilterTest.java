@@ -22,26 +22,36 @@ class LoggingFilterTest {
 
     @Test
     @DisplayName("Заголовкам доверяем — в MDC адрес из заголовка прокси, после фильтра MDC очищен")
-    void mdcUsesProxyHeaderWhenTrusted() throws Exception {
+    void doFilter_trustedProxyHeader_usesHeaderIpAndClearsMdc() throws Exception {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Forwarded-For", "203.0.113.9, 10.0.0.1");
 
         AtomicReference<String> mdcIp = new AtomicReference<>();
+
         filter(true).doFilter(request, new MockHttpServletResponse(), chain(mdcIp));
 
+        // then
         assertThat(mdcIp.get()).isEqualTo("203.0.113.9");
         assertThat(MDC.get(LoggingFilter.CLIENT_IP)).isNull();
     }
 
     @Test
     @DisplayName("Заголовкам не доверяем — в MDC адрес сокета, подделанный клиентом заголовок не берётся")
-    void mdcUsesSocketAddressWhenHeadersAreNotTrusted() throws Exception {
+    void doFilter_untrustedProxyHeaders_usesSocketAddress() throws Exception {
+
+        // given
+        // when
         MockHttpServletRequest request = request();
         request.addHeader("X-Forwarded-For", "203.0.113.9");
 
         AtomicReference<String> mdcIp = new AtomicReference<>();
+
         filter(false).doFilter(request, new MockHttpServletResponse(), chain(mdcIp));
 
+        // then
         assertThat(mdcIp.get()).isEqualTo("10.0.0.5");
     }
 
@@ -59,11 +69,15 @@ class LoggingFilterTest {
 
     @Test
     @DisplayName("В MDC role=ANONYMOUS до аутентификации, после фильтра MDC очищен")
-    void mdcRoleDefaultsToAnonymousAndIsCleared() throws Exception {
+    void doFilter_unauthenticated_setsAnonymousRoleAndClearsMdc() throws Exception {
+
+        // given
+        // when
         AtomicReference<String> role = new AtomicReference<>();
 
         filter(false).doFilter(request(), new MockHttpServletResponse(), (req, res) -> role.set(MDC.get(LoggingFilter.ROLE)));
 
+        // then
         assertThat(role.get()).isEqualTo("ANONYMOUS");
         assertThat(MDC.get(LoggingFilter.ROLE)).isNull();
     }

@@ -24,12 +24,16 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("IllegalArgumentException с причиной ApiException → статус и текст ApiException (404), а не 500")
     void illegalArgument_withApiCause_returnsApiStatusAndMessage() {
+
+        // given
+        // when
         IllegalArgumentException wrapped = new IllegalArgumentException(
                 "Failed to evaluate expression '@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)'",
                 new RuntimeException(TicketException.notFound("Заявка не найдена!")));
 
         ResponseEntity<ProblemDetail> response = handler.handleIllegalArgument(wrapped, request);
 
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(404);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getDetail()).isEqualTo("Заявка не найдена!");
@@ -38,8 +42,12 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("IllegalArgumentException без ApiException в причине → прежние 500")
     void illegalArgument_withoutApiCause_returnsInternalServerError() {
+
+        // given
+        // when
         ResponseEntity<ProblemDetail> response = handler.handleIllegalArgument(new IllegalArgumentException("boom"), request);
 
+        // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getDetail()).isEqualTo("Операция завершилась неудачей");
@@ -48,11 +56,15 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("Причина любой глубины находит ApiException (SpEL оборачивает исключение дважды)")
     void illegalArgument_nestedApiCause_isFound() {
+
+        // given
+        // when
         IllegalArgumentException wrapped = new IllegalArgumentException("outer",
                 new IllegalStateException(TicketException.notFound("Заявка не найдена!")));
 
         ResponseEntity<ProblemDetail> response = handler.handleIllegalArgument(wrapped, request);
 
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(404);
     }
 }

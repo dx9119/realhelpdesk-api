@@ -44,7 +44,10 @@ class ObservabilityConfigurationTest {
 
     @Test
     @DisplayName("Согласованные deny-метрики (disk, jvm.buffer, внутренние счётчики Hibernate) не регистрируются")
-    void deniedMetricsAreNotRegistered() {
+    void denyFilter_blockedMetrics_areNotRegistered() {
+
+        // given
+        // when
         meterRegistry.counter("disk.free").increment();
         meterRegistry.counter("disk.total").increment();
         meterRegistry.counter("jvm.buffer.count").increment();
@@ -55,6 +58,7 @@ class ObservabilityConfigurationTest {
         meterRegistry.counter("hibernate.sessions.closed").increment();
         meterRegistry.counter("hibernate.optimistic.failures").increment();
 
+        // then
         assertThat(meterRegistry.find("disk.free").meter()).as("disk.free отклонён").isNull();
         assertThat(meterRegistry.find("jvm.buffer.count").meter()).as("jvm.buffer.count отклонён").isNull();
         assertThat(meterRegistry.find("hibernate.flushes").meter()).as("hibernate.flushes отклонён").isNull();
@@ -67,10 +71,15 @@ class ObservabilityConfigurationTest {
 
     @Test
     @DisplayName("Опасные теги (email, userId, ticketId и т.п.) срезаются с любого meter")
-    void dangerousTagsAreIgnored() {
+    void ignoreTagsFilter_dangerousTags_areStripped() {
+
+        // given
+        // when
         meterRegistry.counter("auth.attempts", "type", "login", "email", "user@example.com", "userId", "42", "ticketId", "7").increment();
 
         Meter meter = meterRegistry.find("auth.attempts").meter();
+
+        // then
         assertThat(meter).isNotNull();
         assertThat(meter.getId().getTags()).extracting(Tag::getKey).containsExactly("type");
         assertThat(meter.getId().getTags()).extracting(Tag::getValue).containsExactly("login");
@@ -78,7 +87,10 @@ class ObservabilityConfigurationTest {
 
     @Test
     @DisplayName("uri-тег: после 100 уникальных значений новые отклоняются, существующие не теряются")
-    void uriTagHitsMaximumAndDeniesFurther() {
+    void uriCardinalityFilter_hundredUniqueUris_capsTag() {
+
+        // given
+        // when
         for (int i = 0; i < 100; i++) {
             meterRegistry.counter("http.server.requests", "uri", "/api/v1/generated-" + i).increment();
         }
@@ -90,6 +102,7 @@ class ObservabilityConfigurationTest {
                     .ifPresent(tag -> uniqueUris.incrementAndGet());
         });
 
+        // then
         assertThat(uniqueUris).as("101-й uri отклонён, ровно 100 уникальных значений").hasValue(100);
         assertThat(meterRegistry.find("http.server.requests").tags("uri", "/api/v1/generated-100").meter())
                 .as("uri за пределами лимита не зарегистрирован").isNull();
@@ -99,20 +112,29 @@ class ObservabilityConfigurationTest {
 
     @Test
     @DisplayName("Клиентские http-метрики тоже ограничены потолком uri")
-    void clientUriTagHitsMaximum() {
+    void uriCardinalityFilter_clientRequests_areCapped() {
+
+        // given
+        // when
         for (int i = 0; i < 101; i++) {
             meterRegistry.counter("http.client.requests", "uri", "/storage/" + i).increment();
         }
 
         long clientMeters = meterRegistry.find("http.client.requests").meters().size();
+
+        // then
         assertThat(clientMeters).as("http.client.requests под тем же потолком uri").isEqualTo(100);
     }
 
     @Test
     @DisplayName("Шумные uri (actuator, swagger) не порождают http.server.requests — ни метрики, ни спана")
-    void noiseUrisSuppressServerObservation() {
+    void noisePredicate_noiseUris_suppressServerObservation() {
+
+        // given
+        // when
         ObservationPredicate predicate = configuration.ignoreNoiseObservationPredicate();
 
+        // then
         assertThat(predicate.test("http.server.requests", serverContext("/actuator/health"))).as("health-пробы").isFalse();
         assertThat(predicate.test("http.server.requests", serverContext("/actuator/prometheus"))).as("скрейп").isFalse();
         assertThat(predicate.test("http.server.requests", serverContext("/swagger-ui.html"))).as("swagger").isFalse();
@@ -122,10 +144,14 @@ class ObservabilityConfigurationTest {
 
     @Test
     @DisplayName("Security-наблюдения без родителя подавляются: под HTTP-наблюдением — сохраняются")
-    void securityObservationIsSuppressedOnlyWithoutParent() {
+    void noisePredicate_securityWithoutParent_isSuppressed() {
+
+        // given
+        // when
         ObservationPredicate predicate = configuration.ignoreNoiseObservationPredicate();
         Observation.Context orphan = new Observation.Context();
 
+        // then
         assertThat(predicate.test("spring.security.filterchains", orphan)).as("корень-осколок подавлен").isFalse();
         assertThat(predicate.test("spring.security.authorizations", orphan)).isFalse();
         assertThat(predicate.test("spring.security.http.secured.requests", orphan)).isFalse();

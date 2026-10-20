@@ -31,7 +31,7 @@ PrometheusNaming срезает суффикс `.created` — OpenMetrics рез
 - Группа `content_type` — часть MIME-типа до `/` из конечного списка `image`, `text`, `application`, `video`, `audio`; всё остальное (включая
   null и `application/octet-stream`-подобные исключения без `/`) — `other`. Имя файла в теги не попадает.
 - Email, userId, ticketId, recipient, полный URL и тексты ошибок в теги не попадают — это проверяет и регрессия
-  `HttpObservabilityTest.prohibitedTagsAreAbsent`.
+  `HttpObservabilityIT.prohibitedTagsAreAbsent`.
 
 ## Семантика и принятые решения
 
@@ -91,7 +91,7 @@ PrometheusNaming срезает суффикс `.created` — OpenMetrics рез
 **Замер после шага 10** (холодый старт, без трафика): 56 семейств / 92 series; `executor_*` присутствуют, отключённые семейства в скрейпе
 отсутствуют. Прогон `user_journey` (2 VU, 1 минута, 317 запросов) добавляет HTTP/business-метрики — суммарно порядка 120–150 series.
 
-**Тесты**: `ObservabilityConfigurationTest` (deny/ignoreTags/потолок uri на SimpleMeterRegistry), `HttpObservabilityTest`
+**Тесты**: `ObservabilityConfigurationTest` (deny/ignoreTags/потолок uri на SimpleMeterRegistry), `HttpObservabilityIT`
 (отключённые метрики отсутствуют, `executor.*{name=taskScheduler}` привязан, серия запросов с разными ID не растит число uri-значений).
 
 ## Проверка вручную
@@ -111,4 +111,4 @@ curl -s -u "$METRICS_USER:$METRICS_PASSWORD" localhost:8081/actuator/prometheus 
 - `BusinessMetricsTest` — все метрики, теги, SLO-бакеты, пропуск null/некорректных входов.
 - `TicketsOpenGaugeTest` — регистрация series, обновление из репозитория, отсутствие запросов при чтении.
 - `TicketManageServiceTest`, `MessageManageServiceTest`, `AttachmentManageServiceTest`, `EmailDeliveryServiceTest` — инкременты на вызовах
-  сервисов; `ActuatorSecurityTest` — `tickets_open` в скрейпе.
+  сервисов; `ActuatorSecurityIT` — `tickets_open` в скрейпе.

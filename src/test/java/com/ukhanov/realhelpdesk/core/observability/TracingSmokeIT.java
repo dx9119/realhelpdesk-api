@@ -7,6 +7,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,9 +29,10 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
-import com.ukhanov.realhelpdesk.PostgresIntegrationTest;
+import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -52,7 +54,7 @@ import io.micrometer.observation.ObservationRegistry;
                 "captcha.enabled=false", "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com"})
 @ExtendWith(OutputCaptureExtension.class)
 @DisplayName("Tracing smoke: общий traceId и дочерние спаны сервисного слоя")
-class TracingSmokeIT extends PostgresIntegrationTest {
+class TracingSmokeIT extends AbstractIntegrationTest {
 
     private static final String SERVER_OBSERVATION = "http.server.requests";
 
@@ -120,11 +122,16 @@ class TracingSmokeIT extends PostgresIntegrationTest {
 
     @Test
     @DisplayName("Регистрация создаёт корневой спан http.server.requests и дочерние mail.send с общим traceId в логах")
-    void registerRequest_createsServerSpanWithServiceLayerChildren(CapturedOutput output) throws IOException, InterruptedException {
+    void registerRequest_serverAndMailSpans_shareTraceId(CapturedOutput output) throws IOException, InterruptedException {
+
+        // given
         String email = "trace-smoke-" + UUID.randomUUID() + "@example.com";
+
+        // when
         HttpResponse<String> response = post("/api/v1/auth/register",
                 "{\"firstName\":\"Trace\",\"lastName\":\"Smoke\",\"email\":\"" + email + "\",\"password\":\"Sup3rSecret123!\"}");
 
+        // then
         assertThat(response.statusCode()).as("регистрация с обходом капчи и живым SMTP").isEqualTo(201);
 
         Observation.Context root = awaitRootServerObservation();
@@ -148,18 +155,16 @@ class TracingSmokeIT extends PostgresIntegrationTest {
     }
 
     /** Ждёт остановки корневого наблюдения: observation стопается на commit ответа — запись может чуть отставать от HTTP-клиента. */
-    private Observation.Context awaitRootServerObservation() throws InterruptedException {
-        long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
-        while (System.nanoTime() < deadline) {
-            for (Observation.Context context : OBSERVED) {
-                if (SERVER_OBSERVATION.equals(context.getName()) && context.getParentObservation() == null) {
-                    return context;
-                }
-            }
-            Thread.sleep(50);
-        }
-        throw new AssertionError("корневое наблюдение http.server.requests не остановилось за 3 с, поймано: "
-                + OBSERVED.stream().map(Observation.Context::getName).toList());
+    private Observation.Context awaitRootServerObservation() {
+        await().atMost(Duration.ofSeconds(3)).pollInterval(Duration.ofMillis(50)).untilAsserted(() -> assertThat(rootObservation())
+                .as("корневое наблюдение http.server.requests, поймано: %s", OBSERVED.stream().map(Observation.Context::getName).toList())
+                .isPresent());
+        return rootObservation().orElseThrow();
+    }
+
+    private static Optional<Observation.Context> rootObservation() {
+        return OBSERVED.stream().filter(context -> SERVER_OBSERVATION.equals(context.getName()) && context.getParentObservation() == null)
+                .findFirst();
     }
 
     /** Возвращает [traceId, spanId] первой строки лога, содержащей маркер. */

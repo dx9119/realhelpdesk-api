@@ -26,7 +26,10 @@ class RefreshTokenCleanupServiceTest {
 
     @Test
     @DisplayName("Оценка объёма считается до удаления, обе группы удаляются батчами")
-    void deleteExpiredTokens_estimatesAndPurgesBothGroups() {
+    void deleteExpiredTokens_bothGroupsPresent_countsAndPurgesBoth() {
+
+        // given
+        // when
         when(repository.countByStatusNotAndCreatedAtBefore(eq(TokenStatus.ACTIVE), any())).thenReturn(5L);
         when(repository.countByStatusAndCreatedAtBefore(eq(TokenStatus.ACTIVE), any())).thenReturn(3L);
         when(executor.deleteInactiveBatch(any(), anyInt())).thenReturn(5);
@@ -35,6 +38,7 @@ class RefreshTokenCleanupServiceTest {
 
         service.deleteExpiredTokens();
 
+        // then
         verify(repository).countByStatusNotAndCreatedAtBefore(eq(TokenStatus.ACTIVE), any());
         verify(repository).countByStatusAndCreatedAtBefore(eq(TokenStatus.ACTIVE), any());
         verify(executor).deleteInactiveBatch(any(), eq(100));
@@ -43,7 +47,10 @@ class RefreshTokenCleanupServiceTest {
 
     @Test
     @DisplayName("Полный батч продолжает цикл с удвоенным размером, затем останавливается на пустом")
-    void deleteExpiredTokens_fullBatchAdaptsUpward() {
+    void deleteExpiredTokens_fullBatch_doublesNextBatchSize() {
+
+        // given
+        // when
         when(executor.deleteInactiveBatch(any(), anyInt())).thenReturn(100, 0);
         when(executor.deleteActiveBatch(any(), anyInt())).thenReturn(0);
         RefreshTokenCleanupService service = new RefreshTokenCleanupService(repository, executor, properties());
@@ -51,19 +58,24 @@ class RefreshTokenCleanupServiceTest {
         service.deleteExpiredTokens();
 
         ArgumentCaptor<Integer> batches = ArgumentCaptor.forClass(Integer.class);
+        // then
         verify(executor, org.mockito.Mockito.times(2)).deleteInactiveBatch(any(), batches.capture());
         assertThat(batches.getAllValues()).as("быстрый полный батч удваивает размер следующего").containsExactly(100, 200);
     }
 
     @Test
     @DisplayName("Принудительная очистка чистит только отозванные и возвращает счётчики")
-    void cleanRevokedTokens_onlyRevokedGroup() {
+    void cleanRevokedTokens_revokedPresent_returnsCountersAndSkipsActive() {
+
+        // given
+        // when
         when(repository.countByStatusNotAndCreatedAtBefore(eq(TokenStatus.ACTIVE), any())).thenReturn(5L);
         when(executor.deleteInactiveBatch(any(), anyInt())).thenReturn(2);
         RefreshTokenCleanupService service = new RefreshTokenCleanupService(repository, executor, properties());
 
         CleanupResult result = service.cleanRevokedTokens();
 
+        // then
         assertThat(result.deleted()).isEqualTo(2);
         assertThat(result.batches()).isEqualTo(1);
         verify(executor).deleteInactiveBatch(any(), eq(100));
@@ -73,7 +85,10 @@ class RefreshTokenCleanupServiceTest {
 
     @Test
     @DisplayName("Неполный батч завершает группу: строк больше нет")
-    void deleteExpiredTokens_partialBatchStops() {
+    void deleteExpiredTokens_partialBatch_stopsAfterSinglePass() {
+
+        // given
+        // when
         when(executor.deleteInactiveBatch(any(), anyInt())).thenReturn(50);
         when(executor.deleteActiveBatch(any(), anyInt())).thenReturn(0);
         RefreshTokenCleanupService service = new RefreshTokenCleanupService(repository, executor, properties());
@@ -81,25 +96,33 @@ class RefreshTokenCleanupServiceTest {
         service.deleteExpiredTokens();
 
         // 50 < запрошенных 100 — цикл не продолжается, повторной выборки нет
+        // then
         verify(executor, org.mockito.Mockito.times(1)).deleteInactiveBatch(any(), eq(100));
     }
 
     @Test
     @DisplayName("Пустой батч останавливает группу: по одному запросу на каждую")
-    void deleteExpiredTokens_emptyBatchStops() {
+    void deleteExpiredTokens_emptyBatch_queriesEachGroupOnce() {
+
+        // given
+        // when
         when(executor.deleteInactiveBatch(any(), anyInt())).thenReturn(0);
         when(executor.deleteActiveBatch(any(), anyInt())).thenReturn(0);
         RefreshTokenCleanupService service = new RefreshTokenCleanupService(repository, executor, properties());
 
         service.deleteExpiredTokens();
 
+        // then
         verify(executor, org.mockito.Mockito.times(1)).deleteInactiveBatch(any(), eq(100));
         verify(executor, org.mockito.Mockito.times(1)).deleteActiveBatch(any(), eq(100));
     }
 
     @Test
     @DisplayName("Прерывание во время паузы останавливает прогон, поток помечается прерванным")
-    void deleteExpiredTokens_interruptedDuringPauseStops() {
+    void deleteExpiredTokens_interruptedDuringPause_stopsRun() {
+
+        // given
+        // when
         when(executor.deleteInactiveBatch(any(), anyInt())).thenAnswer(invocation -> {
             Thread.currentThread().interrupt();
             return 100;
@@ -114,12 +137,15 @@ class RefreshTokenCleanupServiceTest {
             Thread.interrupted();
         }
 
+        // then
         verify(executor, org.mockito.Mockito.times(1)).deleteInactiveBatch(any(), eq(100));
     }
 
     @Test
     @DisplayName("Адаптивный размер: растёт на быстром батче, уменьшается на медленном, держит границы")
-    void adaptBatchSize_staysWithinBounds() {
+    void adaptBatchSize_variousDurations_staysWithinBounds() {
+
+        // given / when / then
         assertThat(RefreshTokenCleanupService.adaptBatchSize(100, 10, 200, 100, 5_000)).as("быстро — вдвое").isEqualTo(200);
         assertThat(RefreshTokenCleanupService.adaptBatchSize(4_000, 10, 200, 100, 5_000)).as("рост упирается в максимум").isEqualTo(5_000);
         assertThat(RefreshTokenCleanupService.adaptBatchSize(200, 300, 200, 100, 5_000)).as("медленно — вдвое меньше").isEqualTo(100);
@@ -130,7 +156,9 @@ class RefreshTokenCleanupServiceTest {
 
     @Test
     @DisplayName("Невалидные пороги/расписание/батчи — старт падает с понятной ошибкой")
-    void constructor_validatesProperties() {
+    void constructor_invalidProperties_throwsIllegalState() {
+
+        // given / when / then
         assertThatThrownBy(
                 () -> new RefreshTokenCleanupService(repository, executor, properties(0, 2592000, "0 30 3 * * *", 100, 5000, 200, 50)))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("revoked-token-retention-seconds");

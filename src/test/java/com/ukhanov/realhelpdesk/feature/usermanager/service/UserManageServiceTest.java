@@ -3,6 +3,7 @@ package com.ukhanov.realhelpdesk.feature.usermanager.service;
 import jakarta.persistence.EntityNotFoundException;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
@@ -31,11 +32,10 @@ import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoResponse;
 import com.ukhanov.realhelpdesk.feature.usermanager.exception.UserManageException;
 import com.ukhanov.realhelpdesk.feature.usermanager.mapper.UserMapper;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -43,7 +43,9 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Тесты сервиса профиля пользователя (UserManageService)")
 class UserManageServiceTest {
 
     @Mock
@@ -58,10 +60,9 @@ class UserManageServiceTest {
     private GetTokenService getTokenService;
 
     private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
+    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
 
     private UserManageService service;
-
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
 
     @BeforeEach
     void setUp() {
@@ -74,16 +75,19 @@ class UserManageServiceTest {
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    void getUserInfo_returnsMappedCurrentUser() {
+    @DisplayName("getUserInfo → возвращает данные текущего пользователя в маппинге")
+    void getUserInfo_currentUserExists_returnsMappedResponse() {
+        // given
         UserModel user = createDefaultUser();
         when(currentUserProvider.getCurrentUserModel()).thenReturn(user);
 
+        // when
         UserInfoResponse response = service.getUserInfo();
 
+        // then
         assertThat(response.firstName()).isEqualTo("firstName");
         assertThat(response.email()).isEqualTo("email@example.com");
         assertThat(response).usingRecursiveComparison().isEqualTo(userMapper.toResponse(user));
-
         verifyNoInteractions(emailDeliveryService, passwordEncoder, getTokenService);
     }
 
@@ -92,7 +96,9 @@ class UserManageServiceTest {
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    void updateUserInfo_success_updatesFieldsAndReturnsUpdatedUser() throws UserManageException {
+    @DisplayName("updateUserInfo → сохраняет новые поля и возвращает обновлённого пользователя")
+    void updateUserInfo_validRequest_updatesFieldsAndReturnsUpdatedUser() throws UserManageException {
+        // given
         UserModel existing = createDefaultUser();
         when(currentUserProvider.getCurrentUserModel()).thenReturn(existing);
 
@@ -103,17 +109,20 @@ class UserManageServiceTest {
 
         UserInfoRequest request = new UserInfoRequest("NewFirst", "NewLast", "NewMiddle", "NewInfo");
 
+        // when
         UserInfoResponse response = service.updateUserInfo(request, null);
 
+        // then
         assertThat(response.firstName()).isEqualTo("NewFirst");
         assertThat(response.lastName()).isEqualTo("NewLast");
-
-        verify(userDomainService).saveUser(argThat(u -> "NewFirst".equals(u.getFirstName()) && "NewLast".equals(u.getLastName())
-                && "NewMiddle".equals(u.getMiddleName()) && "NewInfo".equals(u.getAdditionalInfo())));
+        verify(userDomainService).saveUser(argThat(user -> "NewFirst".equals(user.getFirstName()) && "NewLast".equals(user.getLastName())
+                && "NewMiddle".equals(user.getMiddleName()) && "NewInfo".equals(user.getAdditionalInfo())));
     }
 
     @Test
-    void updateUserInfo_requestNull_throwsNpe() {
+    @DisplayName("updateUserInfo → null-запрос → NPE")
+    void updateUserInfo_nullRequest_throwsNpe() {
+        // given / when / then
         assertThatThrownBy(() -> service.updateUserInfo(null, null)).isInstanceOf(NullPointerException.class);
     }
 
@@ -122,28 +131,35 @@ class UserManageServiceTest {
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    void sendResetLink_userNotFound_throws() {
+    @DisplayName("sendResetLink → неизвестный email → EntityNotFoundException, письмо не отправляется")
+    void sendResetLink_unknownEmail_throwsEntityNotFound() {
+        // given
         when(userDomainService.getUserByEmail("unknown@example.com")).thenThrow(new EntityNotFoundException("User not found"));
-
         RecoveryRequest request = new RecoveryRequest("unknown@example.com");
 
+        // when / then
         assertThatThrownBy(() -> service.sendResetLink(request)).isInstanceOf(EntityNotFoundException.class);
-
         verifyNoMoreInteractions(emailDeliveryService);
     }
 
     @Test
-    void sendResetLink_requestNull_throwsNpe() {
+    @DisplayName("sendResetLink → null-запрос → NPE")
+    void sendResetLink_nullRequest_throwsNpe() {
+        // given / when / then
         assertThatThrownBy(() -> service.sendResetLink(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    void sendResetLink_success_sendsPasswordResetEmailWithFreshToken() throws Exception {
+    @DisplayName("sendResetLink → известный email → письмо со свежим кодом сброса")
+    void sendResetLink_knownEmail_sendsPasswordResetEmailWithFreshToken() throws Exception {
+        // given
         UserModel user = createDefaultUser();
         when(userDomainService.getUserByEmail("email@example.com")).thenReturn(user);
 
+        // when
         service.sendResetLink(new RecoveryRequest("email@example.com"));
 
+        // then
         verify(userDomainService).saveUser(user);
         assertThat(user.getRecoveryPasswdToken()).isNotEqualTo(88L);
 
@@ -151,7 +167,6 @@ class UserManageServiceTest {
         verify(emailDeliveryService).sendEmail(eq("email@example.com"), eq(emailTemplates.passwordResetSubject()), bodyCaptor.capture(),
                 eq(NotificationEvent.RECOVERY_PASSWORD), eq(user.getId()));
         verifyNoMoreInteractions(emailDeliveryService);
-
         assertThat(bodyCaptor.getValue()).contains("/pass-reset?code=" + user.getRecoveryPasswdToken())
                 .contains(EmailTemplatesFixture.DOMAIN);
     }
@@ -161,53 +176,57 @@ class UserManageServiceTest {
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    void setNewPasswd_success_updatesPasswordAndInvalidatesOldTokens() throws Exception {
+    @DisplayName("setNewPasswd → меняет пароль и отзывает старые токены")
+    void setNewPasswd_validCode_updatesPasswordAndInvalidatesOldTokens() throws Exception {
+        // given
         Long code = 55L;
         UserModel user = createDefaultUser();
         user.setRecoveryPasswdToken(code);
         int tokenVersionBefore = user.getTokenVersion();
-
         when(userDomainService.getUserByRecoveryPasswdToken(code)).thenReturn(user);
-
         // Старые активные refresh-токены (с разных устройств) отзываются одним bulk-UPDATE
         when(getTokenService.revokeActiveRefreshTokens(user, TokenStatus.PASSWD_CHANGE)).thenReturn(2);
-
         when(passwordEncoder.encode("newStrongPass123")).thenReturn("encodedNewPass");
-
         NewPasswdRequest request = new NewPasswdRequest("newStrongPass123");
 
+        // when
         service.setNewPasswd(code, request);
 
+        // then
         verify(passwordEncoder).encode("newStrongPass123");
 
         ArgumentCaptor<UserModel> userCaptor = ArgumentCaptor.forClass(UserModel.class);
         verify(userDomainService).saveUser(userCaptor.capture());
         UserModel savedUser = userCaptor.getValue();
         assertThat(savedUser.getPasswordHash()).isEqualTo("encodedNewPass");
-        assertThat(savedUser.getRecoveryPasswdToken()).isNotEqualTo(code); // токен сброшен
-        assertThat(savedUser.getTokenVersion()).isEqualTo(tokenVersionBefore + 1); // access-токены отозваны
-
-        // Отзываются ВСЕ активные refresh-токены, а не только последний
+        assertThat(savedUser.getRecoveryPasswdToken()).isNotEqualTo(code);
+        assertThat(savedUser.getTokenVersion()).isEqualTo(tokenVersionBefore + 1);
         verify(getTokenService).revokeActiveRefreshTokens(user, TokenStatus.PASSWD_CHANGE);
     }
 
     @Test
-    void setNewPasswd_tokenNotFound_throws() {
+    @DisplayName("setNewPasswd → неизвестный код → EntityNotFoundException")
+    void setNewPasswd_unknownCode_throwsEntityNotFound() {
+        // given
         Long wrongCode = 66L;
         when(userDomainService.getUserByRecoveryPasswdToken(wrongCode)).thenThrow(new EntityNotFoundException("Token not found"));
 
+        // when / then
         assertThatThrownBy(() -> service.setNewPasswd(wrongCode, new NewPasswdRequest("pass"))).isInstanceOf(EntityNotFoundException.class);
-
         verifyNoInteractions(passwordEncoder);
     }
 
     @Test
-    void setNewPasswd_requestNull_throwsNpe() {
+    @DisplayName("setNewPasswd → null-запрос → NPE")
+    void setNewPasswd_nullRequest_throwsNpe() {
+        // given / when / then
         assertThatThrownBy(() -> service.setNewPasswd(55L, null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    void setNewPasswd_codeNull_throwsNpe() {
+    @DisplayName("setNewPasswd → null-код → NPE")
+    void setNewPasswd_nullCode_throwsNpe() {
+        // given / when / then
         assertThatThrownBy(() -> service.setNewPasswd(null, new NewPasswdRequest("pass"))).isInstanceOf(NullPointerException.class);
     }
 
