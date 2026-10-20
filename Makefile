@@ -193,8 +193,13 @@ ci-image: ## Собрать образ $(CI_IMAGE) для trivy (как в CI)
 
 # --timeout выше дефолтных 5м: разбор вложенных jar внутри Spring Boot fat-jar
 # (javadb) на локальной машине идёт заметно дольше, чем в CI.
+# trivy-cache — именованный том на /root/.cache/trivy (дефолтный cache-dir):
+# без него кэш БД жил бы в контейнере, удаляемом --rm, и trivy-db/javadb
+# (940 MiB) качались бы при каждом прогоне. С томом перекачка только по
+# истечении срока жизни БД: trivy-db ~24ч, javadb 3 дня.
 check-image-vuln: ci-image ## trivy: уязвимости образа CRITICAL/HIGH с исправлением (как в CI)
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+	  -v trivy-cache:/root/.cache/trivy \
 	  aquasec/trivy:0.58.2 image --timeout 15m --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $(CI_IMAGE)
 
 check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
