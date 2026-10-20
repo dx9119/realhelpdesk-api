@@ -1,9 +1,9 @@
 # Тесты и проверки
 
-Все тесты проводятся только в dev-среде. Юнит- и интеграционные — на хосте,
-без Docker, в тестовой конфигурации `src/test/resources/application.properties`;
-e2e — только на поднятом dev-стеке (`make dev-run` или `make up`). В других
-средах тесты не запускаются.
+Все тесты проводятся только в dev-среде. Юнит-тесты — на хосте, без Docker, в тестовой
+конфигурации `src/test/resources/application.properties`; интеграционные (`*IT`) — тоже на
+хосте, но им нужен Docker (Testcontainers поднимает PostgreSQL 18); e2e — только на поднятом
+dev-стеке (`make dev-run` или `make up`). В других средах тесты не запускаются.
 
 | Команда | Что делает |
 |---|---|
@@ -15,6 +15,28 @@ e2e — только на поднятом dev-стеке (`make dev-run` или
 | `make openapi-types` | Сгенерировать TypeScript-типы (`npx openapi-typescript`) |
 | `make dev-run` | Dev-среда: сборка и запуск стека в foreground (логи всех сервисов) |
 | `make dev-test` | Dev-среда: `mvn verify` + все e2e-сценарии (нужен поднятый стек) |
+
+## Архитектура: unit и интеграционные тесты
+
+Тесты жёстко разделены на два класса по именам и фазам сборки; стандарты стиля
+закреплены в [`code-style.md` §«Тесты»](code-style.md#тесты), план внедрения — в
+[`testing-standards-rollout.md`](testing-standards-rollout.md).
+
+| | `*Test` (surefire, `make test`) | `*IT` (failsafe, `make verify`) |
+|---|---|---|
+| Контекст Spring | не поднимается: standalone-MockMvc (`MockMvcTester`), MockitoExtension | полный `@SpringBootTest`, профиль `test` |
+| База данных | H2 (embedded) для `@DataJpaTest`-слайсов | PostgreSQL 18, Testcontainers |
+| Миграции | Liquibase выключен, схема — `ddl-auto` самого теста | полный Liquibase + `hibernate validate` |
+| Docker | не нужен | нужен (контейнеры PostgreSQL/MinIO) |
+
+- `@SpringBootTest` в `*Test` запрещён checkstyle (`NoSpringContextInUnitTests`) —
+  полный контекст живёт только в `*IT`.
+- Интеграционные наследуют `AbstractIntegrationTest`: один singleton-контейнер
+  PostgreSQL 18 на весь прогон JVM (JDBC-параметры делятся через system properties
+  `it.pg.*` — повторная инициализация в другом classloader'е не поднимает второй контейнер),
+  стоп по выходу из JVM делает Ryuk. Подключение — `@ServiceConnection`, не
+  `@DynamicPropertySource`. Схему создаёт и проверяет Liquibase
+  (`db.changelog-master.xml`, `ddl-auto=validate`) — расхождение миграций с entity валит IT.
 
 ## E2E-сценарии
 

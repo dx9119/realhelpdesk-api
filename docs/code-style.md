@@ -123,11 +123,31 @@ import static ...;               // static — всегда в конце
 
 ## Тесты
 
-- **JUnit 5 + Mockito + AssertJ**. Юнит-тесты изолированы (standalone-MockMvc, без контекста Spring); полный контекст (`@SpringBootTest`, профиль `test`) поднимается только в интеграционных тестах наблюдаемости/безопасности (`TracingSmokeIT`, `CaptchaFlowIT`, `OperatorBootstrapIT` и др.).
-- Класс: `<ТестируемыйКлас>Test`, package-private (`class X`, без `public`), зеркалит пакет main.
-- Метод: `method_condition_outcome` на английском — `searchTickets_noAccessiblePortals_returnsEmptyPage`.
+Правила ниже блокируются checkstyle (`config/checkstyle/checkstyle.xml`) — нарушение валит
+сборку; архитектура unit/IT — в [`testing.md`](testing.md), план внедрения — в
+[`testing-standards-rollout.md`](testing-standards-rollout.md).
+
+- **JUnit 5 + Mockito + AssertJ**. Утверждения — только AssertJ: статические импорты
+  `org.junit.jupiter.api.Assertions.*` запрещены (`IllegalImport`), как и JUnit 4/TestNG.
+- **Изоляция от Spring**: юнит-тесты — standalone-MockMvc (`MockMvcTester`) или
+  MockitoExtension, JPA-слайсы (`@DataJpaTest`) — на H2; полный контекст — только в `*IT`
+  на PostgreSQL 18. `@SpringBootTest` в `*Test` запрещён (`NoSpringContextInUnitTests`).
+- **Классы**: `<ТестируемыйКлас>Test` (unit, surefire) или `<ТестируемыйКлас>IT`
+  (интеграционные, failsafe, Docker) — суффикс проверяется `TestClassSuffix`;
+  package-private (`class X`, без `public` — `JUnit5PackagePrivate`), пакет зеркалит main.
+- **Метод**: ровно три сегмента `method_condition_outcome` —
+  `searchTickets_noAccessiblePortals_returnsEmptyPage` (`TestMethodNamingConvention`);
+  методы в `src/main` — camelCase без `_` (`MethodNameMain`).
+- **`@DisplayName` обязателен** у каждого `@Test`/`@ParameterizedTest`, по-русски
+  (`RequireDisplayNameOnTests`).
+- **Структура**: каждый тест-method размечен `// given` → `// when` → `// then`
+  (`GivenWhenThenStructure`).
+- **Без сна и печати**: `Thread.sleep()` запрещён (`NoThreadSleepInTests`) — ожидания через
+  Awaitility; `System.out/err` и `printStackTrace()` запрещены (`NoSystemOut`) — логгер.
+- **Spring Boot 4 API**: `@MockBean`/`@SpyBean` не используются (в тестах контекста —
+  `@MockitoBean`); подключение БД в IT — `@ServiceConnection` (Testcontainers), не ручной
+  `@DynamicPropertySource`.
 - Аннотации `@Mock`/`@InjectMocks` — каждая на своей строке; заглушки `mock*`, captor'ы `*Captor`.
-- Секции `// given` / `// when` / `// then` — где логика неочевидна; `@DisplayName` — по-русски.
 - Строгость Mockito: `@MockitoSettings(strictness = Strictness.LENIENT)` допустима только вместе с явным `lenient().when(...)`.
 
 ## Коммиты
