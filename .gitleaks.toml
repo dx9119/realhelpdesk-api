@@ -25,4 +25,8 @@ paths = [
 regexes = [
   # README (только история): base64 от test-UUID 7034ec83-800e-41ed-b210-1e744270c60f
   '''NzAzNGVjODMtODAwZS00MWVkLWIyMTAtMWU3NDQyNzBjNjBm''',
+  # OpenAPI-контракт (дерево + история): example captchaToken в schema-contract.json —
+  # фейковый JWT (заголовок {"alg":"HS256"} + «solved»/«token» + литерал «sig»),
+  # entropy рулом generic-api-key даёт ложное срабатывание
+  '''eyJhbGciOiJIUzI1NiJ9\.[A-Za-z0-9_-]+\.sig''',
 ]
