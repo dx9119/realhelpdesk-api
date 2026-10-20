@@ -31,8 +31,6 @@
 | Docker | не нужен | нужен (контейнеры PostgreSQL/MinIO) |
 | `spring-boot-docker-compose` | выключен (`spring.docker.compose.enabled=false`) | выключен: контейнеры поднимает Testcontainers, а не compose-стек |
 
-Сейчас в проекте 78 `*Test` и 15 `*IT`, суммарно 656 тест-методов.
-
 - `@SpringBootTest` в `*Test` запрещён checkstyle (`NoSpringContextInUnitTests`) —
   полный контекст живёт только в `*IT`.
 - JPA-слайсы делятся по контурам: unit-слайсы (`CreatedAtPrePersistTest`,
