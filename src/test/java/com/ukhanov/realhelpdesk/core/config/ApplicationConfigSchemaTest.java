@@ -19,11 +19,12 @@ import org.yaml.snakeyaml.Yaml;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Контракт конфигурации приложения: {@code application.properties} и {@code application-domains.properties} (домены) — только схема из
- * обязательных {@code ${VAR}}, а значения лежат в двух местах: {@code infrastructure/.env.example} (шаблон рабочего
- * {@code infrastructure/.env} — весь несекретный набор — продукт, окружение, инфраструктура) и {@code services.app.environment} в
- * {@code infrastructure/docker-compose.yaml} (секреты через {@code ${VAR}} из {@code infrastructure/.env} и динамические ключи с дефолтами
- * {@code ${VAR:-...}}).
+ * Контракт конфигурации приложения: {@code application.properties} и {@code application-domains.properties} (домены) — обязательные
+ * переменные окружения вида {@code ${VAR}} или {@code ${VAR:default}}. Значения по умолчанию задаются в properties; секреты и специфичные
+ * для среды ключи (MAIL_HOST, CORS_ALLOWED_ORIGINS, DB_URL, MINIO_ENDPOINT) — без дефолтов, чтобы приложение валилось при отсутствии.
+ * {@code services.app.environment} в {@code infrastructure/docker-compose.yaml} содержит только секреты (с {@code ?}-синтаксисом для
+ * fail-fast) и динамические ключи, которые управляются инлайном make-целями. {@code infrastructure/.env.example} — шаблон всех переменных,
+ * используемых приложением.
  *
  * <p>
  * Файлы читаются напрямую по пути {@code src/main/resources/...}, а не с classpath, поэтому на результат не влияет даже
@@ -37,20 +38,20 @@ class ApplicationConfigSchemaTest {
     private static final Path APPLICATION_DOMAINS_PROPERTIES = Path.of("src", "main", "resources", "application-domains.properties");
     private static final Path DOCKER_COMPOSE = Path.of("infrastructure", "docker-compose.yaml");
     private static final Path ENV_EXAMPLE = Path.of("infrastructure", ".env.example");
-    /** Ровно ${VAR}: без дефолта после двоеточия и без литерала до/после. */
-    private static final Pattern SCHEMA_VALUE = Pattern.compile("\\$\\{[A-Z_][A-Z0-9_]*}");
-    private static final Pattern SCHEMA_VARIABLE = Pattern.compile("\\$\\{([A-Z_][A-Z0-9_]*)}");
+    /** Ровно ${VAR} или ${VAR:default} — без литерала до/после. Имя переменной — без дефолта. */
+    private static final Pattern SCHEMA_VALUE = Pattern.compile("\\$\\{[A-Z_][A-Z0-9_]*(?::[^}]*)?}");
+    /** ${VAR:default} — переменная с разумным дефолтом, не обязана быть в .env.example / compose. */
+    private static final Pattern SCHEMA_VALUE_WITH_DEFAULT = Pattern.compile("\\$\\{[A-Z_][A-Z0-9_]+:[^}]*}");
+    private static final Pattern SCHEMA_VARIABLE = Pattern.compile("\\$\\{([A-Z_][A-Z0-9_]*)");
 
     /**
      * Ключи, которым позволено содержать литерал: {@code spring.config.import} подключает application-domains.properties — значение это
      * адрес файла, а не переменная окружения. {@code spring.jpa.hibernate.ddl-auto} закреплён в коде (validate): режим, изменяющий схему,
      * нельзя оставить на откуп окружения — им управляют только миграции Liquibase; исключение отдельно охраняется
-     * {@link #ddlAuto_pinnedToValidate_neverDestructive()}. {@code server.ssl.enabled=${SSL_ENABLED:true}} — HTTPS включён по умолчанию
-     * (контейнер/рабочий контур), дефолт после двоеточия позволяет выключить его инлайном (IDEA-запуск: SSL_ENABLED=false), не добавляя
-     * ключ в infrastructure/.env. Остальные — константы, одинаковые для всех окружений: пул Hikari, батчи Hibernate, graceful shutdown и
-     * actuator (их меняют правкой файла с ревью, а не подменой env).
+     * {@link #ddlAuto_pinnedToValidate_neverDestructive()}. Остальные — константы, одинаковые для всех окружений: пул Hikari, батчи
+     * Hibernate, graceful shutdown и actuator (их меняют правкой файла с ревью, а не подменой env).
      */
-    private static final Set<String> NON_SCHEMA_KEYS = Set.of("spring.config.import", "spring.jpa.hibernate.ddl-auto", "server.ssl.enabled",
+    private static final Set<String> NON_SCHEMA_KEYS = Set.of("spring.config.import", "spring.jpa.hibernate.ddl-auto",
             // Пул соединений
             "spring.datasource.hikari.maximum-pool-size", "spring.datasource.hikari.minimum-idle",
             "spring.datasource.hikari.connection-timeout", "spring.datasource.hikari.max-lifetime",
@@ -62,10 +63,6 @@ class ApplicationConfigSchemaTest {
             "spring.datasource.hikari.pool-name", "spring.jpa.properties.hibernate.log_slow_query",
             // Корректное завершение (long polling + @Scheduled)
             "server.shutdown", "spring.lifecycle.timeout-per-shutdown-phase", "spring.task.scheduling.shutdown.await-termination",
-            // Трассировка
-            "management.tracing.sampling.probability", "management.opentelemetry.resource-attributes.service.name",
-            "management.opentelemetry.resource-attributes.service.version",
-            "management.opentelemetry.resource-attributes.deployment.environment", "management.opentelemetry.tracing.export.otlp.endpoint",
             // OTLP-транспорт закреплён: Boot 4 шлёт http/protobuf (порт 4318 Collector'а);
             // смена на grpc — осознанная правка с ревью, не подмена env
             "management.opentelemetry.tracing.export.otlp.transport",
@@ -83,9 +80,7 @@ class ApplicationConfigSchemaTest {
             "management.metrics.enable.tomcat", "management.metrics.enable.hibernate.cache", "management.metrics.enable.hibernate.entities",
             "management.metrics.enable.hibernate.collections", "management.metrics.enable.spring.security.filterchains",
             "management.metrics.enable.spring.security.http.secured.requests", "management.metrics.enable.spring.security.authorizations",
-            "management.metrics.enable.spring.data.repository", "management.server.port", "management.server.address",
-            "management.server.ssl.enabled", "observability.prometheus.auth.enabled", "observability.prometheus.auth.username",
-            "observability.prometheus.auth.password",
+            "management.metrics.enable.spring.data.repository", "management.server.ssl.enabled", "observability.prometheus.auth.enabled",
             // Почта: health-группа вне readiness (таймауты SMTP — env-управляемые ключи схемы)
             "management.endpoint.health.group.smtp.include");
 
@@ -142,15 +137,22 @@ class ApplicationConfigSchemaTest {
     }
 
     @Test
-    @DisplayName("Переменные схемы и ключи infrastructure/docker-compose.yaml + infrastructure/.env.example совпадают один в один")
+    @DisplayName("Переменные схемы без дефолтов и ключи infrastructure/docker-compose.yaml + infrastructure/.env.example совпадают")
     void schemaVariables_declaredInComposeOrEnvExample_noUnresolvedVariables() throws Exception {
 
         // given
         // when
         Properties schema = loadSchema();
 
-        Set<String> schemaVariables = schema.stringPropertyNames().stream().map(schema::getProperty)
+        Set<String> allVariables = schema.stringPropertyNames().stream().map(schema::getProperty)
                 .flatMap(value -> variables(value).stream()).collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // Переменные без дефолта обязательны к объявлению: у них нет значения в коде, и незаданная
+        // подстановка валит старт. Переменные с ${VAR:default} объявлять не нужно — значение
+        // возьмётся из схемы, а .env.example остаётся коротким.
+        Set<String> requiredVariables = schema.stringPropertyNames().stream().map(schema::getProperty)
+                .filter(value -> !SCHEMA_VALUE_WITH_DEFAULT.matcher(value).matches()).flatMap(value -> variables(value).stream())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Set<String> composeKeys = composeAppEnvironment();
         Set<String> envExampleKeys = appKeysOfEnvExample();
@@ -162,8 +164,10 @@ class ApplicationConfigSchemaTest {
 
         Set<String> declaredValues = new LinkedHashSet<>(composeKeys);
         declaredValues.addAll(envExampleKeys);
-        assertThat(declaredValues).as("схема application.properties + application-domains.properties и ключи compose + .env.example")
-                .containsExactlyInAnyOrderElementsOf(schemaVariables);
+        assertThat(declaredValues).as("объявленный ключ не читается схемой application*.properties — лишний в окружении")
+                .isSubsetOf(allVariables);
+        assertThat(declaredValues).as("обязательные переменные (без дефолта) объявлены в compose + .env.example")
+                .containsAll(requiredVariables);
     }
 
     @Test
