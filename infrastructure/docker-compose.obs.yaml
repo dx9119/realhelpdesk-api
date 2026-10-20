@@ -1,0 +1,150 @@
+# Наблюдаемость: Mimir, Tempo, OTel Collector, Loki, Alloy.
+# Подключается как дополнительный файл:
+#   make obs-up
+#   docker compose -f docker-compose.yaml -f docker-compose.obs.yaml ...
+#
+# Топология: приложение шлёт трейсы OTLP → otel-collector → tempo; логи
+# (stdout json-file приложения) тянет alloy → loki; метрики alloy скрейпит
+# с app:8081 и шлёт remote_write в mimir; Mimir отдаёт метрики по
+# Prometheus-совместимому API (localhost:9090/api/v1/query и /prometheus).
+
+name: realhelpdesk
+
+# Якорь объявлен и в docker-compose.yaml: compose НЕ разделяет якоря между
+# файлами — каждый файл парсится отдельно, ссылка *default-logging без
+# локального объявления валит парс.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+volumes:
+  mimir_data:
+  tempo_data:
+  loki_data:
+  alloy_data:
+
+services:
+  # ==========================================================================
+  # Профиль monitoring: Mimir, Tempo, OTel Collector, Loki, Alloy
+  # ==========================================================================
+  mimir:
+    profiles: [monitoring]
+    # Mimir (monolithic): хранение метрик, Prometheus-совместимый API, ruler.
+    # Версия закреплена: обновление — осознанная правка с ревью, не latest.
+    image: grafana/mimir:2.16.0
+    mem_limit: 512m
+    ports:
+      # Только loopback: query API /prometheus и ruler (хостовой порт 9090,
+      # как у прежнего Prometheus — make obs-alerts и curl не меняются по адресу).
+      - "127.0.0.1:9090:8090"
+    volumes:
+      - ./observability/mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro
+      # Правила алертов (Prometheus-формат); проверка — promtool check rules.
+      # Раскладка local store: <dir>/<tenant>/<файл>, tenant=anonymous.
+      - ./observability/mimir/rules:/etc/mimir/rules:ro
+      # Fallback-конфиг встроенного Alertmanager (storage пуст — без него 412).
+      - ./observability/mimir/alertmanager-fallback.yml:/etc/mimir/alertmanager-fallback.yml:ro
+      - mimir_data:/data
+    command: ["-config.file=/etc/mimir/mimir.yaml"]
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+    logging: *default-logging
+
+  otel-collector:
+    profiles: [monitoring]
+    # Версия закреплена; конфиг — OTLP → batch → Tempo (см. observability/otel-collector/).
+    image: otel/opentelemetry-collector-contrib:0.162.0
+    mem_limit: 256m
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    command: ["--config=/etc/otelcol/config.yaml"]
+    depends_on:
+      tempo:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+    logging: *default-logging
+
+  tempo:
+    profiles: [monitoring]
+    # Хранилище трейсов (filesystem + WAL); retention 48h задан в tempo.yaml.
+    image: grafana/tempo:2.8.0
+    mem_limit: 512m
+    ports:
+      # Только loopback, для отладки (/ready, поиск trace по API).
+      - "127.0.0.1:3200:3200"
+    volumes:
+      - ./observability/tempo/tempo.yaml:/etc/tempo/config.yaml:ro
+      - tempo_data:/var/tempo
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
+    logging: *default-logging
+
+  loki:
+    profiles: [monitoring]
+    # Single-binary, filesystem-хранилище; слушает только внутреннюю сеть + loopback.
+    # root: образ Loki по умолчанию идёт под nobody и не может создать /var/loki/{chunks,rules}
+    # в новом volume; локальный dev-стенд, сеть loopback.
+    image: grafana/loki:3.5.0
+    user: "0:0"
+    mem_limit: 256m
+    ports:
+      # Только loopback, для отладки (/ready, query_range).
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./observability/loki/loki.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/var/loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
+    logging: *default-logging
+
+  alloy:
+    profiles: [monitoring]
+    # Сбор логов приложения (docker json-file, фильтр compose-метки service=app) → Loki
+    # и скрейп метрик (app:8081/actuator/prometheus, HTTP Basic) → remote_write в Mimir.
+    # root нужен для доступа к /var/run/docker.sock — локальный dev-стенд.
+    image: grafana/alloy:v1.12.2
+    user: "0:0"
+    mem_limit: 128m
+    # Креды скрейпа: sys.env() в config.alloy читает METRICS_USER/METRICS_PASSWORD.
+    env_file:
+      - ./.env
+    environment:
+      METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy
+    command: ["run", "--storage.path=/var/lib/alloy", "/etc/alloy/config.alloy"]
+    depends_on:
+      loki:
+        condition: service_healthy
+      mimir:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - backend
+    logging: *default-logging

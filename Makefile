@@ -11,16 +11,15 @@ E2E_DIR ?= scripts
 # Ревизия git для LABEL образа (org.opencontainers.image.revision)
 GIT_SHA ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 
-# Единый compose-файл + профили (infra/local-tools/app/monitoring/load — см. шапку
-# infrastructure/docker-compose.yaml). Наборы профилей передаются явно:
-# compose не сам включает профили зависимостей (depends_on на сервис с
-# непривязанным профилем — ошибка валидации).
-#
-# Локальные цели подключают docker-compose.override.yaml (порты БД/MinIO на
-# loopback хоста — для IDEA/psql/MinIO-консоли); рабочий контур (COMPOSE_PROD)
-# состоит только из base + prod: оверлей не участвует, на хост не публикуется
-# ничего.
+# Compose-файлы: base — ядро (app, postgres, minio, local-tools),
+# obs — наблюдаемость (mimir, tempo, loki, otel-collector, alloy),
+# load — k6. Локальные цели подключают docker-compose.override.yaml
+# (порты БД/MinIO на loopback хоста — для IDEA/psql/MinIO-консоли).
+# Рабочий контур (COMPOSE_PROD) — base + prod: оверлей не участвует,
+# на хост не публикуется ничего.
 COMPOSE ?= docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml
+COMPOSE_OBS ?= docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.obs.yaml -f infrastructure/docker-compose.override.yaml
+COMPOSE_LOAD ?= docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.load.yaml -f infrastructure/docker-compose.override.yaml
 # Рабочий контур: override без сборки на сервере (pull из ghcr.io)
 COMPOSE_PROD ?= docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml
 PROFILES_DEPS ?= --profile infra --profile local-tools
@@ -95,7 +94,7 @@ apply-config: ## Применить изменения .env к запущенн�
 	@# Профиль задаётся не в .env, а инлайном (profile-local/keycloak): без переноса
 	@# значения из работающего контейнера пересоздание вернуло бы .env/дефолт и
 	@# молча сменило контур. Пустой profile (app не запущен) даст compose-дефолт.
-	@profile=$($(COMPOSE) $(PROFILES_ALL) exec -T app printenv SPRING_PROFILES_ACTIVE 2>/dev/null | tr -d ''); 
+	@profile=$($(COMPOSE) $(PROFILES_ALL) exec -T app printenv SPRING_PROFILES_ACTIVE 2>/dev/null | tr -d '');
 	SPRING_PROFILES_ACTIVE="${profile}" $(COMPOSE) $(PROFILES_ALL) up -d --force-recreate --no-deps app
 
 docker-build: ## Собрать docker-образ приложения (с меткой GIT_SHA)
@@ -136,13 +135,13 @@ restore: env ## Восстановить БД из дампа: make restore BACK
 ## --- Наблюдаемость (подробности: docs/observability/overview.md) ---
 
 obs-up: env ## Поднять стек + наблюдаемость (профили +monitoring; Mimir :9090, Loki :3100, Tempo :3200)
-	OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces $(COMPOSE) $(PROFILES_OBS) up --build -d --remove-orphans
+	OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces $(COMPOSE_OBS) $(PROFILES_OBS) up --build -d --remove-orphans
 
 obs-down: ## Остановить стек с наблюдаемостью (все профили, томы целы)
-	$(COMPOSE) $(PROFILES_ALL) down
+	$(COMPOSE_OBS) $(PROFILES_OBS) down
 
 obs-reload: ## Перечитать правила алертов Mimir (нужен obs-up; mimir/rules/anonymous/realhelpdesk.yml)
-	$(COMPOSE) $(PROFILES_OBS) restart mimir && echo "Mimir перезапущен — правила перечитаны"
+	$(COMPOSE_OBS) $(PROFILES_OBS) restart mimir && echo "Mimir перезапущен — правила перечитаны"
 
 obs-alerts: ## Текущие состояния алертов Mimir (нужен obs-up)
 	curl -s localhost:9090/prometheus/api/v1/alerts | grep -oE '"alertname":"[^"]+"|"state":"[^"]+"' | paste - - || echo "Mimir недоступен"
@@ -202,7 +201,7 @@ check-image-vuln: ci-image ## trivy: уязвимости образа CRITICAL/
 	  -v trivy-cache:/root/.cache/trivy \
 	  aquasec/trivy:0.58.2 image --timeout 15m --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $(CI_IMAGE)
 
-check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
+check-c	i: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
 
 ## --- Нагрузочное тестирование (k6, scripts/load/) ---
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это
@@ -214,7 +213,7 @@ up-load: env ## Поднять стек для нагрузки (профиль 
 	# инлайном: .env не меняется.
 	SPRING_PROFILES_ACTIVE=dev \
 	TRUST_PROXY_HEADERS=true OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces \
-	$(COMPOSE) $(PROFILES_LOCAL) up --build -d --wait
+	$(COMPOSE_LOAD) $(PROFILES_LOCAL) up --build -d --wait
 
 load: up-load ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
 	bash scripts/load/run.sh

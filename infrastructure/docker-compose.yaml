@@ -1,28 +1,22 @@
-# Единый compose всего стека — один файл, различия между средами и
-# секреты живут в infrastructure/.env (шаблон — infrastructure/.env.example).
+# Ядро стека: приложение, БД, хранилище, локальные сервисы разработки.
 #
 # Профили (запуск — только через make, набор профилей передаётся явно):
+#   app         — приложение
 #   infra       — postgres, minio: внутренняя сеть data (internal), портов на хост нет
 #   local-tools — smtp4dev и keycloak (локальные сервисы разработки)
-#   app         — приложение
-#   monitoring  — mimir, tempo, loki, otel-collector, alloy
-#   load        — k6
 #
 # make up-deps     → infra + local-tools        (зависимости для запуска app из IDEA)
 # make up          → infra + local-tools + app  (локальная разработка)
 # make up-prod     → infra + app                (рабочий контур: без local-tools/monitoring)
-# make obs-up      → infra + local-tools + app + monitoring
-# make down        → все профили (останавливает что угодно)
 #
 # Порты БД/MinIO на loopback хоста (для IDEA/psql/MinIO-консоли) публикует
 # infrastructure/docker-compose.override.yaml — локальный оверлей, который
 # make подключает явно (-f) для локальных целей; make up-prod (base + prod)
 # его игнорирует, поэтому в рабочем контуре на хост не выходит ничего.
 #
-# Профиль приложения (SPRING_PROFILES_ACTIVE в infrastructure/.env) — dev/prod,
-# по умолчанию + keycloak: токены выпускает сервис keycloak, приложение только
-# проверяет подпись по JWK. Без keycloak работает внутренний JWT-контур
-# приложения (cookie, /api/v1/auth/*) — им пользуются сценарии scripts/e2e-*.sh.
+# Профиль приложения (SPRING_PROFILES_ACTIVE) — dev/prod. По умолчанию — dev,
+# внутренний JWT-контур приложения (cookie, /api/v1/auth/*). Для Keycloak:
+# make profile-keycloak передаёт dev,keycloak инлайном (см. Makefile).
 # Сервис keycloak живёт в профиле local-tools, поэтому make up-prod поднимает
 # приложение без него: в рабочем контуре Keycloak разворачивается отдельно (см. README).
 #
@@ -31,14 +25,15 @@
 #             портов на хост не имеет — изолированы БД и хранилище файлов
 #             (в локальном оверлее postgres/minio дополнительно подключаются
 #             к backend — только так Docker публикует их порты на хост)
-#   backend — обычная: app (в т.ч. наружу — SMTP/прокси), smtp, keycloak и
-#             наблюдаемость; k6 ходит в app по ней
+#   backend — обычная: app (в т.ч. наружу — SMTP/прокси), smtp, keycloak,
+#             наблюдаемость (подключается через docker-compose.obs.yaml)
+#
+# Наблюдаемость и нагрузка подключаются как отдельные файлы:
+#   docker compose -f docker-compose.yaml -f docker-compose.obs.yaml  (obs)
+#   docker compose -f docker-compose.yaml -f docker-compose.load.yaml  (load)
 #
 # Секреты и настройки среды: только ${VAR} из infrastructure/.env — compose
-# валит старт при пустом обязательном секрете (?-синтаксис). Три динамических
-# ключа (OTLP_TRACING_ENDPOINT, TRUST_PROXY_HEADERS, CLIENT_IP_FORWARDED_INDEX)
-# задаются интерполяцией с дефолтами: make obs-up / up-load передают их
-# инлайном, постоянно — в infrastructure/.env.
+# валит старт при пустом обязательном секрете (?-синтаксис).
 
 # Имя проекта compose: фиксировано, чтобы тома и сети пережили переход
 # на единый файл (имена томов realhelpdesk_* не меняются).
@@ -57,6 +52,11 @@ networks:
   data:
     internal: true
   backend:
+
+volumes:
+  postgres_data:
+  keycloak_postgres_data:
+  minio_data:
 
 services:
   # ==========================================================================
@@ -310,172 +310,3 @@ services:
       - backend
       - data
     logging: *default-logging
-
-  # ==========================================================================
-  # ==========================================================================
-  # Профиль monitoring: Mimir, Tempo, OTel Collector, Loki, Alloy
-  # ==========================================================================
-  # ==========================================================================
-  # Топология: приложение шлёт трейсы OTLP → otel-collector → tempo; логи
-  # (stdout json-file приложения) тянет alloy → loki; метрики alloy скрейпит
-  # с app:8081 и шлёт remote_write в mimir; Mimir отдаёт метрики по
-  # Prometheus-совместимому API (localhost:9090/api/v1/query и /prometheus).
-  mimir:
-    profiles: [monitoring]
-    # Mimir (monolithic): хранение метрик, Prometheus-совместимый API, ruler.
-    # Версия закреплена: обновление — осознанная правка с ревью, не latest.
-    image: grafana/mimir:2.16.0
-    mem_limit: 512m
-    ports:
-      # Только loopback: query API /prometheus и ruler (хостовой порт 9090,
-      # как у прежнего Prometheus — make obs-alerts и curl не меняются по адресу).
-      - "127.0.0.1:9090:8090"
-    volumes:
-      - ./observability/mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro
-      # Правила алертов (Prometheus-формат); проверка — promtool check rules.
-      # Раскладка local store: <dir>/<tenant>/<файл>, tenant=anonymous.
-      - ./observability/mimir/rules:/etc/mimir/rules:ro
-      # Fallback-конфиг встроенного Alertmanager (storage пуст — без него 412).
-      - ./observability/mimir/alertmanager-fallback.yml:/etc/mimir/alertmanager-fallback.yml:ro
-      - mimir_data:/data
-    command: ["-config.file=/etc/mimir/mimir.yaml"]
-    depends_on:
-      app:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - backend
-    logging: *default-logging
-
-  otel-collector:
-    profiles: [monitoring]
-    # Версия закреплена; конфиг — OTLP → batch → Tempo (см. observability/otel-collector/).
-    image: otel/opentelemetry-collector-contrib:0.162.0
-    mem_limit: 256m
-    volumes:
-      - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
-    command: ["--config=/etc/otelcol/config.yaml"]
-    depends_on:
-      tempo:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - backend
-    logging: *default-logging
-
-  tempo:
-    profiles: [monitoring]
-    # Хранилище трейсов (filesystem + WAL); retention 48h задан в tempo.yaml.
-    image: grafana/tempo:2.8.0
-    mem_limit: 512m
-    ports:
-      # Только loopback, для отладки (/ready, поиск trace по API).
-      - "127.0.0.1:3200:3200"
-    volumes:
-      - ./observability/tempo/tempo.yaml:/etc/tempo/config.yaml:ro
-      - tempo_data:/var/tempo
-    command: ["-config.file=/etc/tempo/config.yaml"]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3200/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - backend
-    logging: *default-logging
-
-  loki:
-    profiles: [monitoring]
-    # Single-binary, filesystem-хранилище; слушает только внутреннюю сеть + loopback.
-    # root: образ Loki по умолчанию идёт под nobody и не может создать /var/loki/{chunks,rules}
-    # в новом volume; локальный dev-стенд, сеть loopback.
-    image: grafana/loki:3.5.0
-    user: "0:0"
-    mem_limit: 256m
-    ports:
-      # Только loopback, для отладки (/ready, query_range).
-      - "127.0.0.1:3100:3100"
-    volumes:
-      - ./observability/loki/loki.yaml:/etc/loki/local-config.yaml:ro
-      - loki_data:/var/loki
-    command: ["-config.file=/etc/loki/local-config.yaml"]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - backend
-    logging: *default-logging
-
-  alloy:
-    profiles: [monitoring]
-    # Сбор логов приложения (docker json-file, фильтр compose-метки service=app) → Loki
-    # и скрейп метрик (app:8081/actuator/prometheus, HTTP Basic) → remote_write в Mimir.
-    # root нужен для доступа к /var/run/docker.sock — локальный dev-стенд.
-    image: grafana/alloy:v1.12.2
-    user: "0:0"
-    mem_limit: 128m
-    # Креды скрейпа: sys.env() в config.alloy читает METRICS_USER/METRICS_PASSWORD.
-    env_file:
-      - ./.env
-    environment:
-      METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
-    volumes:
-      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - alloy_data:/var/lib/alloy
-    command: ["run", "--storage.path=/var/lib/alloy", "/etc/alloy/config.alloy"]
-    depends_on:
-      loki:
-        condition: service_healthy
-      mimir:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - backend
-    logging: *default-logging
-
-  # ==========================================================================
-  # Профиль load: нагрузочный прогон (scripts/load/, k6)
-  # ==========================================================================
-  k6:
-    image: grafana/k6:2.3.0
-    profiles: [load]
-    depends_on:
-      app:
-        condition: service_healthy
-    networks:
-      - backend
-    volumes:
-      - ../scripts/load:/scripts:ro
-    working_dir: /scripts
-    entrypoint: ["k6"]
-    command: ["run", "/scripts/user-journey.js"]
-    environment:
-      BASE_URL: https://app:8443
-      POOL_SIZE: ${POOL_SIZE:-8}
-      TARGET_VUS: ${TARGET_VUS:-10}
-      DURATION: ${DURATION:-5m}
-      THINK_TIME: ${THINK_TIME:-1}
-      WAIT_TIMEOUT_SEC: ${WAIT_TIMEOUT_SEC:-3}
-      # RUN_ID подставляет scripts/load/run.sh через docker compose run -e
-      RUN_ID: ${RUN_ID:-local}
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-volumes:
-  postgres_data:
-  keycloak_postgres_data:
-  minio_data:
-  mimir_data:
-  tempo_data:
-  loki_data:
-  alloy_data:

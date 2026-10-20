@@ -1,0 +1,47 @@
+# Нагрузочное тестирование: k6.
+# Подключается как дополнительный файл:
+#   make load / make load-smoke
+#   docker compose -f docker-compose.yaml -f docker-compose.load.yaml ...
+#
+# Прогон сидирует пул пользователей через /api/v1/auth/register — это
+# внутренний JWT-контур, поэтому up-load переводит приложение на профиль dev.
+
+name: realhelpdesk
+
+# Якорь объявлен и в docker-compose.yaml: compose НЕ разделяет якоря между
+# файлами — каждый файл парсится отдельно, ссылка *default-logging без
+# локального объявления валит парс.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  k6:
+    image: grafana/k6:2.3.0
+    profiles: [load]
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - backend
+    volumes:
+      - ../scripts/load:/scripts:ro
+    working_dir: /scripts
+    entrypoint: ["k6"]
+    command: ["run", "/scripts/user-journey.js"]
+    environment:
+      BASE_URL: https://app:8443
+      POOL_SIZE: ${POOL_SIZE:-8}
+      TARGET_VUS: ${TARGET_VUS:-10}
+      DURATION: ${DURATION:-5m}
+      THINK_TIME: ${THINK_TIME:-1}
+      WAIT_TIMEOUT_SEC: ${WAIT_TIMEOUT_SEC:-3}
+      # RUN_ID подставляет scripts/load/run.sh через docker compose run -e
+      RUN_ID: ${RUN_ID:-local}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
