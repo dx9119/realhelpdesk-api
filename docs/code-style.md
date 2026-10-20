@@ -128,8 +128,7 @@ import static ...;               // static — всегда в конце
 ## Тесты
 
 Правила ниже блокируются checkstyle (`config/checkstyle/checkstyle.xml`) — нарушение валит
-сборку; архитектура unit/IT — в [`testing.md`](testing.md), план внедрения — в
-[`testing-standards-rollout.md`](testing-standards-rollout.md).
+сборку; архитектура unit/IT и стандарты стиля — в [`testing.md`](testing.md).
 
 - **JUnit 5 + Mockito + AssertJ**. Утверждения — только AssertJ: статические импорты
   `org.junit.jupiter.api.Assertions.*` запрещены (`IllegalImport`), как и JUnit 4/TestNG.
