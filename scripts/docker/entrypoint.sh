@@ -14,7 +14,7 @@ set -eu
 KEY_STORE_FILE=/app/ssl/keystore.p12
 
 if [[ ! -f "$KEY_STORE_FILE" ]]; then
-    : "${KEY_STORE_PASS:?KEY_STORE_PASS is required - copy infrastructure/.env.example to infrastructure/.env}"
+    : "${KEY_STORE_PASS:?KEY_STORE_PASS is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
     : "${KEY_STORE_ALIAS:?KEY_STORE_ALIAS is required - set it in services.app.environment}"
 
     # Пароли уходят в keytool через переменную окружения (:env), а не как

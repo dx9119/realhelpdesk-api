@@ -31,13 +31,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code src/test/resources/application.properties}, который перекрывает main-конфиг в тестовом класслоаде.
  * </p>
  */
-@DisplayName("Конфигурация: схема application*.properties, infrastructure/docker-compose.yaml и infrastructure/.env.example")
+@DisplayName("Конфигурация: схема application*.properties, infrastructure/docker-compose.yaml и infrastructure/*.env.example")
 class ApplicationConfigSchemaTest {
 
     private static final Path APPLICATION_PROPERTIES = Path.of("src", "main", "resources", "application.properties");
     private static final Path APPLICATION_DOMAINS_PROPERTIES = Path.of("src", "main", "resources", "application-domains.properties");
     private static final Path DOCKER_COMPOSE = Path.of("infrastructure", "docker-compose.yaml");
-    private static final Path ENV_EXAMPLE = Path.of("infrastructure", ".env.example");
+    private static final Path ENV_DEV_EXAMPLE = Path.of("infrastructure", ".env.dev.example");
+    private static final Path ENV_PROD_EXAMPLE = Path.of("infrastructure", ".env.prod.example");
     /** Ровно ${VAR} или ${VAR:default} — без литерала до/после. Имя переменной — без дефолта. */
     private static final Pattern SCHEMA_VALUE = Pattern.compile("\\$\\{[A-Z_][A-Z0-9_]*(?::[^}]*)?}");
     /** ${VAR:default} — переменная с разумным дефолтом, не обязана быть в .env.example / compose. */
@@ -92,7 +93,7 @@ class ApplicationConfigSchemaTest {
             Path.of("src", "main", "resources", "application-domains.properties"),
             Path.of("src", "main", "resources", "application-dev.properties"),
             Path.of("src", "main", "resources", "application-host.properties"),
-            Path.of("src", "main", "resources", "application-prod.properties"), DOCKER_COMPOSE, ENV_EXAMPLE);
+            Path.of("src", "main", "resources", "application-prod.properties"), DOCKER_COMPOSE, ENV_DEV_EXAMPLE, ENV_PROD_EXAMPLE);
 
     /** Любой ddl-auto в конфигурации среды: имя ключа и режим после {@code =}/{@code :}, кавычки опциональны. */
     private static final Pattern DDL_AUTO_ASSIGNMENT = Pattern.compile("(?i)ddl[-_]auto\\s*[=:]\\s*\"?([a-z-]+)\"?");
@@ -109,15 +110,15 @@ class ApplicationConfigSchemaTest {
     private static final Set<String> NON_SCHEMA_ENV_KEYS = Set.of("POSTGRES_USER", "POSTGRES_DB", "PORT");
 
     /**
-     * Секреты в шаблоне {@code infrastructure/.env.example}: он содержит и базовые значения, и пустые строки секретов — поэтому при сверке
-     * со схемой они исключаются (место секретов в контракте — {@code services.app.environment} compose-файла).
-     * {@code KEYCLOAK_ADMIN_PASSWORD} — пароль начального администратора Keycloak: значение задаёт хост, а в контейнер его передаёт
-     * {@code services.keycloak.environment} ({@code ${KEYCLOAK_ADMIN_PASSWORD:?...}}), как и остальные секреты.
-     * {@code KEYCLOAK_DB_PASSWORD} — пароль отдельного кластера PostgreSQL для Keycloak.
+     * Секреты приложения в шаблонах {@code infrastructure/.env.{dev,prod}.example}: они содержат и базовые значения, и пустые строки
+     * секретов — поэтому при сверке со схемой они исключаются (место секретов в контракте — {@code services.app.environment}
+     * compose-файла). Присутствуют в обоих шаблонах.
      */
     private static final Set<String> ENV_EXAMPLE_SECRET_KEYS = Set.of("JWT_SECRET", "CAPTCHA_HMAC_SECRET", "DB_PASSWORD", "MAIL_PASSWORD",
-            "KEY_STORE_PASS", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD", "KEYCLOAK_ADMIN_PASSWORD",
-            "KEYCLOAK_DB_PASSWORD");
+            "KEY_STORE_PASS", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD");
+
+    /** Секреты локального Keycloak: только dev-шаблон — в рабочем контуре Keycloak внешний и его креды в compose не входят. */
+    private static final Set<String> DEV_ONLY_SECRET_KEYS = Set.of("KEYCLOAK_ADMIN_PASSWORD", "KEYCLOAK_DB_PASSWORD");
 
     @Test
     @DisplayName("application*.properties — чистая схема: только обязательные ${VAR}, без дефолтов и литералов")
@@ -155,18 +156,20 @@ class ApplicationConfigSchemaTest {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Set<String> composeKeys = composeAppEnvironment();
-        Set<String> envExampleKeys = appKeysOfEnvExample();
+        Set<String> devEnvKeys = appKeysOfEnvExample(ENV_DEV_EXAMPLE, allExampleSecrets());
+        Set<String> prodEnvKeys = appKeysOfEnvExample(ENV_PROD_EXAMPLE, ENV_EXAMPLE_SECRET_KEYS);
+
+        Set<String> declaredValues = new LinkedHashSet<>(devEnvKeys);
+        declaredValues.addAll(prodEnvKeys);
 
         // then
-        assertThat(composeKeys.stream().filter(envExampleKeys::contains).toList())
-                .as("одно значение может быть задано только в одном месте: infrastructure/.env.example или services.app.environment")
-                .isEmpty();
+        assertThat(composeKeys.stream().filter(declaredValues::contains).toList())
+                .as("одно значение может быть задано только в одном месте: *.env.example или services.app.environment").isEmpty();
 
-        Set<String> declaredValues = new LinkedHashSet<>(composeKeys);
-        declaredValues.addAll(envExampleKeys);
+        declaredValues.addAll(composeKeys);
         assertThat(declaredValues).as("объявленный ключ не читается схемой application*.properties — лишний в окружении")
                 .isSubsetOf(allVariables);
-        assertThat(declaredValues).as("обязательные переменные (без дефолта) объявлены в compose + .env.example")
+        assertThat(declaredValues).as("обязательные переменные (без дефолта) объявлены в compose + *.env.example")
                 .containsAll(requiredVariables);
     }
 
@@ -184,8 +187,8 @@ class ApplicationConfigSchemaTest {
 
         assertThat(composeAppEnvironment()).as("переменной ddl-auto в infrastructure/docker-compose.yaml быть не должно")
                 .doesNotContain("JPA_DDL_AUTO");
-        assertThat(appKeysOfEnvExample()).as("переменной ddl-auto в infrastructure/.env.example быть не должно")
-                .doesNotContain("JPA_DDL_AUTO");
+        assertThat(appKeysOfEnvExample(ENV_DEV_EXAMPLE, allExampleSecrets()))
+                .as("переменной ddl-auto в infrastructure/.env.dev.example быть не должно").doesNotContain("JPA_DDL_AUTO");
 
         for (Path file : ENVIRONMENT_FILES) {
             assertThat(Files.exists(file)).as(file.toString()).isTrue();
@@ -245,15 +248,22 @@ class ApplicationConfigSchemaTest {
         }
     }
 
+    /** Все секреты, которые должны быть в .env.dev.example (общие + dev-специфичные Keycloak). */
+    private static Set<String> allExampleSecrets() {
+        Set<String> s = new LinkedHashSet<>(ENV_EXAMPLE_SECRET_KEYS);
+        s.addAll(DEV_ONLY_SECRET_KEYS);
+        return s;
+    }
+
     /**
-     * Ключи приложения в {@code infrastructure/.env.example}: только имя до первого {@code =}, комментарии и пустые строки пропускаются.
+     * Ключи приложения в {@code infrastructure/*.env.example}: только имя до первого {@code =}, комментарии и пустые строки пропускаются.
      * Значения здесь не проверяются — их смысл зависит от ключа, а не от формы. JVM-флаги, инфраструктурные ключи compose и секреты (их
      * место в {@code services.app.environment}) из контракта исключаются.
      */
-    private Set<String> appKeysOfEnvExample() throws Exception {
-        assertThat(Files.exists(ENV_EXAMPLE)).as(ENV_EXAMPLE.toString()).isTrue();
+    private Set<String> appKeysOfEnvExample(Path envFile, Set<String> expectedSecrets) throws Exception {
+        assertThat(Files.exists(envFile)).as(envFile.toString()).isTrue();
         Set<String> keys = new LinkedHashSet<>();
-        for (String line : Files.readAllLines(ENV_EXAMPLE, StandardCharsets.UTF_8)) {
+        for (String line : Files.readAllLines(envFile, StandardCharsets.UTF_8)) {
             String trimmed = line.trim();
             if (trimmed.isEmpty() || trimmed.startsWith("#")) {
                 continue;
@@ -262,8 +272,8 @@ class ApplicationConfigSchemaTest {
             assertThat(separator).as("строка без = : " + line).isPositive();
             keys.add(trimmed.substring(0, separator).trim());
         }
-        assertThat(keys).as(ENV_EXAMPLE.toString()).isNotEmpty();
-        assertThat(keys).as("шаблон .env.example содержит все секреты").containsAll(ENV_EXAMPLE_SECRET_KEYS);
+        assertThat(keys).as(envFile.toString()).isNotEmpty();
+        assertThat(keys).as(envFile.toString() + ": содержит все секреты").containsAll(expectedSecrets);
         return keys.stream().filter(key -> NON_SCHEMA_ENV_PREFIXES.stream().noneMatch(key::startsWith))
                 .filter(key -> !NON_SCHEMA_ENV_KEYS.contains(key)).filter(key -> !ENV_EXAMPLE_SECRET_KEYS.contains(key))
                 .collect(Collectors.toCollection(LinkedHashSet::new));

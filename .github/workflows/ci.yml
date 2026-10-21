@@ -74,7 +74,7 @@ jobs:
           cache: maven
       - name: Секреты CI (временные, только для запуска)
         run: |
-          cp infrastructure/.env.example infrastructure/.env
+          cp infrastructure/.env.dev.example infrastructure/.env
           sed -i \
             -e "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -base64 32)|" \
             -e "s|^CAPTCHA_HMAC_SECRET=.*|CAPTCHA_HMAC_SECRET=$(openssl rand -base64 32)|" \

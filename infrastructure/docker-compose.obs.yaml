@@ -133,7 +133,7 @@ services:
     env_file:
       - ./.env
     environment:
-      METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
     volumes:
       - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro

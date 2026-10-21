@@ -97,14 +97,14 @@ services:
       # Имена совпадают с переменными .env (переименований DB_PASSWORD→DB_PASS
       # и т.п. больше нет): env_file передал бы их и сам, но environment с
       # ?-синтаксисом даёт fail-fast на старте compose при пустом секрете.
-      KEY_STORE_PASS: "${KEY_STORE_PASS:?KEY_STORE_PASS is required - copy infrastructure/.env.example to infrastructure/.env}"
-      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
-      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required - copy infrastructure/.env.example to infrastructure/.env}"
-      CAPTCHA_HMAC_SECRET: "${CAPTCHA_HMAC_SECRET:?CAPTCHA_HMAC_SECRET is required - copy infrastructure/.env.example to infrastructure/.env}"
+      KEY_STORE_PASS: "${KEY_STORE_PASS:?KEY_STORE_PASS is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
+      CAPTCHA_HMAC_SECRET: "${CAPTCHA_HMAC_SECRET:?CAPTCHA_HMAC_SECRET is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
       MAIL_PASSWORD: "${MAIL_PASSWORD-}"
-      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required - copy infrastructure/.env.example to infrastructure/.env}"
-      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
-      METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
+      METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
       # Профиль приложения: переключается инлайном (make profile-local / profile-keycloak)
       # или переменной окружения хоста. Дефолт в application.properties — 'dev'.
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-dev}"
@@ -152,7 +152,7 @@ services:
       # infrastructure/.env (POSTGRES_USER/POSTGRES_DB), пароль — секрет.
       POSTGRES_USER: "${POSTGRES_USER:-user}"
       POSTGRES_DB: "${POSTGRES_DB:-desk}"
-      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -173,8 +173,8 @@ services:
     volumes:
       - minio_data:/data
     environment:
-      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required - copy infrastructure/.env.example to infrastructure/.env}"
-      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -235,7 +235,7 @@ services:
     environment:
       POSTGRES_USER: keycloak
       POSTGRES_DB: "${KEYCLOAK_DB:-keycloak}"
-      POSTGRES_PASSWORD: "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      POSTGRES_PASSWORD: "${KEYCLOAK_DB_PASSWORD:-}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U keycloak -d ${KEYCLOAK_DB:-keycloak}"]
       interval: 5s
@@ -274,7 +274,7 @@ services:
       KC_DB_URL_PORT: "5432"
       KC_DB_URL_DATABASE: "${KEYCLOAK_DB:-keycloak}"
       KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required - copy infrastructure/.env.example to infrastructure/.env}"
+      KC_DB_PASSWORD: "${KEYCLOAK_DB_PASSWORD:-}"
       # KC_HOSTNAME — адрес, который попадает в issuer (iss) токена и в ссылки
       # страницы входа: его видит браузер, поэтому loopback с портом на хосте.
       # Приложение при этом проверяет подпись по KC_JWK_SET_URI — адресу

@@ -3,17 +3,17 @@
 # Инициализация локальных секретов infrastructure/.env (make env).
 #
 # Что делает:
-#   1. если infrastructure/.env нет — копирует шаблон infrastructure/.env.example;
+#   1. если infrastructure/.env нет — копирует шаблон infrastructure/.env.dev.example;
 #   2. заполняет ПУСТЫЕ обязательные секреты случайными значениями через openssl
 #      (JWT_SECRET, CAPTCHA_HMAC_SECRET, DB_PASSWORD, MINIO_ROOT_PASSWORD,
 #      METRICS_PASSWORD, KEYCLOAK_DB_PASSWORD, MINIO_ROOT_USER=minioadmin) — локальный стенд
 #      поднимается без ручного заполнения;
 #   3. если .env уже существует — ничего в нём не меняет, только предупреждает
-#      о ключах, которых нет в шаблоне (добавили переменную в .env.example —
+#      о ключах, которых нет в шаблоне (добавили переменную в .env.dev.example —
 #      допишите её сюда сами).
 #
 # Почему так просто: значения несекретных ключей живут в одном месте —
-# infrastructure/.env.example (и в compose-дефолтах ${VAR:-...} для динамических
+# infrastructure/.env.dev.example (и в compose-дефолтах ${VAR:-...} для динамических
 # ключей), а не размазаны между шаблоном, снимком дефолтов и .env. Поэтому
 # синхронизировать .env с шаблоном больше не нужно: скрипт только создаёт файл
 # и генерирует секреты.
@@ -27,7 +27,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-EXAMPLE="$ROOT_DIR/infrastructure/.env.example"
+EXAMPLE="$ROOT_DIR/infrastructure/.env.dev.example"
 ENV_FILE="$ROOT_DIR/infrastructure/.env"
 
 log() { printf '%s\n' "$*"; }
@@ -60,7 +60,8 @@ gen_secret() { # gen_secret KEY [LENGTH_HEX]
     log "Секрет сгенерирован: $key"
 }
 
-if grep -q '^MINIO_ROOT_USER=$' "$ENV_FILE"; then
+if grep -q '^MINIO_ROOT_USER=
+ "$ENV_FILE"; then
     sed -i 's|^MINIO_ROOT_USER=$|MINIO_ROOT_USER=minioadmin|' "$ENV_FILE"
     log "Сгенерировано: MINIO_ROOT_USER=minioadmin"
 fi
