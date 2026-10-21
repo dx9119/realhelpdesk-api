@@ -93,7 +93,7 @@ services:
     env_file:
       - ./.env
     environment:
-      # Секреты: несекретные ключи — в infrastructure/.env.example/.env.
+      # Секреты: несекретные ключи — в infrastructure/.env.dev.example/.env.
       # Имена совпадают с переменными .env (переименований DB_PASSWORD→DB_PASS
       # и т.п. больше нет): env_file передал бы их и сам, но environment с
       # ?-синтаксисом даёт fail-fast на старте compose при пустом секрете.
@@ -109,7 +109,7 @@ services:
       # или переменной окружения хоста. Дефолт в application.properties — 'dev'.
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-dev}"
       # KC_JWK_SET_URI/KC_ISSUER_URI (профиль приложения keycloak) сюда не
-      # попадают: они несекретные и объявлены в infrastructure/.env.example,
+      # попадают: они несекретные и объявлены в infrastructure/.env.dev.example,
       # а контейнер получает их через env_file — иначе одно значение задавалось
       # бы в двух местах (это запрещает ApplicationConfigSchemaTest).
     depends_on:

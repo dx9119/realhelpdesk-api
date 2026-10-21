@@ -1,18 +1,25 @@
 # Конфигурация
 
-Приложение не хранит значений настроек в коде: каждая настройка — переменная
-окружения без дефолта. В `src/main/resources/application.properties` и
-`application-domains.properties` записана только схема — строки вида `${VAR}`
-без значения. Если переменная не задана, приложение не стартует и называет
-причину (`Could not resolve placeholder '<VAR>'`).
+Приложение хранит разумные дефолты в `application.properties` в виде
+`${VAR:default}`: несекретные настройки (пороги рейт-лимитов, размеры батчей
+очистки токенов, таймауты SMTP, капча, ключи наблюдаемости) уже имеют значения
+в коде. Без дефолта остались только обязательные переменные: секреты
+(`JWT_SECRET`, `DB_PASSWORD`, `CAPTCHA_HMAC_SECRET`, `KEY_STORE_PASS`,
+`MINIO_ROOT_USER/PASSWORD`, `METRICS_PASSWORD`, `MAIL_PASSWORD`) и специфичные
+для среды хосты/URL (`MAIL_HOST`, `CORS_ALLOWED_ORIGINS`, `DB_URL`,
+`MINIO_ENDPOINT`, `JWT_ISSUER/AUDIENCE`, `FRONT_DOMAIN`, `MAIL_FROM/NOTIFY`,
+`STATIC_BASE_URL`). Если такая переменная не задана, приложение не стартует и
+называет причину (`Could not resolve placeholder '<VAR>'`).
 
 ## Где живут значения
 
 | Файл | Что это | Когда менять |
 |---|---|---|
-| `infrastructure/.env.example` | Шаблон из git: несекретные переменные с дефолтами для локальной разработки (рейт-лимиты, капча, почта, MinIO, домены) и пустые строки секретов. Закомментированная секция «Рабочий контур» — значения для продакшена | Общий дефолт для всех разработчиков, новая несекретная переменная |
-| `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` создаёт его из шаблона (если файла нет) и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет: у несекретных ключей источник один — шаблон, а секреты после генерации ваши. Его читают compose (интерполяция `${VAR}`) и приложение (`env_file`) | Локальные значения и секреты |
-| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск; здесь же динамические ключи с дефолтами `${VAR:-...}` — профиль, сроки ротации JWT, `OTLP_TRACING_ENDPOINT`, `TRUST_PROXY_HEADERS`, `CLIENT_IP_FORWARDED_INDEX`. Их переопределяют инлайном (`make profile-local`, `up-load`, e2e-сценарии), не трогая файлы | Новая секретная переменная или новый динамический ключ |
+| `src/main/resources/application*.properties` | Схема `${VAR}` или `${VAR:default}`: разумные дефолты несекретных ключей живут здесь | Изменить дефолт для всех окружений |
+| `infrastructure/.env.dev.example` | Шаблон для локальной разработки: секреты (пустые), специфичные для среды хосты (dev-домены, smtp4dev, MinIO в compose-сети), Keycloak, JVM-флаги. `make env` копирует его в `.env` | Новый обязательный ключ, новый dev-дефолт |
+| `infrastructure/.env.prod.example` | Шаблон для рабочего контура: секреты (пустые), prod-домены, внешний SMTP, JVM-флаги. На VPS копируется вручную | Новый обязательный ключ для прода |
+| `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` создаёт его из dev-шаблона и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет. Его читают compose (интерполяция `${VAR}`) и приложение (`env_file`) | Локальные значения и секреты |
+| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск. Здесь же `SPRING_PROFILES_ACTIVE` — переопределяется инлайном (`make profile-local`, `up-load`, e2e-сценарии) | Новая секретная переменная |
 
 Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,
@@ -29,30 +36,32 @@
 
 ## Как поменять настройку
 
-1. Найдите `${VAR}` в `src/main/resources/application.properties`
+1. Найдите `${VAR}` или `${VAR:default}` в `src/main/resources/application.properties`
    (или `application-domains.properties`).
-2. Задайте значение: в `infrastructure/.env` — локально;
-   в `infrastructure/.env.example` — общий дефолт;
-   в `services.app.environment` compose — секрет или динамический ключ.
+2. Задайте значение: в `infrastructure/.env` — локально (или `.env` на VPS,
+   созданный из `.env.prod.example`); в `application.properties` — дефолт для
+   всех окружений; в `services.app.environment` compose — секрет.
 3. Примените: `make apply-config` — пересоздаёт контейнер `app` без
    пересборки образа (для `SPRING_PROFILES_ACTIVE` есть `make profile-local` /
    `profile-keycloak`). Если `.env` заполнен вручную — достаточно
    `make restart`.
 
-Каждая переменная схемы объявлена ровно в одном месте — `.env.example`
-(несекретные) или `services.app.environment` compose (секреты и динамические
-ключи). Парность сверяет `ApplicationConfigSchemaTest` (`make test`).
+Обязательная переменная (без дефолта) объявлена ровно в одном месте —
+`services.app.environment` compose (секреты) или одном из env-шаблонов.
+Несекретный ключ с `${VAR:default}` объявлять не нужно — значение возьмётся
+из схемы. Парность сверяет `ApplicationConfigSchemaTest` (`make test`).
 
 ## Compose-файлы
 
-Один базовый файл (`infrastructure/docker-compose.yaml`) делится профилями
-`infra` / `local-tools` / `app` / `monitoring` / `load` — профили выбирают
-*какие сервисы* запускать; различия конфигурации сред живут в отдельных
-файлах, потому что профиль не может изменить конфигурацию сервиса:
+Ядро (`infrastructure/docker-compose.yaml`) делится профилями `infra` /
+`local-tools` / `app`; наблюдаемость и нагрузочное тестирование вынесены в
+отдельные файлы и подключаются цепочкой `-f`, когда они нужны:
 
 | Файл | Назначение |
 |---|---|
-| `infrastructure/docker-compose.yaml` | База: сервисы, профили, `services.app.environment` (секреты через `${VAR:?}`) |
+| `infrastructure/docker-compose.yaml` | Ядро: приложение, postgres, minio, локальные инструменты (`smtp4dev`, Keycloak), `services.app.environment` (секреты через `${VAR:?}`) |
+| `infrastructure/docker-compose.obs.yaml` | Наблюдаемость: mimir, tempo, loki, otel-collector, alloy (профиль `monitoring`). Подключает `make obs-up` |
+| `infrastructure/docker-compose.load.yaml` | Нагрузочное тестирование: k6 (профиль `load`). Подключает `make load` |
 | `infrastructure/docker-compose.override.yaml` | Локальная разработка: порты postgres/minio на `127.0.0.1` + сеть `backend` для приложения на хосте. Подключают только локальные цели make |
 | `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make up-prod`): pull из ghcr.io, дефолт профиля `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`), без портов БД наружу; override не подключён |
 | `infrastructure/docker-compose.host.yaml` | Одностраничная сборка через top-level `include:` для spring-boot-docker-compose (модуль Boot принимает только один файл) |
@@ -63,8 +72,9 @@
 как `-f base -f prod`, поэтому случайный `--profile` не может опубликовать
 порты БД наружу.
 
-Цепочки `-f` инкапсулированы в Makefile (`COMPOSE`, `COMPOSE_PROD`) — запуск
-идёт через `make up-deps` / `make up` / `make up-prod`.
+Цепочки `-f` инкапсулированы в Makefile (`COMPOSE`, `COMPOSE_OBS`,
+`COMPOSE_LOAD`, `COMPOSE_PROD`) — запуск идёт через `make up-deps` / `make up`
+/ `make obs-up` / `make load` / `make up-prod`.
 
 ## Клиентский IP
 

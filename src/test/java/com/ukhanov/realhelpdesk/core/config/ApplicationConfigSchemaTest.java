@@ -23,8 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * переменные окружения вида {@code ${VAR}} или {@code ${VAR:default}}. Значения по умолчанию задаются в properties; секреты и специфичные
  * для среды ключи (MAIL_HOST, CORS_ALLOWED_ORIGINS, DB_URL, MINIO_ENDPOINT) — без дефолтов, чтобы приложение валилось при отсутствии.
  * {@code services.app.environment} в {@code infrastructure/docker-compose.yaml} содержит только секреты (с {@code ?}-синтаксисом для
- * fail-fast) и динамические ключи, которые управляются инлайном make-целями. {@code infrastructure/.env.example} — шаблон всех переменных,
- * используемых приложением.
+ * fail-fast) и динамические ключи, которые управляются инлайном make-целями.
+ * {@code infrastructure/.env.dev.example} и {@code .env.prod.example} — шаблоны обязательных
+ * переменных: dev — для локального стенда (make env копирует его в .env), prod — для рабочего контура.
  *
  * <p>
  * Файлы читаются напрямую по пути {@code src/main/resources/...}, а не с classpath, поэтому на результат не влияет даже
@@ -41,7 +42,7 @@ class ApplicationConfigSchemaTest {
     private static final Path ENV_PROD_EXAMPLE = Path.of("infrastructure", ".env.prod.example");
     /** Ровно ${VAR} или ${VAR:default} — без литерала до/после. Имя переменной — без дефолта. */
     private static final Pattern SCHEMA_VALUE = Pattern.compile("\\$\\{[A-Z_][A-Z0-9_]*(?::[^}]*)?}");
-    /** ${VAR:default} — переменная с разумным дефолтом, не обязана быть в .env.example / compose. */
+    /** ${VAR:default} — переменная с разумным дефолтом, не обязана быть в *.env.example / compose. */
     private static final Pattern SCHEMA_VALUE_WITH_DEFAULT = Pattern.compile("\\$\\{[A-Z_][A-Z0-9_]+:[^}]*}");
     private static final Pattern SCHEMA_VARIABLE = Pattern.compile("\\$\\{([A-Z_][A-Z0-9_]*)");
 
@@ -99,7 +100,7 @@ class ApplicationConfigSchemaTest {
     private static final Pattern DDL_AUTO_ASSIGNMENT = Pattern.compile("(?i)ddl[-_]auto\\s*[=:]\\s*\"?([a-z-]+)\"?");
 
     /**
-     * Ключи {@code services.app.environment} и {@code infrastructure/.env.example}, которых нет в схеме приложения. {@code JAVA_} —
+     * Ключи {@code services.app.environment} и {@code infrastructure/*.env.example}, которых нет в схеме приложения. {@code JAVA_} —
      * JVM-флаги, переопределяющие {@code ENV} образа (sec.md §7.8); {@code INFRA} — инфраструктурные переменные compose (БД), которые нужны
      * контейнерам, но не приложению. {@code KC_}/{@code KEYCLOAK_} — контур Keycloak: ключи читает профильный
      * {@code application-keycloak.properties} (он не входит в схему — базовый конфиг обязан работать без Keycloak) и сервис
@@ -138,7 +139,7 @@ class ApplicationConfigSchemaTest {
     }
 
     @Test
-    @DisplayName("Переменные схемы без дефолтов и ключи infrastructure/docker-compose.yaml + infrastructure/.env.example совпадают")
+    @DisplayName("Переменные схемы без дефолтов и ключи infrastructure/docker-compose.yaml + *.env.example совпадают")
     void schemaVariables_declaredInComposeOrEnvExample_noUnresolvedVariables() throws Exception {
 
         // given
@@ -150,7 +151,7 @@ class ApplicationConfigSchemaTest {
 
         // Переменные без дефолта обязательны к объявлению: у них нет значения в коде, и незаданная
         // подстановка валит старт. Переменные с ${VAR:default} объявлять не нужно — значение
-        // возьмётся из схемы, а .env.example остаётся коротким.
+        // возьмётся из схемы, *.env.example остаётся коротким.
         Set<String> requiredVariables = schema.stringPropertyNames().stream().map(schema::getProperty)
                 .filter(value -> !SCHEMA_VALUE_WITH_DEFAULT.matcher(value).matches()).flatMap(value -> variables(value).stream())
                 .collect(Collectors.toCollection(LinkedHashSet::new));

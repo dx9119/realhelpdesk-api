@@ -168,7 +168,7 @@ make run         # spring-boot:run против локальных настро�
 
 Отдельно: `ApplicationConfigSchemaTest` сверяет парность ключей между
 `application*.properties` (`${VAR}` без дефолтов), `services.app.environment`
-compose и `.env.example` — сломали схему → упал `make test`.
+compose и `*.env.example` — сломали схему → упал `make test`.
 
 ### Проверки образа
 

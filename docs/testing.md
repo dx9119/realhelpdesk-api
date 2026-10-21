@@ -67,23 +67,7 @@ classloader'ом; остановку при выходе из JVM делает R
 
 Все правила блокируются checkstyle (`config/checkstyle/checkstyle.xml`, подавления —
 `config/checkstyle/suppressions.xml`), формулировки — в
-[`code-style.md` §«Тесты»](code-style.md#тесты). Кратко и с id правил:
-
-| Правило | id checkstyle |
-|---|---|
-| Утверждения только AssertJ; `Assertions` из JUnit, JUnit 4, TestNG — запрещены | `NoJUnitAssertions`, `NoJUnit4AndTestNg` |
-| `@MockBean`/`@SpyBean` не используются (Boot 4: `@MockitoBean`) | `NoDeprecatedBootTestAnnotations` |
-| `Thread.sleep()` запрещён — Awaitility (в `src/main` легитимен, подавлен) | `NoThreadSleepInTests` |
-| `System.out/err`, `printStackTrace()` запрещены | `NoSystemOut` |
-| Имя теста: `method_condition_outcome`; в `src/main` — camelCase без `_` | `TestMethodNamingConvention`, `MethodNameMain` |
-| `@DisplayName` у каждого теста, по-русски | `RequireDisplayNameOnTests` |
-| Секции `// given` → `// when` → `// then` в каждом тесте | `GivenWhenThenStructure` |
-| Тест-класс package-private, суффикс `Test`/`IT` | `JUnit5PackagePrivate`, `TestClassSuffix` |
-| `@SpringBootTest` только в `*IT` | `NoSpringContextInUnitTests` |
-
-Helper-классы без тестов (`EmailTemplatesFixture`, `SseEmitterCapture`,
-`AbstractIntegrationTest`) в подавлениях по `GivenWhenThenStructure` и
-`TestClassSuffix`.
+[`code-style.md` §«Тесты»](code-style.md#тесты).
 
 ## Паттерны unit-тестов (`*Test`)
 
@@ -126,18 +110,6 @@ class TicketControllerTest {
     }
 }
 ```
-
-Тонкости MockMvcTester, проверенные на практике:
-
-- async-эндпоинты (скачивание файлов, long polling) — `asyncExchange()`, обычный
-  `exchange()` падает с «Async result ... was not set»; досбарка результата —
-  `mockMvc.perform(MockMvcRequestBuilders.asyncDispatch(started.getMvcResult()))`;
-- multipart — `.multipart().file(new MockMultipartFile(...)).param(...)`;
-- заголовки cookie — `result.getResponse().getHeaders(HttpHeaders.SET_COOKIE)`;
-- `bodyJson().extractingPath("$.x")` → `.asNumber()` / `.asString()` / `.asBoolean()` /
-  `.asArray()`, наличие поля — `hasPath("$.errors.title")`;
-- `MockMvcTester.of(...)` принимает иvarargs контроллеров (`of(new AuthController(...))`),
-  и пару `List` + кастомизатор билдера.
 
 ### Сервис: MockitoExtension
 
@@ -266,7 +238,7 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
 | Тест | Контракт |
 |---|---|
 | `LiquibaseChangelogGuardTest` | DML только в `seed/` (`context="seed"`); `changes/` и `sql/` — чистый DDL: миграция с `DB_MIGRATIONS_CONTEXTS=schema` не внесёт данных |
-| `ApplicationConfigSchemaTest` | `application*.properties` — только обязательные `${VAR}`; значения — в `.env.example` и `services.app.environment`; `ddl-auto` закреплён как `validate`, `create-drop` в prod-конфигах запрещён |
+| `ApplicationConfigSchemaTest` | `application*.properties` — только обязательные `${VAR}`; значения — в `.env.dev.example`/`.env.prod.example` и `services.app.environment`; `ddl-auto` закреплён как `validate`, `create-drop` в prod-конфигах запрещён |
 | `ObservabilityRunbookGuardTest` | Биекция алертов Mimir и `docs/runbooks/*.md`; `overview.md` ссылается на каждый runbook; диагностические curl-команды исполняемы (PromQL/LogQL — только через `-G --data-urlencode`) |
 | `OpenApiDocumentationGuardTest` | Спека в prod выключена; security-scheme описан; реальные статусы контроллеров (201/202/204/206/416) задокументированы `@ApiResponse`; контракт `schema-contract.json` полон (описание + пример у каждой схемы) |
 | `CreatedAtPrePersistTest` | `@PrePersist` заполняет `createdAt` у всех сущностей и не перезаписывает заданный |
@@ -387,8 +359,3 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
 | `http_req_duration{search}` p95 | <500ms |
 | `http_req_duration{ticket_create}` p95 | <1200ms |
 | `http_req_duration{notifications_wait}` p95 | <6s (long-poll 4s) |
-
-Эталонный результат (10 VU, 5 минут, 669 итераций, локально): 99.8% checks
-зелёных, 0.4% HTTP-ошибок, ticket_create p95 ≈ 43ms, search p95 ≈ 8ms,
-~15 RPS. Отчёт k6 (RPS, percentiles по endpoint'ам, пороги) печатается
-в stdout.

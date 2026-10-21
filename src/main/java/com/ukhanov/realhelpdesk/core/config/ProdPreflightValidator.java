@@ -46,7 +46,7 @@ public class ProdPreflightValidator {
     /** Незаданная env-подстановка остаётся в Environment строкой вида {@code ${MAIL_HOST}} — отправлять письма ей нельзя. */
     private static final String UNRESOLVED_PLACEHOLDER = "${";
 
-    /** Префикс dev-значения капчи-секрета из .env.example: в рабочем контуре такое значение — дыра. */
+    /** Префикс dev-значения капчи-секрета из .env.dev.example: в рабочем контуре такое значение — дыра. */
     static final String DEV_SECRET_PREFIX = "dev-only";
 
     private final Environment env;
