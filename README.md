@@ -178,9 +178,11 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
    которые возвращаются напрямую, а не дефолтный `200`.
 
 3. **Безопасность в prod.** В рабочем контуре `springdoc.api-docs` и
-   `swagger-ui` отключены через `application-prod.properties`, а пути
-   `/swagger-ui/**` добавлены в white-list обеих security-цепочек — документация
-   доступна только авторизованным пользователям.
+   `swagger-ui` отключены через `application-prod.properties` — эндпоинтов
+   документации в prod нет (404). Пути `/swagger-ui/**` и `/v3/api-docs`
+   находятся в white-list обеих security-цепочек (`permitAll`) и сами по себе
+   защиты не дают: в контурах, где springdoc включён, документация открыта без
+   аутентификации.
 
 Автоматическая проверка контракта — тест
 `OpenApiDocumentationGuardTest`: ≥50 схем, у каждой `example` + описания полей,
