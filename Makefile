@@ -281,13 +281,13 @@ openapi-types: openapi ## Сгенерировать TypeScript-типы из с
 # ручного прогона после изменений в рейт-лимитах.
 
 e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпоинт; стек запущен, профиль dev)
-	@code=$(curl -sk -o /dev/null -w '%{http_code}' -X POST \
+	@code=$$(curl -sk -o /dev/null -w '%{http_code}' -X POST \
 	  -H 'X-Requested-With: XMLHttpRequest' \
 	  https://localhost:8443/api/v1/dev/ratelimit-reset); \
-	if [ "$code" = "204" ] || [ "$code" = "200" ]; then \
+	if [ "$$code" = "204" ] || [ "$$code" = "200" ]; then \
 	  echo "rate-limit бакеты сброшены"; \
 	else \
-	  echo "предупреждение: сброс лимитов не прошёл (HTTP $code) — стек запущен? профиль dev?"; \
+	  echo "предупреждение: сброс лимитов не прошёл (HTTP $$code) — стек запущен? профиль dev?"; \
 	fi
 
 ## --- JWT in-app-контур (профиль dev) ---

@@ -14,6 +14,8 @@
 #
 # Требования: поднятый стек (make up — сервисы профиля dev, включая keycloak),
 # SPRING_PROFILES_ACTIVE=dev,keycloak (дефолт шаблона), docker для psql.
+# Перед прогоном удаляет порталы владельца и связанные данные — прогон
+# идемпотентен (имя портала фиксировано, лимит порталов на пользователя — 2).
 # Использует существующих пользователей realm:
 #   user@example.com / user-pass
 #   operator@example.com / operator-pass
@@ -40,7 +42,7 @@ check() {
     echo "  OK   $3 -> $2"
   else
     COUNT_FAIL=$((COUNT_FAIL + 1))
-    echo "  FAIL $3 (факт: $2, ожидалось: $1)"
+    echo "  FAIL $3 (факт: $1, ожидалось: $2)"
   fi
 }
 check_contains() {
@@ -133,6 +135,23 @@ check "$($PSQL "select user_role from users where email='$USER_EMAIL';" | tail -
 
 # ── Создание портала ──────────────────────────────────────────
 
+# Realm-пользователи фиксированы, имя портала — тоже, а лимит порталов
+# на владельца — 2: без зачистки повторный прогон получает 409 на
+# POST /portals. FK без ON DELETE CASCADE — удаляем в порядке зависимостей.
+step "Очистка артефактов прошлых прогонов"
+if $PSQL "delete from notifications where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL');
+delete from message_model where ticket_id in (select t.id from ticket_model t join portals p on p.id=t.portal_id join users u on u.id=p.owner_id where u.email='$USER_EMAIL');
+delete from ticket_model where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL');
+delete from portal_transfer_requests where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL');
+delete from portal_access where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL');
+delete from portal_history where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL');
+delete from portals where owner_id in (select id from users where email='$USER_EMAIL');" >/dev/null 2>&1; then
+  echo "  OK   порталы $USER_EMAIL и связанные данные удалены"
+else
+  echo "  FAIL очистка БД не удалась — postgres поднят? (make up)"
+  exit 1
+fi
+
 step "Создание портала владельцем (USER)"
 RESP=$(kc_post "$USER_TOKEN" "/portals" '{"name":"kc-public-portal","description":"ключоак-контур"}')
 PORTAL_STATUS="${RESP%%|*}"
@@ -144,14 +163,15 @@ echo "  portalId=$PORTAL_ID"
 # ── Публичные эндпоинты ───────────────────────────────────────
 
 step "Публичные эндпоинты"
-check "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/captcha/challenge")" "200" "POST /captcha/challenge без токена"
+check "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$BASE/captcha/challenge" \
+  -H 'Content-Type: application/json' -d '{"action":"register"}')" "200" "POST /captcha/challenge без токена"
 check "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/health")" "200" "GET /health без токена"
 
 # ── Права на публичный портал ─────────────────────────────────
 
-step "Права на публичный портал"
+step "Права на приватный портал"
 check "$(kc_code "$USER_TOKEN" "/portals/$PORTAL_ID")" "200" "GET /portals/{id} владельцем"
-check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID")" "200" "GET /portals/{id} пользователем"
+check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID")" "403" "GET /portals/{id} посторонним (портал приватен)"
 
 check "$(kc_code "$USER_TOKEN" "/portals/$PORTAL_ID/settings")" "200" "GET /portals/{id}/settings владельцем"
 check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID/settings")" "403" "GET /portals/{id}/settings посторонним"
@@ -166,6 +186,7 @@ check "$(kc_code "$USER_TOKEN" "/portals/$PORTAL_ID" "PUT" "$(body_file '{"name"
 step "Смена isPublic"
 check "$(kc_code "$USER_TOKEN" "/portals/$PORTAL_ID/settings/visibility" "PUT" '{"isPublic":true}')" "204" "PUT /portals/{id}/settings/visibility владельцем"
 check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID/settings/visibility" "PUT" '{"isPublic":false}')" "403" "PUT /portals/{id}/settings/visibility посторонним"
+check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID")" "200" "GET /portals/{id} посторонним (портал публичен)"
 
 # ── Доступ по пользователям ────────────────────────────────────
 
@@ -198,22 +219,22 @@ check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID/tickets/$TICKET_ID/status" "
 
 step "История портала"
 HIST=$(kc_get "$OPER_TOKEN" "/portals/$PORTAL_ID/history?size=10")
-check_contains "CREATED" "$HIST" "история: CREATED"
-check 200 "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID/history")" "GET /portals/{id}/history доверенным"
+check_contains "VISIBILITY_CHANGED" "$HIST" "история: VISIBILITY_CHANGED"
+check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID/history")" "200" "GET /portals/{id}/history доверенным"
 
 # ── Операторский эндпоинт ──────────────────────────────────────
 
 step "Права на операторский эндпоинт"
-check 200 "$(kc_code "$OPER_TOKEN" "/operator/tokens/cleanup" "POST")" "ROLE_OPERATOR — POST /operator/tokens/cleanup"
-check 403 "$(kc_code "$USER_TOKEN" "/operator/tokens/cleanup" "POST")" "ROLE_USER — POST /operator/tokens/cleanup"
-check 401 "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$BASE/operator/tokens/cleanup")" "без токена — 401"
+check "$(kc_code "$OPER_TOKEN" "/operator/tokens/cleanup" "POST")" "200" "ROLE_OPERATOR — POST /operator/tokens/cleanup"
+check "$(kc_code "$USER_TOKEN" "/operator/tokens/cleanup" "POST")" "403" "ROLE_USER — POST /operator/tokens/cleanup"
+check "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$BASE/operator/tokens/cleanup")" "401" "без токена — 401"
 
 # ── Уведомления (базовые) ─────────────────────────────────────
 
 step "Уведомления"
-check 200 "$(kc_code "$USER_TOKEN" "/notifications")" "GET /notifications"
-check 200 "$(kc_code "$USER_TOKEN" "/notifications/unread-count")" "GET /notifications/unread-count"
-check 200 "$(kc_code "$USER_TOKEN" "/notifications/preferences")" "GET /notifications/preferences"
+check "$(kc_code "$USER_TOKEN" "/notifications")" "200" "GET /notifications"
+check "$(kc_code "$USER_TOKEN" "/notifications/unread-count")" "200" "GET /notifications/unread-count"
+check "$(kc_code "$USER_TOKEN" "/notifications/preferences")" "200" "GET /notifications/preferences"
 
 echo
 if [ "$COUNT_FAIL" -eq 0 ]; then

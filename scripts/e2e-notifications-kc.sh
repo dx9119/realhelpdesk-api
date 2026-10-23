@@ -12,6 +12,9 @@
 #
 # Требования: поднятый стек (make up — сервисы профиля dev, включая keycloak),
 # SPRING_PROFILES_ACTIVE=dev,keycloak.
+# Перед прогоном удаляет порталы оператора, уведомления и preferences
+# обоих realm-пользователей — прогон идемпотентен (счётчики непрочитанных
+# и имя портала фиксированы).
 # Использует существующих пользователей realm:
 #   user@example.com / user-pass
 #   operator@example.com / operator-pass
@@ -38,7 +41,7 @@ check() {
     echo "  OK   $3 -> $2"
   else
     COUNT_FAIL=$((COUNT_FAIL + 1))
-    echo "  FAIL $3 (факт: $2, ожидалось: $1)"
+    echo "  FAIL $3 (факт: $1, ожидалось: $2)"
   fi
 }
 check_contains() {
@@ -103,13 +106,17 @@ print(max(ids) if ids else 0)
 "
 }
 
-# await_grep <file> <pattern> [tries] — ждёт паттерн в файле
+# await_grep <file> <pattern> [tries] — ждёт паттерн в файле; печатает 1/0
 await_grep() {
   local file="$1" pattern="$2" tries="${3:-5}" i=0
   for _ in $(seq 1 "$tries"); do
-    grep -q "$pattern" "$file" 2>/dev/null && return 0
+    if grep -q "$pattern" "$file" 2>/dev/null; then
+      echo 1
+      return 0
+    fi
     sleep 1
   done
+  echo 0
   return 1
 }
 
@@ -137,6 +144,28 @@ echo "  OK   токен $OPER_EMAIL получен"
 
 # ── Создание портала оператором ──────────────────────────────
 
+# Realm-пользователи фиксированы, имя портала — тоже, а счётчики
+# непрочитанных и preferences переживают прогон: без зачистки повторный
+# запуск расходится в проверках (409 на POST /portals, ненулевые счётчики,
+# отключённые прошлым прогоном события). FK без ON DELETE CASCADE —
+# удаляем в порядке зависимостей.
+step "Очистка артефактов прошлых прогонов"
+if $PSQL "delete from notifications where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$OPER_EMAIL');
+delete from message_model where ticket_id in (select t.id from ticket_model t join portals p on p.id=t.portal_id join users u on u.id=p.owner_id where u.email='$OPER_EMAIL');
+delete from ticket_model where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$OPER_EMAIL');
+delete from portal_transfer_requests where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$OPER_EMAIL');
+delete from portal_access where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$OPER_EMAIL');
+delete from portal_history where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$OPER_EMAIL');
+delete from portals where owner_id in (select id from users where email='$OPER_EMAIL');
+delete from notifications where recipient_id in (select id from users where email in ('$USER_EMAIL','$OPER_EMAIL'));
+delete from user_notification_preferences_events where preferences_id in (select id from user_notification_preferences where user_id in (select id from users where email in ('$USER_EMAIL','$OPER_EMAIL')));
+delete from user_notification_preferences where user_id in (select id from users where email in ('$USER_EMAIL','$OPER_EMAIL'));" >/dev/null 2>&1; then
+  echo "  OK   порталы $OPER_EMAIL, уведомления и preferences сброшены"
+else
+  echo "  FAIL очистка БД не удалась — postgres поднят? (make up)"
+  exit 1
+fi
+
 step "Создание портала оператором"
 RESP=$(kc_post "$OPER_TOKEN" "/portals" '{"name":"notify-portal-kc","description":"уведомления ключоак"}')
 PORTAL_STATUS="${RESP%%|*}"
@@ -155,9 +184,9 @@ check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID/settings/users" "PUT" "{\"us
 # ── Уведомления: базовые ─────────────────────────────────────
 
 step "Уведомления: базовые"
-check 200 "$(kc_code "$USER_TOKEN" "/notifications")" "GET /notifications"
+check "$(kc_code "$USER_TOKEN" "/notifications")" "200" "GET /notifications"
 check "$(unread "$USER_TOKEN")" "0" "у пользователя непрочитанных нет"
-check 200 "$(kc_code "$USER_TOKEN" "/notifications/preferences")" "GET /preferences"
+check "$(kc_code "$USER_TOKEN" "/notifications/preferences")" "200" "GET /preferences"
 
 # ── Long polling ──────────────────────────────────────────────
 
@@ -239,8 +268,8 @@ fi
 # ── Права ─────────────────────────────────────────────────────
 
 step "Права"
-check 401 "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/notifications")" "без токена — 401"
-check 404 "$(curl -sk -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $USER_TOKEN" -X PUT "$BASE/notifications/999999/read")" "чужое/несуществующее — 404"
+check "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/notifications")" "401" "без токена — 401"
+check "$(curl -sk -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $USER_TOKEN" -X PUT "$BASE/notifications/999999/read")" "404" "чужое/несуществующее — 404"
 
 echo
 if [ "$COUNT_FAIL" -eq 0 ]; then
