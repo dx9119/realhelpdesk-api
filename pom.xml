@@ -57,10 +57,6 @@
         <!-- JaCoCo 0.8.14 понимает class-файлы Java 25; порог — защита от
              «тестов-заглушек» и непокрытых веток в новой логике. -->
         <jacoco.version>0.8.14</jacoco.version>
-        <!-- Проверки стиля нельзя обойти флагом -D...skip: качество сборки
-             не должно зависеть от того, что передали в командной строке. -->
-        <checkstyle.skip>false</checkstyle.skip>
-        <spotless.check.skip>false</spotless.check.skip>
         <!-- Позднее подстановление для инструментов (JaCoCo и подобных): агент
              Mockito дописывается в argLine самих плагинов после @{argLine}, так
              инструмент может добавить свой агент, не затирая Mockito. Свойство
@@ -476,6 +472,10 @@
                     </java>
                     <lineEndings>UNIX</lineEndings>
                     <encoding>UTF-8</encoding>
+                    <!-- Имя параметра — checkSkip (applySkip у цели apply), общего skip у плагина нет.
+                         Литерал вместо ${...}: -Dspotless.check.skip=true из CLI не переопределяет
+                         значение, заданное прямо в configuration. -->
+                    <checkSkip>false</checkSkip>
                 </configuration>
                 <executions>
                     <execution>
@@ -513,6 +513,9 @@
                         <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
                         <sourceDirectory>${project.build.testSourceDirectory}</sourceDirectory>
                     </sourceDirectories>
+                    <!-- Литерал вместо ${...}: системное свойство из CLI (-Dcheckstyle.skip=true)
+                         не переопределяет значение, заданное прямо в configuration. -->
+                    <skip>false</skip>
                 </configuration>
                 <executions>
                     <execution>
