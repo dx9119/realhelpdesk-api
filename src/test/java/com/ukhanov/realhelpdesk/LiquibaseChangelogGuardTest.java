@@ -16,12 +16,13 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Контракт чистоты миграций: dev и prod стартуют с пустой схемы, поэтому данные не должны просачиваться в структурные changeset'ы.
+ * Контракт чистоты миграций: dev и prod стартуют с пустой схемы, поэтому данные не должны просачиваться в структурные
+ * changeset'ы.
  *
  * <p>
  * Разделение контуров: {@code changes/} + {@code sql/} — только DDL; любые фикстуры живут в {@code seed/} и помечены
- * {@code context="seed"}. Приложение по умолчанию работает с {@code DB_MIGRATIONS_CONTEXTS=schema}, поэтому seed-changeset'ы подключены, но
- * не выполняются: база остаётся чистой, а сид — явная команда {@code make db-seed}.
+ * {@code context="seed"}. Приложение по умолчанию работает с {@code DB_MIGRATIONS_CONTEXTS=schema}, поэтому
+ * seed-changeset'ы подключены, но не выполняются: база остаётся чистой, а сид — явная команда {@code make db-seed}.
  * </p>
  */
 @DisplayName("Миграции Liquibase: DDL в changes/, данные — только в seed/ с context=\"seed\"")
@@ -35,10 +36,12 @@ class LiquibaseChangelogGuardTest {
             .compile("(?i)\\b(insert\\s+into|update\\s+[\\w.\"]+\\s+set|delete\\s+from|merge\\s+into|truncate\\b)");
 
     /** DML-теги Liquibase (XML-обёртка над теми же операциями, что и в SQL). */
-    private static final Pattern XML_DML_TAGS = Pattern.compile("<\\s*(insert|update|delete|loadData|loadUpdateData)\\b");
+    private static final Pattern XML_DML_TAGS = Pattern
+            .compile("<\\s*(insert|update|delete|loadData|loadUpdateData)\\b");
 
     /**
-     * Строка вида {@code <changeSet ...>}: group(1) — атрибуты. Тег многострочный, поэтому DOTALL и ленивый захват до {@code >}.
+     * Строка вида {@code <changeSet ...>}: group(1) — атрибуты. Тег многострочный, поэтому DOTALL и ленивый захват до
+     * {@code >}.
      */
     private static final Pattern CHANGE_SET_OPEN = Pattern.compile("<changeSet\\b([^>]*)>", Pattern.DOTALL);
 
@@ -52,8 +55,13 @@ class LiquibaseChangelogGuardTest {
         // then
         assertThat(files).as("файлы changelog в " + CHANGELOG_DIR).isNotEmpty();
 
-        List<String> dmlOutsideSeed = files.stream().filter(file -> !isSeed(file)).filter(LiquibaseChangelogGuardTest::containsDml)
-                .map(CHANGELOG_DIR::relativize).map(Path::toString).sorted().toList();
+        List<String> dmlOutsideSeed = files.stream()
+                .filter(file -> !isSeed(file))
+                .filter(LiquibaseChangelogGuardTest::containsDml)
+                .map(CHANGELOG_DIR::relativize)
+                .map(Path::toString)
+                .sorted()
+                .toList();
 
         assertThat(dmlOutsideSeed).as("DML вне seed/ — фикстуры в структурных миграциях forbidden").isEmpty();
     }
@@ -82,7 +90,8 @@ class LiquibaseChangelogGuardTest {
             int found = 0;
             while (changeset.find()) {
                 found++;
-                assertThat(changeset.group(1)).as(file + ": changeset без context=\"seed\" выполнится при DB_MIGRATIONS_CONTEXTS=schema")
+                assertThat(changeset.group(1))
+                        .as(file + ": changeset без context=\"seed\" выполнится при DB_MIGRATIONS_CONTEXTS=schema")
                         .contains("context=\"seed\"");
             }
             assertThat(found).as(file + ": хотя бы один changeset").isPositive();
@@ -109,7 +118,9 @@ class LiquibaseChangelogGuardTest {
 
     /** SQL-комментарии (строчные и блочные) и XML-комментарии вырезаны: упоминание операции в комментарии — не DML. */
     private static String stripComments(String content) {
-        return content.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?s)<!--.*?-->", " ").replaceAll("--[^\\n]*", " ");
+        return content.replaceAll("(?s)/\\*.*?\\*/", " ")
+                .replaceAll("(?s)<!--.*?-->", " ")
+                .replaceAll("--[^\\n]*", " ");
     }
 
     private static String read(Path file) {

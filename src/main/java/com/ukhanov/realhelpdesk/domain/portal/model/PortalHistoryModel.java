@@ -15,10 +15,6 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * История портала: передачи владения и изменения самого портала (имя, описание, видимость, состав участников, удаление). Пишется в одной
- * транзакции с изменением, чтобы история не расходилась с состоянием портала.
- */
 @Entity
 @Table(name = "portal_history")
 @Getter

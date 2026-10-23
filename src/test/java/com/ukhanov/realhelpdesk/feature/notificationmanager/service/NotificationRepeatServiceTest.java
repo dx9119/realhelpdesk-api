@@ -69,11 +69,13 @@ class NotificationRepeatServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new NotificationRepeatService(notificationRepository, preferencesRepository, notificationPublisher, userDomainService,
+        service = new NotificationRepeatService(notificationRepository, preferencesRepository, notificationPublisher,
+                userDomainService,
                 emailDeliveryService, emailTemplates);
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of());
         // как в JPA: save возвращает ту же строку с присвоенным id
-        when(notificationRepository.save(any(NotificationModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationRepository.save(any(NotificationModel.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -221,7 +223,8 @@ class NotificationRepeatServiceTest {
         // then
         verify(notificationRepository, times(1)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
-        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user@example.com"), any(), any(), eq(NotificationEvent.NEW_TICKET),
+        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user@example.com"), any(), any(),
+                eq(NotificationEvent.NEW_TICKET),
                 eq(USER_ID));
     }
 
@@ -272,7 +275,8 @@ class NotificationRepeatServiceTest {
         source1.setRecipientId(USER_ID);
         NotificationModel source2 = source(Instant.now().minusSeconds(31 * 60));
         source2.setRecipientId(USER_2_ID);
-        when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of(source1, source2));
+        when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class)))
+                .thenReturn(List.of(source1, source2));
         UserModel recipient1 = new UserModel();
         recipient1.setId(USER_ID);
         recipient1.setEmail("user1@example.com");
@@ -286,18 +290,22 @@ class NotificationRepeatServiceTest {
         // then
         verify(notificationRepository, times(2)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(any());
-        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user1@example.com"), any(), any(), any(), eq(USER_ID));
-        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user2@example.com"), any(), any(), any(), eq(USER_2_ID));
+        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user1@example.com"), any(), any(), any(),
+                eq(USER_ID));
+        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user2@example.com"), any(), any(), any(),
+                eq(USER_2_ID));
     }
 
     private NotificationModel source(Instant createdAt) {
-        NotificationModel source = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, TICKET_ID, PORTAL_ID, "Проблема");
+        NotificationModel source = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, TICKET_ID, PORTAL_ID,
+                "Проблема");
         source.setId(SOURCE_ID);
         source.setCreatedAt(createdAt);
         return source;
     }
 
-    private UserNotificationPreferencesModel preferences(boolean repeatEnabled, int intervalMinutes, Set<NotificationEvent> events) {
+    private UserNotificationPreferencesModel preferences(boolean repeatEnabled, int intervalMinutes,
+            Set<NotificationEvent> events) {
         UserNotificationPreferencesModel preferences = new UserNotificationPreferencesModel(USER_ID, events);
         preferences.setRepeatEnabled(repeatEnabled);
         preferences.setRepeatIntervalMinutes(intervalMinutes);

@@ -29,10 +29,11 @@ import com.ukhanov.realhelpdesk.domain.ticket.repository.TicketRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Регрессия N+1: количество запросов на типовых путях. Statistics считает JDBC prepared statements — если батч/EntityGraph сломается, цифра
- * вырастет и тест упадёт.
+ * Регрессия N+1: количество запросов на типовых путях. Statistics считает JDBC prepared statements — если
+ * батч/EntityGraph сломается, цифра вырастет и тест упадёт.
  */
-@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.jpa.properties.hibernate.generate_statistics=true"})
+@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.jpa.properties.hibernate.generate_statistics=true"})
 @DisplayName("Количество запросов на горячих путях (N+1 guard)")
 class NPlus1GuardTest {
 
@@ -138,7 +139,8 @@ class NPlus1GuardTest {
         // then
         assertThat(page.getContent()).hasSize(20);
         assertThat(page.getContent()).allMatch(
-                ticket -> "author@example.com".equals(ticket.getAuthor().getEmail()) && portal.getId().equals(ticket.getPortal().getId()));
+                ticket -> "author@example.com".equals(ticket.getAuthor().getEmail())
+                        && portal.getId().equals(ticket.getPortal().getId()));
 
         // 1 запрос страницы с join-графом + 1 count-запрос; доступ к author/portal допросов не добавляет
         assertThat((int) stats.getPrepareStatementCount()).isLessThanOrEqualTo(3);

@@ -5,11 +5,6 @@ import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-/**
- * Решение challenge: подобранный клиентом nonce (для PoW) или выбранные индексы ячеек (для эмодзи-задания). Клиент присылает то, что
- * соответствует уровню задания из challenge; отсутствие нужного поля — отказ капчи (pow_failed или wrong_answer), а не ошибка валидации
- * формы.
- */
 public record SolveRequest(
         @NotBlank(message = "challengeId обязателен")
          @Size(max = 4_000, message = "challengeId не длиннее 4000 символов") String challengeId,

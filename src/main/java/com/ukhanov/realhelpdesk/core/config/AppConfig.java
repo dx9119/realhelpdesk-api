@@ -31,8 +31,8 @@ import lombok.RequiredArgsConstructor;
 public class AppConfig {
 
     /**
-     * Заголовки ответа, доступные JavaScript кросс-доменного клиента (CORS exposedHeaders). Список закрытый: всё, что не перечислено,
-     * браузер скрывает от fetch.
+     * Заголовки ответа, доступные JavaScript кросс-доменного клиента (CORS exposedHeaders). Список закрытый: всё, что
+     * не перечислено, браузер скрывает от fetch.
      */
     static final List<String> EXPOSED_HEADERS = List.of(
             // 201 Created и 206 Partial Content
@@ -42,7 +42,10 @@ public class AppConfig {
             // 429
             "Retry-After",
             // Маркеры причины 401 из JwtAuthFilter: SPA отличает «токен истёк» от «токена нет»
-            "X-Access-Token-Expired", "X-Auth-Token-Missing", "X-Malformed-Token", "X-Invalid-Token", "X-Verify-Token-Failed");
+            "X-Access-Token-Expired", "X-Auth-Token-Missing", "X-Malformed-Token", "X-Invalid-Token",
+            "X-Verify-Token-Failed");
+
+    private static final long CORS_PREFLIGHT_MAX_AGE_SECONDS = 3600L;
 
     private final CustomUserDetailsService customUserDetailsService;
 
@@ -60,12 +63,15 @@ public class AppConfig {
     // Выбор провайдера аутентификации
     @Bean
     public AuthenticationManager authenticationManager(HttpSecurity httpSecurity) throws Exception {
-        return httpSecurity.getSharedObject(AuthenticationManagerBuilder.class).authenticationProvider(authenticationProvider()).build();
+        return httpSecurity.getSharedObject(AuthenticationManagerBuilder.class)
+                .authenticationProvider(authenticationProvider())
+                .build();
     }
 
     /**
-     * Планировщик с TaskDecorator: переносит контекст наблюдаемости (trace/span) в фоновый поток @Scheduled-задач, чтобы спаны повторов
-     * оповещений висели на том же trace, что и породивший их запрос. Без этого фоновые спаны теряли бы связь с HTTP-запросом.
+     * Планировщик с TaskDecorator: переносит контекст наблюдаемости (trace/span) в фоновый поток @Scheduled-задач,
+     * чтобы спаны повторов оповещений висели на том же trace, что и породивший их запрос. Без этого фоновые спаны
+     * теряли бы связь с HTTP-запросом.
      */
     @Bean
     public ThreadPoolTaskScheduler taskScheduler() {
@@ -86,7 +92,8 @@ public class AppConfig {
     // Логика аутентификации(загрузка пользователя, проверка пароля)
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
-        final DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider(customUserDetailsService);
+        final DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider(
+                customUserDetailsService);
         daoAuthenticationProvider.setPasswordEncoder(passwordEncoder());
         return daoAuthenticationProvider;
     }
@@ -108,7 +115,7 @@ public class AppConfig {
         // заголовки — для докачки, Retry-After — для подсказки «повторите через N сек».
         configuration.setExposedHeaders(EXPOSED_HEADERS);
         configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        configuration.setMaxAge(CORS_PREFLIGHT_MAX_AGE_SECONDS);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

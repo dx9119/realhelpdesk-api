@@ -131,7 +131,8 @@ public class UserManageService {
         userDomainService.saveUser(user);
 
         emailDeliveryService.sendEmail(user.getEmail(), emailTemplates.passwordResetSubject(),
-                emailTemplates.passwordResetBody(recoverPasswdToken.toString()), NotificationEvent.RECOVERY_PASSWORD, user.getId());
+                emailTemplates.passwordResetBody(recoverPasswdToken.toString()), NotificationEvent.RECOVERY_PASSWORD,
+                user.getId());
         logger.info("Отправлено письмо восстановления пароля, userId={}", user.getId());
         authMetrics.record(AuthMetrics.TYPE_PASSWORD_RESET, AuthMetrics.RESULT_SUCCESS);
     }

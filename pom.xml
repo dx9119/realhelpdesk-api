@@ -48,6 +48,15 @@
         <!-- opentelemetry-instrumentation выравнивается с opentelemetry-bom из Spring Boot
              (4.1.1 держит otel 1.62.0 — jdbc 2.28.1-alpha собран именно под эту версию API). -->
         <opentelemetry-instrumentation.version>2.28.1-alpha</opentelemetry-instrumentation.version>
+        <!-- ArchUnit: контракт слоёв (controller/feature/domain/core) как обычный юнит-тест —
+             агент видит нарушение архитектуры сразу на `mvn test`, а не на ревью. -->
+        <archunit.version>1.4.2</archunit.version>
+        <!-- SpotBugs: плагин и движок анализа версионируются отдельно. -->
+        <spotbugs-maven-plugin.version>4.9.6.0</spotbugs-maven-plugin.version>
+        <spotbugs.version>4.9.6</spotbugs.version>
+        <!-- JaCoCo 0.8.14 понимает class-файлы Java 25; порог — защита от
+             «тестов-заглушек» и непокрытых веток в новой логике. -->
+        <jacoco.version>0.8.14</jacoco.version>
         <!-- Проверки стиля нельзя обойти флагом -D...skip: качество сборки
              не должно зависеть от того, что передали в командной строке. -->
         <checkstyle.skip>false</checkstyle.skip>
@@ -259,6 +268,15 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- ArchUnit: архитектурные инварианты (слои, зависимости) проверяются
+             обычным unit-тестом — нарушение видно на `mvn test`, а не на ревью. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- H2: in-memory БД для JPA-слайс-тестов спецификаций поиска -->
         <dependency>
             <groupId>com.h2database</groupId>
@@ -439,7 +457,7 @@
                 </executions>
             </plugin>
 
-            <!-- Spotless: единое форматирование (4 пробела, line length 140, порядок импортов) -->
+            <!-- Spotless: единое форматирование (4 пробела, line length 120, порядок импортов) -->
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
@@ -503,6 +521,94 @@
                         <goals>
                             <goal>check</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- SpotBugs: байткод-анализ после компиляции. Checkstyle видит только
+                 AST одного файла, SpotBugs — реальные баги (NPE, забытый return,
+                 неверные equals/коллекции). Запуск на process-classes: ошибка
+                 всплывает до тестов; High-порог — без шума про стиль. -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs-maven-plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs</artifactId>
+                        <version>${spotbugs.version}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>High</threshold>
+                    <failOnError>true</failOnError>
+                    <excludeFilterFile>config/spotbugs/spotbugs-exclude.xml</excludeFilterFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotbugs-check</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- JaCoCo: агент на initialize, отчёт и проверка на verify.
+                 Порог BUNDLE (LINE 65%, BRANCH 55%) — минимум, ниже которого
+                 новая фича не может «проехать» без тестов. Сгенерированные
+                 MapStruct-реализации из покрытия исключены. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <excludes>
+                        <exclude>**/*MapperImpl.*</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.65</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.55</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

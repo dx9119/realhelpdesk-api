@@ -21,18 +21,19 @@ import com.ukhanov.realhelpdesk.core.filter.LoggingFilter;
 import com.ukhanov.realhelpdesk.core.observability.HttpServerRequestObservationConvention;
 
 /**
- * Проставляет роль аутентифицированного пользователя в атрибут запроса и в MDC — то, что в локальном контуре делает {@code JwtAuthFilter}.
+ * Проставляет роль аутентифицированного пользователя в атрибут запроса и в MDC — то, что в локальном контуре делает
+ * {@code JwtAuthFilter}.
  *
  * <p>
- * Без этого тег {@code role} метрики {@code http.server.requests} и поле {@code role} в логах остались бы {@code ANONYMOUS} для всех
- * запросов: значение читается из атрибута запроса (наблюдение останавливается уже после очистки {@code SecurityContext}), а роль в
- * keycloak-контуре выставляет Spring Security, а не фильтр приложения.
+ * Без этого тег {@code role} метрики {@code http.server.requests} и поле {@code role} в логах остались бы
+ * {@code ANONYMOUS} для всех запросов: значение читается из атрибута запроса (наблюдение останавливается уже после
+ * очистки {@code SecurityContext}), а роль в keycloak-контуре выставляет Spring Security, а не фильтр приложения.
  * </p>
  *
  * <p>
- * Фильтр ставится после {@code BearerTokenAuthenticationFilter} — там контекст безопасности уже заполнен. Роль берётся из authority
- * аутентификации, то есть из БД (см. {@code KeycloakAuthenticationConverter}), а не из claim'ов токена: понижение роли и блокировка
- * пользователя действуют сразу.
+ * Фильтр ставится после {@code BearerTokenAuthenticationFilter} — там контекст безопасности уже заполнен. Роль берётся
+ * из authority аутентификации, то есть из БД (см. {@code KeycloakAuthenticationConverter}), а не из claim'ов токена:
+ * понижение роли и блокировка пользователя действуют сразу.
  * </p>
  */
 @Order(KeycloakAuthenticationRoleFilter.ORDER)
@@ -41,8 +42,9 @@ import com.ukhanov.realhelpdesk.core.observability.HttpServerRequestObservationC
 public class KeycloakAuthenticationRoleFilter extends OncePerRequestFilter {
 
     /**
-     * Порядок регистрации в servlet-контейнере: сразу после цепочки Spring Security (её фильтр идёт с {@code -100}), чтобы MDC был заполнен
-     * для запроса и очищен в {@code finally} вне зависимости от того, попал ли фильтр в security-цепочку.
+     * Порядок регистрации в servlet-контейнере: сразу после цепочки Spring Security (её фильтр идёт с {@code -100}),
+     * чтобы MDC был заполнен для запроса и очищен в {@code finally} вне зависимости от того, попал ли фильтр в
+     * security-цепочку.
      */
     public static final int ORDER = -99;
 
@@ -73,7 +75,10 @@ public class KeycloakAuthenticationRoleFilter extends OncePerRequestFilter {
         MDC.put(LoggingFilter.ROLE, HttpServerRequestObservationConvention.roleName(role));
     }
 
-    /** Первая authority с префиксом {@code ROLE_} — набор ролей приложения в проекте однозначен, служебных authority нет. */
+    /**
+     * Первая authority с префиксом {@code ROLE_} — набор ролей приложения в проекте однозначен, служебных authority
+     * нет.
+     */
     private static String roleOf(Collection<? extends GrantedAuthority> authorities) {
         for (GrantedAuthority authority : authorities) {
             String value = authority.getAuthority();

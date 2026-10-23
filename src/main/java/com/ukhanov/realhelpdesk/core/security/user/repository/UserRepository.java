@@ -12,7 +12,10 @@ import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 @Repository
 public interface UserRepository extends JpaRepository<UserModel, Long> {
     Optional<UserModel> findByEmail(String email);
-    /** Поиск без учёта регистра: email хранится как ввёл пользователь, а оператор-бутстрап задаёт адреса в своём регистре. */
+    /**
+     * Поиск без учёта регистра: email хранится как ввёл пользователь, а оператор-бутстрап задаёт адреса в своём
+     * регистре.
+     */
     Optional<UserModel> findByEmailIgnoreCase(String email);
     boolean existsByEmail(String email);
     Optional<UserDetailsProjection> findProjectedById(Long id);

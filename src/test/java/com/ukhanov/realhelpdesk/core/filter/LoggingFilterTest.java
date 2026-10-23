@@ -75,7 +75,8 @@ class LoggingFilterTest {
         // when
         AtomicReference<String> role = new AtomicReference<>();
 
-        filter(false).doFilter(request(), new MockHttpServletResponse(), (req, res) -> role.set(MDC.get(LoggingFilter.ROLE)));
+        filter(false).doFilter(request(), new MockHttpServletResponse(),
+                (req, res) -> role.set(MDC.get(LoggingFilter.ROLE)));
 
         // then
         assertThat(role.get()).isEqualTo("ANONYMOUS");

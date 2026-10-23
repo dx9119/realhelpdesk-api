@@ -9,12 +9,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
+import com.ukhanov.realhelpdesk.core.exception.SafeSideEffectExecutor;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Реестр ожидающих long-polling запросов оповещений: один инстанс приложения, поэтому достаточно общих структур в памяти. Клиент
- * регистрирует колбэк ({@code onWake}), публикатор будит его после коммита новой записи — ожидающий запрос сразу перечитывает БД и
- * отвечает, не дожидаясь таймаута.
+ * Реестр ожидающих long-polling запросов оповещений: один инстанс приложения, поэтому достаточно общих структур в
+ * памяти. Клиент регистрирует колбэк ({@code onWake}), публикатор будит его после коммита новой записи — ожидающий
+ * запрос сразу перечитывает БД и отвечает, не дожидаясь таймаута.
  */
 @Slf4j
 @Component
@@ -57,14 +59,15 @@ public class NotificationWaitRegistry {
             // строка WARN ушла бы с пустыми колонками. Восстанавливаем контекст инициатора пробуждения
             // (поток запроса-публикации или технический id планировщика)
             Map<String, String> wakeContext = MDC.getCopyOfContextMap();
-            try {
+            SafeSideEffectExecutor.runSafely(() -> {
                 onWake.run();
-            } catch (Exception e) {
+                return null;
+            }, e -> {
                 if (wakeContext != null) {
                     MDC.setContextMap(wakeContext);
                 }
                 logger.warn("Ошибка пробуждения ожидающего запроса оповещений пользователя {}", userId, e);
-            }
+            });
         }
     }
 

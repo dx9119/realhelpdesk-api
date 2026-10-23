@@ -37,11 +37,12 @@ import tools.jackson.databind.ObjectMapper;
  * Контракт OpenAPI-документации: спека безопасна и полна.
  *
  * <p>
- * 1) В prod-контуре springdoc выключен — контракт не раскрывается без аутентификации (в white-list security документация permitAll во всех
- * профилях). 2) SecurityScheme (Bearer JWT) описан — в swagger-ui есть кнопка Authorize. 3) Глобальный обработчик исключений размечен
- * {@link ApiResponse} — в описании каждой операции видны коды ошибок и структура problem+json. 4) Контроллеры документируют реальные
- * статусы: код в спеке совпадает с кодом, возвращаемым методом (201/202/204/206/416), а не дефолтный 200. 5) Контракт схем
- * ({@code openapi/schema-contract.json}) полон: у каждой схемы пример и описания полей — фронтенд не спрашивает бэкендера форматы.
+ * 1) В prod-контуре springdoc выключен — контракт не раскрывается без аутентификации (в white-list security
+ * документация permitAll во всех профилях). 2) SecurityScheme (Bearer JWT) описан — в swagger-ui есть кнопка Authorize.
+ * 3) Глобальный обработчик исключений размечен {@link ApiResponse} — в описании каждой операции видны коды ошибок и
+ * структура problem+json. 4) Контроллеры документируют реальные статусы: код в спеке совпадает с кодом, возвращаемым
+ * методом (201/202/204/206/416), а не дефолтный 200. 5) Контракт схем ({@code openapi/schema-contract.json}) полон: у
+ * каждой схемы пример и описания полей — фронтенд не спрашивает бэкендера форматы.
  * </p>
  */
 @DisplayName("OpenAPI: спека в prod отключена, авторизация и ошибки задокументированы")
@@ -53,7 +54,9 @@ class OpenApiDocumentationGuardTest {
 
     private static final Path SCHEMA_CONTRACT = Path.of("src", "main", "resources", "openapi", "schema-contract.json");
 
-    /** Схемы фреймворка, не несущие смысла для клиента: в контракте быть не должно (ловим утечки из DTO/контроллеров). */
+    /**
+     * Схемы фреймворка, не несущие смысла для клиента: в контракте быть не должно (ловим утечки из DTO/контроллеров).
+     */
     private static final Set<String> FORBIDDEN_CONTRACT_SCHEMAS = Set.of("StreamingResponseBody", "SseEmitter");
 
     /** Обработчик ResponseStatusException произвольно транслирует статусы фреймворка — его коды не фиксируются. */
@@ -62,11 +65,13 @@ class OpenApiDocumentationGuardTest {
     private static final Set<String> REQUIRED_ERROR_CODES = Set.of("400", "401", "403", "404", "500");
 
     /**
-     * Реальные не-200 статусы, возвращаемые контроллерами напрямую: строка вызова в теле метода ↔ код, который обязан быть задокументирован
-     * {@code @ApiResponse}. 200 не входит — он дефолтный и не требует аннотации.
+     * Реальные не-200 статусы, возвращаемые контроллерами напрямую: строка вызова в теле метода ↔ код, который обязан
+     * быть задокументирован {@code @ApiResponse}. 200 не входит — он дефолтный и не требует аннотации.
      */
-    private static final Map<String, String> STATUS_CALLS = Map.of("ResponseEntity.created(", "201", "ResponseEntity.accepted(", "202",
-            "ResponseEntity.noContent()", "204", "HttpStatus.PARTIAL_CONTENT", "206", "HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE", "416");
+    private static final Map<String, String> STATUS_CALLS = Map.of("ResponseEntity.created(", "201",
+            "ResponseEntity.accepted(", "202",
+            "ResponseEntity.noContent()", "204", "HttpStatus.PARTIAL_CONTENT", "206",
+            "HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE", "416");
 
     @Test
     @DisplayName("Профиль prod отключает спеку и UI — контракт API не утекает из рабочего контура")
@@ -81,7 +86,8 @@ class OpenApiDocumentationGuardTest {
 
         // then
         assertThat(prod.getProperty("springdoc.api-docs.enabled")).as("springdoc.api-docs.enabled").isEqualTo("false");
-        assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).as("springdoc.swagger-ui.enabled").isEqualTo("false");
+        assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).as("springdoc.swagger-ui.enabled")
+                .isEqualTo("false");
     }
 
     @Test
@@ -89,10 +95,12 @@ class OpenApiDocumentationGuardTest {
     void swaggerPaths_bothSecurityContours_arePermitted() {
 
         // given / when / then
-        assertThat(WhiteUrlConfig.WHITE_LIST_URLS).as("контур без keycloak").contains("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html",
-                "/swagger-ui/**");
-        assertThat(KeycloakWhiteUrlConfig.WHITE_LIST_URLS).as("контур keycloak").contains("/v3/api-docs", "/v3/api-docs/**",
-                "/swagger-ui.html", "/swagger-ui/**");
+        assertThat(WhiteUrlConfig.WHITE_LIST_URLS).as("контур без keycloak")
+                .contains("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html",
+                        "/swagger-ui/**");
+        assertThat(KeycloakWhiteUrlConfig.WHITE_LIST_URLS).as("контур keycloak")
+                .contains("/v3/api-docs", "/v3/api-docs/**",
+                        "/swagger-ui.html", "/swagger-ui/**");
     }
 
     @Test
@@ -141,7 +149,8 @@ class OpenApiDocumentationGuardTest {
 
         // then
         assertThat(GlobalExceptionHandler.class.getAnnotation(RestControllerAdvice.class))
-                .as("обработчик — @RestControllerAdvice (springdoc тиражирует ответы во все операции)").isNotNull();
+                .as("обработчик — @RestControllerAdvice (springdoc тиражирует ответы во все операции)")
+                .isNotNull();
         assertThat(unannotated).as("обработчики без @ApiResponse (кроме динамических)").isEmpty();
         assertThat(documentedCodes).as("коды ошибок в описании операций").containsAll(REQUIRED_ERROR_CODES);
     }
@@ -162,10 +171,13 @@ class OpenApiDocumentationGuardTest {
                 if (!block.contains("public ")) {
                     continue;
                 }
+                // Spotless переносит fluent-вызовы (ResponseEntity\n.created), поэтому
+                // сравнение идёт по склеенному тексту без пробелов и переводов строк.
+                String compact = block.replaceAll("\\s+", "");
                 for (Map.Entry<String, String> call : STATUS_CALLS.entrySet()) {
                     String code = call.getValue();
-                    boolean usesCall = block.contains(call.getKey());
-                    boolean documentsCode = block.contains("@ApiResponse(responseCode = \"" + code + "\"");
+                    boolean usesCall = compact.contains(call.getKey().replaceAll("\\s+", ""));
+                    boolean documentsCode = compact.contains("@ApiResponse(responseCode=\"" + code + "\"");
                     if (usesCall && !documentsCode) {
                         violations.add("%s: %s без @ApiResponse(%s)".formatted(controller, call.getKey(), code));
                     }
@@ -197,32 +209,47 @@ class OpenApiDocumentationGuardTest {
                 continue;
             }
             schemas++;
-            if (FORBIDDEN_CONTRACT_SCHEMAS.contains(name)) {
-                violations.add("схема фреймворка %s в контракте".formatted(name));
-                continue;
-            }
-            JsonNode node = entry.getValue();
-            if (isBlank(node, "description")) {
-                violations.add("%s: нет description схемы".formatted(name));
-            }
-            JsonNode example = node.get("example");
-            if (example == null || !example.isObject() || example.isEmpty()) {
-                violations.add("%s: нет примера (example-объект)".formatted(name));
-            }
-            JsonNode fields = node.get("fields");
-            if (fields == null || !fields.isObject() || fields.isEmpty()) {
-                violations.add("%s: нет описаний полей".formatted(name));
-                continue;
-            }
-            for (Map.Entry<String, JsonNode> field : fields.properties()) {
-                if (field.getValue() == null || field.getValue().stringValue().isBlank()) {
-                    violations.add("%s.%s: пустое описание".formatted(name, field.getKey()));
-                }
-            }
+            validateSchema(name, entry.getValue(), violations);
         }
 
         assertThat(schemas).as("схем в контракте").isGreaterThanOrEqualTo(50);
         assertThat(violations).as("неполнота контракта спеки").isEmpty();
+    }
+
+    private static void validateSchema(String name, JsonNode node, List<String> violations) {
+        if (FORBIDDEN_CONTRACT_SCHEMAS.contains(name)) {
+            violations.add("схема фреймворка %s в контракте".formatted(name));
+            return;
+        }
+        if (isBlank(node, "description")) {
+            violations.add("%s: нет description схемы".formatted(name));
+        }
+        if (missingExample(node)) {
+            violations.add("%s: нет примера (example-объект)".formatted(name));
+        }
+        if (missingFields(node)) {
+            violations.add("%s: нет описаний полей".formatted(name));
+            return;
+        }
+        checkFieldDescriptions(name, node.get("fields"), violations);
+    }
+
+    private static boolean missingExample(JsonNode node) {
+        JsonNode example = node.get("example");
+        return example == null || !example.isObject() || example.isEmpty();
+    }
+
+    private static boolean missingFields(JsonNode node) {
+        JsonNode fields = node.get("fields");
+        return fields == null || !fields.isObject() || fields.isEmpty();
+    }
+
+    private static void checkFieldDescriptions(String name, JsonNode fields, List<String> violations) {
+        for (Map.Entry<String, JsonNode> field : fields.properties()) {
+            if (field.getValue() == null || field.getValue().stringValue().isBlank()) {
+                violations.add("%s.%s: пустое описание".formatted(name, field.getKey()));
+            }
+        }
     }
 
     private static boolean isBlank(JsonNode node, String field) {
@@ -241,8 +268,8 @@ class OpenApiDocumentationGuardTest {
     }
 
     /**
-     * Члены класса — блок «аннотации + сигнатура + тело» до закрывающей скобки на отступе класса (4 пробела): вложенные блоки закрываются с
-     * бо́льшим отступом и границу не создают.
+     * Члены класса — блок «аннотации + сигнатура + тело» до закрывающей скобки на отступе класса (4 пробела): вложенные
+     * блоки закрываются с бо́льшим отступом и границу не создают.
      */
     private static List<String> methodBlocks(String source) {
         String[] lines = source.split("\r?\n", -1);
@@ -250,7 +277,7 @@ class OpenApiDocumentationGuardTest {
         StringBuilder current = new StringBuilder();
         for (String line : lines) {
             current.append(line).append('\n');
-            if (line.equals("    }")) {
+            if ("    }".equals(line)) {
                 blocks.add(current.toString());
                 current.setLength(0);
             }

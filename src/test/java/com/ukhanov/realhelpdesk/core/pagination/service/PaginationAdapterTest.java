@@ -46,7 +46,9 @@ class PaginationAdapterTest {
     void buildPageRequest_unknownField_throwsPaginationException() {
         // given / when / then
         assertThatThrownBy(() -> adapter.buildPageRequest(0, 10, "constructor", "asc", ALLOWED_FIELDS))
-                .isInstanceOf(PaginationException.class).hasMessageContaining("\"constructor\"").hasMessageContaining("createdAt")
+                .isInstanceOf(PaginationException.class)
+                .hasMessageContaining("\"constructor\"")
+                .hasMessageContaining("createdAt")
                 .hasMessageContaining("ticketStatus");
     }
 

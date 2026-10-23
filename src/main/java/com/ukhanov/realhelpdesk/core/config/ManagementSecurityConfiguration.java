@@ -22,14 +22,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Безопасность управляющего порта: actuator живёт на отдельном порту ({@code MANAGEMENT_PORT}), поэтому на основном сервере
- * {@code /actuator/**} не обслуживается, а здесь — свой набор правил, независимый от JWT.
+ * Безопасность управляющего порта: actuator живёт на отдельном порту ({@code MANAGEMENT_PORT}), поэтому на основном
+ * сервере {@code /actuator/**} не обслуживается, а здесь — свой набор правил, независимый от JWT.
  *
  * <p>
- * Цепочка {@code @Order(0)} (выше основной) перехватывает все пути actuator на обоих портах: health и info отдаются без аутентификации
- * (пробы оркестратора), prometheus — по HTTP Basic сервисной учёткой из {@link PrometheusScrapeProperties}, всё остальное запрещено.
- * Основная цепочка {@code WebSecurityConfiguration} правил на {@code /actuator/**} больше не содержит и сюда не попадает: JwtAuthFilter,
- * CsrfProtectionFilter и CORS настраиваются только в ней, поэтому скрейп не ходит через аутентификацию приложения.
+ * Цепочка {@code @Order(0)} (выше основной) перехватывает все пути actuator на обоих портах: health и info отдаются без
+ * аутентификации (пробы оркестратора), prometheus — по HTTP Basic сервисной учёткой из
+ * {@link PrometheusScrapeProperties}, всё остальное запрещено. Основная цепочка {@code WebSecurityConfiguration} правил
+ * на {@code /actuator/**} больше не содержит и сюда не попадает: JwtAuthFilter, CsrfProtectionFilter и CORS
+ * настраиваются только в ней, поэтому скрейп не ходит через аутентификацию приложения.
  * </p>
  */
 @Slf4j
@@ -61,7 +62,8 @@ public class ManagementSecurityConfiguration {
         http.securityMatcher(actuatorMatcher);
 
         // Без сессий и CSRF: скрейп — одиночный GET с Basic-заголовком, куки и токены не используются.
-        http.sessionManagement(sessionManagement -> sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.sessionManagement(
+                sessionManagement -> sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.csrf(AbstractHttpConfigurer::disable);
         // Basic ставим всегда, даже при выключенной проверке: он задаёт entry point,
         // поэтому неаутентифицированный запрос получает 401, а не 403 без объяснений.
@@ -85,14 +87,16 @@ public class ManagementSecurityConfiguration {
     }
 
     /**
-     * Единственный пользователь управляющей цепочки — сервисная учётка скрейпа. Пустые креды дают пустой список, то есть аутентификация
-     * невозможна и метрики недоступны: закрытый скрейп лучше открытого.
+     * Единственный пользователь управляющей цепочки — сервисная учётка скрейпа. Пустые креды дают пустой список, то
+     * есть аутентификация невозможна и метрики недоступны: закрытый скрейп лучше открытого.
      */
     private UserDetailsService scrapeUserDetailsService() {
         if (!scrapeProperties.hasCredentials()) {
             return new InMemoryUserDetailsManager();
         }
         return new InMemoryUserDetailsManager(User.withUsername(scrapeProperties.getUsername())
-                .password("{noop}" + scrapeProperties.getPassword()).roles(METRICS_ROLE).build());
+                .password("{noop}" + scrapeProperties.getPassword())
+                .roles(METRICS_ROLE)
+                .build());
     }
 }

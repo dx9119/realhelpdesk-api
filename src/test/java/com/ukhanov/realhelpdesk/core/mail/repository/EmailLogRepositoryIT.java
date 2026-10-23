@@ -38,7 +38,8 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
         log(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusDays(3));
         repository.flush();
 
-        long count = repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusHours(1), now);
+        long count = repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD,
+                now.minusHours(1), now);
 
         // then
         assertThat(count).isEqualTo(2);
@@ -55,7 +56,8 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
         log(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now);
         repository.flush();
 
-        long count = repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusHours(1), now);
+        long count = repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD,
+                now.minusHours(1), now);
 
         // then
         assertThat(count).isEqualTo(2);
@@ -73,7 +75,8 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
         repository.flush();
 
         // then
-        assertThat(repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD, now.minusHours(1), now))
+        assertThat(repository.countEmailsByToAndEventBetween(RECIPIENT, NotificationEvent.RECOVERY_PASSWORD,
+                now.minusHours(1), now))
                 .isZero();
     }
 

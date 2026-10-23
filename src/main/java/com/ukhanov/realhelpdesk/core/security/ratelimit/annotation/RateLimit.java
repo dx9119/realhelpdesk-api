@@ -7,7 +7,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Связывает метод контроллера с порогом рейт-лимита из конфига (ключ {@code ratelimit.limits.<key>} в application.properties).
+ * Связывает метод контроллера с порогом рейт-лимита из конфига (ключ {@code ratelimit.limits.<key>} в
+ * application.properties).
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

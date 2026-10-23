@@ -73,8 +73,11 @@ class NotificationManageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new NotificationManageService(notificationRepository, preferencesRepository, currentUserProvider, new PaginationAdapter(),
-                waitRegistry, Mappers.getMapper(NotificationMapper.class));
+        NotificationMapper mapper = Mappers.getMapper(NotificationMapper.class);
+        NotificationSseService sseService = new NotificationSseService(notificationRepository, currentUserProvider,
+                waitRegistry, mapper);
+        service = new NotificationManageService(notificationRepository, preferencesRepository, currentUserProvider,
+                new PaginationAdapter(), waitRegistry, mapper, sseService);
         when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
     }
 
@@ -88,7 +91,8 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "Проблема с оплатой");
+        NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null,
+                "Проблема с оплатой");
         when(notificationRepository.findByRecipientIdAndReadFalse(eq(USER_ID), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(model), PageRequest.of(0, 10), 1));
 
@@ -123,7 +127,8 @@ class NotificationManageServiceTest {
     void getNotifications_badSortField_throwsPaginationException() {
 
         // given / when / then
-        assertThatThrownBy(() -> service.getNotifications(0, 10, "recipientId", "desc", false)).isInstanceOf(PaginationException.class);
+        assertThatThrownBy(() -> service.getNotifications(0, 10, "recipientId", "desc", false))
+                .isInstanceOf(PaginationException.class);
         verify(notificationRepository, never()).findByRecipientId(any(), any(PageRequest.class));
     }
 
@@ -244,7 +249,8 @@ class NotificationManageServiceTest {
         // then
         assertThat(response.events()).containsExactlyInAnyOrderElementsOf(NotificationPublisher.SUPPORTED_EVENTS);
         assertThat(response.repeatEnabled()).isTrue();
-        assertThat(response.repeatIntervalMinutes()).isEqualTo(UserNotificationPreferencesModel.DEFAULT_REPEAT_INTERVAL_MINUTES);
+        assertThat(response.repeatIntervalMinutes())
+                .isEqualTo(UserNotificationPreferencesModel.DEFAULT_REPEAT_INTERVAL_MINUTES);
     }
 
     @Test
@@ -253,7 +259,8 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        UserNotificationPreferencesModel saved = new UserNotificationPreferencesModel(USER_ID, Set.of(NotificationEvent.NEW_MESSAGE));
+        UserNotificationPreferencesModel saved = new UserNotificationPreferencesModel(USER_ID,
+                Set.of(NotificationEvent.NEW_MESSAGE));
         saved.setRepeatEnabled(false);
         saved.setRepeatIntervalMinutes(5);
         when(preferencesRepository.findByUserId(USER_ID)).thenReturn(Optional.of(saved));
@@ -272,7 +279,8 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        NotificationPreferencesRequest request = new NotificationPreferencesRequest(Set.of(NotificationEvent.RECOVERY_PASSWORD), null,
+        NotificationPreferencesRequest request = new NotificationPreferencesRequest(
+                Set.of(NotificationEvent.RECOVERY_PASSWORD), null,
                 null);
 
         // then
@@ -288,23 +296,28 @@ class NotificationManageServiceTest {
         // given
         // when
         when(preferencesRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
-        NotificationPreferencesRequest request = new NotificationPreferencesRequest(Set.of(NotificationEvent.NEW_TICKET), null, null);
+        NotificationPreferencesRequest request = new NotificationPreferencesRequest(
+                Set.of(NotificationEvent.NEW_TICKET), null, null);
 
         NotificationPreferencesResponse created = service.updatePreferences(request);
 
         // then
         assertThat(created.events()).containsExactly(NotificationEvent.NEW_TICKET);
         assertThat(created.repeatEnabled()).isTrue();
-        assertThat(created.repeatIntervalMinutes()).isEqualTo(UserNotificationPreferencesModel.DEFAULT_REPEAT_INTERVAL_MINUTES);
-        ArgumentCaptor<UserNotificationPreferencesModel> captor = ArgumentCaptor.forClass(UserNotificationPreferencesModel.class);
+        assertThat(created.repeatIntervalMinutes())
+                .isEqualTo(UserNotificationPreferencesModel.DEFAULT_REPEAT_INTERVAL_MINUTES);
+        ArgumentCaptor<UserNotificationPreferencesModel> captor = ArgumentCaptor
+                .forClass(UserNotificationPreferencesModel.class);
         verify(preferencesRepository).save(captor.capture());
         assertThat(captor.getValue().getUserId()).isEqualTo(USER_ID);
         assertThat(captor.getValue().getEnabledEvents()).containsExactly(NotificationEvent.NEW_TICKET);
         assertThat(captor.getValue().isRepeatEnabled()).isTrue();
 
-        UserNotificationPreferencesModel existing = new UserNotificationPreferencesModel(USER_ID, Set.of(NotificationEvent.NEW_TICKET));
+        UserNotificationPreferencesModel existing = new UserNotificationPreferencesModel(USER_ID,
+                Set.of(NotificationEvent.NEW_TICKET));
         when(preferencesRepository.findByUserId(USER_ID)).thenReturn(Optional.of(existing));
-        NotificationPreferencesRequest second = new NotificationPreferencesRequest(Set.of(NotificationEvent.CHANGE_TICKET), false, 5);
+        NotificationPreferencesRequest second = new NotificationPreferencesRequest(
+                Set.of(NotificationEvent.CHANGE_TICKET), false, 5);
 
         NotificationPreferencesResponse updated = service.updatePreferences(second);
 
@@ -322,13 +335,15 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        UserNotificationPreferencesModel existing = new UserNotificationPreferencesModel(USER_ID, Set.of(NotificationEvent.NEW_TICKET));
+        UserNotificationPreferencesModel existing = new UserNotificationPreferencesModel(USER_ID,
+                Set.of(NotificationEvent.NEW_TICKET));
         existing.setRepeatEnabled(false);
         existing.setRepeatIntervalMinutes(7);
         when(preferencesRepository.findByUserId(USER_ID)).thenReturn(Optional.of(existing));
 
         NotificationPreferencesResponse response = service
-                .updatePreferences(new NotificationPreferencesRequest(Set.of(NotificationEvent.NEW_TICKET), null, null));
+                .updatePreferences(
+                        new NotificationPreferencesRequest(Set.of(NotificationEvent.NEW_TICKET), null, null));
 
         // then
         assertThat(response.repeatEnabled()).isFalse();
@@ -348,7 +363,8 @@ class NotificationManageServiceTest {
         // given
         // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(5L), any(PageRequest.class)))
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(5L),
+                any(PageRequest.class)))
                 .thenReturn(List.of(model));
 
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = service.waitForNew(5L, 25, 10);
@@ -356,9 +372,7 @@ class NotificationManageServiceTest {
         // then
         assertThat(deferred.hasResult()).isTrue();
         assertThat(deferred.getResult()).isInstanceOf(ResponseEntity.class);
-        @SuppressWarnings("unchecked")
-        ResponseEntity<PageResponse<NotificationResponse>> entity = (ResponseEntity<PageResponse<NotificationResponse>>) deferred
-                .getResult();
+        ResponseEntity<PageResponse<NotificationResponse>> entity = asPageResponse(deferred.getResult());
         assertThat(entity.getBody().content()).hasSize(1);
         // регистрация была (защита от гонки), резолв — сразу, без пробуждения
         verify(waitRegistry).register(eq(USER_ID), any(Runnable.class));
@@ -372,8 +386,10 @@ class NotificationManageServiceTest {
         // given
         // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
-                .thenReturn(List.of()).thenReturn(List.of(model));
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
+                .thenReturn(List.of())
+                .thenReturn(List.of(model));
 
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = service.waitForNew(0L, 25, 10);
 
@@ -386,9 +402,7 @@ class NotificationManageServiceTest {
         onWakeCaptor.getValue().run();
 
         assertThat(deferred.hasResult()).isTrue();
-        @SuppressWarnings("unchecked")
-        ResponseEntity<PageResponse<NotificationResponse>> entity = (ResponseEntity<PageResponse<NotificationResponse>>) deferred
-                .getResult();
+        ResponseEntity<PageResponse<NotificationResponse>> entity = asPageResponse(deferred.getResult());
         assertThat(entity.getBody().content()).hasSize(1);
     }
 
@@ -398,8 +412,10 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
-                .thenReturn(List.of()).thenReturn(List.of());
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
+                .thenReturn(List.of())
+                .thenReturn(List.of());
 
         DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = service.waitForNew(0L, 25, 10);
 
@@ -417,13 +433,15 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), anyLong(), any(PageRequest.class)))
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), anyLong(),
+                any(PageRequest.class)))
                 .thenReturn(List.of());
 
         service.waitForNew(99L, 25, 5);
 
         // then
-        verify(notificationRepository).findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(99L), eq(PageRequest.of(0, 5)));
+        verify(notificationRepository).findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(99L),
+                eq(PageRequest.of(0, 5)));
     }
 
     // ────────────────────────────────────────────────
@@ -436,7 +454,8 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
                 .thenReturn(List.of());
 
         SseEmitter emitter = service.subscribe(0L, 10);
@@ -457,16 +476,21 @@ class NotificationManageServiceTest {
         // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
         model.setId(7L);
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
                 .thenReturn(List.of(model));
 
         SseEmitter emitter = service.subscribe(0L, 10);
         SseEmitterCapture.Capture capture = SseEmitterCapture.attach(emitter);
 
         // then
-        assertThat(capture.payloads()).anyMatch(payload -> payload instanceof String text && text.contains("event:notification"));
-        List<NotificationResponse> sent = capture.payloads().stream().filter(NotificationResponse.class::isInstance)
-                .map(NotificationResponse.class::cast).toList();
+        assertThat(capture.payloads())
+                .anyMatch(payload -> payload instanceof String text && text.contains("event:notification"));
+        List<NotificationResponse> sent = capture.payloads()
+                .stream()
+                .filter(NotificationResponse.class::isInstance)
+                .map(NotificationResponse.class::cast)
+                .toList();
         assertThat(sent).hasSize(1);
         assertThat(sent.getFirst().event()).isEqualTo(NotificationEvent.NEW_TICKET);
         // канал пережил backfill: подписка осталась висеть до закрытия/таймаута
@@ -481,8 +505,10 @@ class NotificationManageServiceTest {
         // when
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
         model.setId(7L);
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
-                .thenReturn(List.of()).thenReturn(List.of(model));
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
+                .thenReturn(List.of())
+                .thenReturn(List.of(model));
 
         SseEmitter emitter = service.subscribe(0L, 10);
         SseEmitterCapture.Capture capture = SseEmitterCapture.attach(emitter);
@@ -504,7 +530,8 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
                 .thenReturn(List.of());
 
         SseEmitter emitter = service.subscribe(0L, 10);
@@ -522,7 +549,8 @@ class NotificationManageServiceTest {
 
         // given
         // when
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
                 .thenReturn(List.of());
 
         SseEmitter emitter = service.subscribe(0L, 10);
@@ -541,20 +569,29 @@ class NotificationManageServiceTest {
         // given
         // when
         NotificationWaitRegistry realRegistry = new NotificationWaitRegistry();
-        NotificationManageService sharedService = new NotificationManageService(notificationRepository, preferencesRepository,
-                currentUserProvider, new PaginationAdapter(), realRegistry, Mappers.getMapper(NotificationMapper.class));
+        NotificationMapper realMapper = Mappers.getMapper(NotificationMapper.class);
+        NotificationSseService realSseService = new NotificationSseService(notificationRepository, currentUserProvider,
+                realRegistry, realMapper);
+        NotificationManageService sharedService = new NotificationManageService(notificationRepository,
+                preferencesRepository,
+                currentUserProvider, new PaginationAdapter(), realRegistry, realMapper, realSseService);
         NotificationModel model = new NotificationModel(USER_ID, NotificationEvent.NEW_TICKET, 11L, null, "З");
         model.setId(7L);
         // порядок выборок: backfill подписки и немедленная проверка wait — пусто; после wake — строки обоим
-        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L), any(PageRequest.class)))
-                .thenReturn(List.of()).thenReturn(List.of()).thenReturn(List.of(model)).thenReturn(List.of(model));
+        when(notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(eq(USER_ID), eq(0L),
+                any(PageRequest.class)))
+                .thenReturn(List.of())
+                .thenReturn(List.of())
+                .thenReturn(List.of(model))
+                .thenReturn(List.of(model));
 
         SseEmitter emitter = sharedService.subscribe(0L, 10);
         SseEmitterCapture.attach(emitter);
         // then
         assertThat(realRegistry.waiterCount(USER_ID)).isEqualTo(1);
 
-        DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = sharedService.waitForNew(0L, 25, 10);
+        DeferredResult<ResponseEntity<PageResponse<NotificationResponse>>> deferred = sharedService.waitForNew(0L, 25,
+                10);
         assertThat(deferred.hasResult()).isFalse();
         assertThat(realRegistry.waiterCount(USER_ID)).isEqualTo(2);
 
@@ -563,13 +600,16 @@ class NotificationManageServiceTest {
 
         // long polling получил строки, SSE заново встал в реестр до закрытия канала
         assertThat(deferred.hasResult()).isTrue();
-        @SuppressWarnings("unchecked")
-        ResponseEntity<PageResponse<NotificationResponse>> entity = (ResponseEntity<PageResponse<NotificationResponse>>) deferred
-                .getResult();
+        ResponseEntity<PageResponse<NotificationResponse>> entity = asPageResponse(deferred.getResult());
         assertThat(entity.getBody().content()).hasSize(1);
         assertThat(realRegistry.waiterCount(USER_ID)).isEqualTo(1);
 
         emitter.complete();
         assertThat(realRegistry.waiterCount(USER_ID)).isZero();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ResponseEntity<PageResponse<NotificationResponse>> asPageResponse(Object result) {
+        return (ResponseEntity<PageResponse<NotificationResponse>>) result;
     }
 }

@@ -47,7 +47,8 @@ class UsedTokenStoreTest {
         assertThat(store.firstUse("t:once")).isTrue();
 
         // when / then — ожидание по условию вместо фиксированной паузы: Caffeine чистит запись лениво
-        await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(100))
+        await().atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(100))
                 .untilAsserted(() -> assertThat(store.firstUse("t:once")).isTrue());
     }
 
@@ -71,6 +72,7 @@ class UsedTokenStoreTest {
 
         var expirePolicy = cache.policy().expireAfterWrite().orElseThrow();
         // then
-        assertThat(expirePolicy.getExpiresAfter()).isEqualTo(Duration.ofSeconds(600 + UsedTokenStore.EXPIRE_MARGIN_SECONDS));
+        assertThat(expirePolicy.getExpiresAfter())
+                .isEqualTo(Duration.ofSeconds(600 + UsedTokenStore.EXPIRE_MARGIN_SECONDS));
     }
 }

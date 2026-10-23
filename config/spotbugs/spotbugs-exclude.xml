@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- MapStruct генерирует *MapperImpl в target/generated-sources: это не
+         рукописный код, замечания к нему не относятся к качеству проекта. -->
+    <Match>
+        <Source name="~.*MapperImpl\.java"/>
+    </Match>
+</FindBugsFilter>

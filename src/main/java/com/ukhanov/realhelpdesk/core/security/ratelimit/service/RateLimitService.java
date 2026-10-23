@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RateLimitService {
 
     private static final int SWEEP_THRESHOLD = 1000;
+    private static final long MILLIS_PER_SECOND = 1_000L;
 
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
 
@@ -38,10 +39,11 @@ public class RateLimitService {
         long retryAfterSeconds = 0;
         if (!allowed) {
             long retryAfterMillis = Math.max(0, current.expiresAt() - now);
-            retryAfterSeconds = Math.max(1, (retryAfterMillis + 999) / 1000);
+            retryAfterSeconds = Math.max(1, (retryAfterMillis + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND);
         }
 
-        logger.debug("Лимит {}: запросов={}, макс={}, allowed={}, retryAfter={}с", key, count, maxRequests, allowed, retryAfterSeconds);
+        logger.debug("Лимит {}: запросов={}, макс={}, allowed={}, retryAfter={}с", key, count, maxRequests, allowed,
+                retryAfterSeconds);
         return new Decision(allowed, retryAfterSeconds);
     }
 

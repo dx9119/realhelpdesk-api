@@ -39,35 +39,12 @@ import com.ukhanov.realhelpdesk.feature.attachmentmanager.service.AttachmentMana
 import com.ukhanov.realhelpdesk.feature.messagemanager.exception.MessageException;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Файлы вложений заявок: загрузка (создаёт сообщение с файлом), список метаданных и отдача байтов фрагментами.
- *
- * <p>
- * Политика доступа — как у сообщений заявки (файл в ленте — это отдельное сообщение): загрузка, список и скачивание проверяют доступ к
- * заявке через {@code @ticketAccessValidationService.hasTicketAccess}, то же выражение, что у MessageController. Принадлежность файла
- * заявке этого портала проверяется сервисом отдельно (404).
- * </p>
- *
- * <p>
- * Отдача поддерживает HTTP Range (один диапазон): клиент на нестабильной сети (3G) докачивает файл с места обрыва запросом
- * {@code Range: bytes=<уже скачанное>-}. Фрагмент читается из MinIO только нужный — байты вне диапазона не передаются.
- * </p>
- *
- * <p>
- * URL в ответах ({@code downloadUrl}) собирается с origin'ом из {@code static.base-url}: пустая настройка — относительный путь, отдаёт API;
- * заданный домен/ip:port — клиент ходит за файлами туда, перед чем стоит reverse-proxy/CDN. Путь endpoint'а на origin'е не меняется.
- * </p>
- *
- * <p>
- * Политика кэширования задаётся {@code static.cache-control} и одинакова на всех ответах отдачи (200/206/416): дефолт
- * {@code private, no-store}; значение для CDN имеет смысл только с доступом, не завязанным на cookie.
- * </p>
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/portals/{portalId}/tickets/{ticketId}/attachments")
@@ -83,37 +60,49 @@ public class AttachmentController {
         this.staticProperties = Objects.requireNonNull(staticProperties, "staticProperties must not be null");
     }
 
+    @Operation(summary = "Загрузка вложения",
+            description = "Загружает файл в MinIO, привязанный к заявке. Создаёт сообщение с файлом. "
+                    + "Location — downloadUrl (абсолютный при заданном static.base-url).")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
     @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<AttachmentResponse> uploadAttachment(@Valid @ModelAttribute UploadAttachmentRequest form,
             @RequestParam("file") MultipartFile file, @PathVariable Long portalId, @PathVariable Long ticketId)
-            throws AttachmentException, TicketException, MessageException, MessagingException, UnsupportedEncodingException {
-        AttachmentResponse response = attachmentManageService.uploadAttachment(file, form.messageText(), portalId, ticketId);
-        // Location — тот же URL, что у клиента в downloadUrl: при заданном static.base-url он абсолютный и указывает на origin раздачи.
+            throws AttachmentException, TicketException, MessageException, MessagingException,
+            UnsupportedEncodingException {
+        AttachmentResponse response = attachmentManageService.uploadAttachment(file, form.messageText(), portalId,
+                ticketId);
         return ResponseEntity.created(URI.create(response.downloadUrl())).body(response);
     }
 
+    @Operation(summary = "Список вложений", description = "Возвращает метаданные всех вложений заявки.")
     @GetMapping
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
-    public ResponseEntity<ItemsResponse<AttachmentResponse>> getAttachments(@PathVariable Long portalId, @PathVariable Long ticketId)
+    public ResponseEntity<ItemsResponse<AttachmentResponse>> getAttachments(@PathVariable Long portalId,
+            @PathVariable Long ticketId)
             throws AttachmentException, TicketException {
         return ResponseEntity.ok(ItemsResponse.of(attachmentManageService.getAttachments(portalId, ticketId)));
     }
 
-    /** Отдаёт файл потоком: без буферизации в памяти приложения и без presigned-URL — доступ всегда через JWT-cookie. */
+    @Operation(summary = "Скачивание вложения (Range)",
+            description = "Отдаёт файл потоком с поддержкой HTTP Range (200/206/416). "
+                    + "ETag неизменяем по id вложения. If-Range с ETag продолжает докачку (206), "
+                    + "несовпавший валидатор — отдаёт файл целиком (200).")
     @GetMapping("/{attachmentId}")
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
     @ApiResponse(responseCode = "200", description = "Файл целиком",
-            content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
+            content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                    schema = @Schema(type = "string", format = "binary")))
     @ApiResponse(responseCode = "206", description = "Часть файла (Range)",
-            content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE, schema = @Schema(type = "string", format = "binary")))
-    @ApiResponse(responseCode = "416", description = "Диапазон не может быть удовлетворён (Range)", content = @Content())
-    public ResponseEntity<StreamingResponseBody> downloadAttachment(@PathVariable Long portalId, @PathVariable Long ticketId,
-            @PathVariable Long attachmentId, @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
+            content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                    schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(responseCode = "416", description = "Диапазон не может быть удовлетворён (Range)",
+            content = @Content())
+    public ResponseEntity<StreamingResponseBody> downloadAttachment(@PathVariable Long portalId,
+            @PathVariable Long ticketId,
+            @PathVariable Long attachmentId,
+            @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
             @RequestHeader(value = HttpHeaders.IF_RANGE, required = false) String ifRange) throws AttachmentException {
-        // ETag вложения: файл неизменяем (загрузка создаёт новую запись), поэтому достаточно id. Его же
-        // использует If-Range: если валидатор не совпал, Range игнорируется и отдаётся файл целиком (RFC 9110).
         String etag = EntityTag.ofImmutable("attachment", attachmentId);
         boolean rangeAllowed = EntityTag.matches(ifRange, etag);
 
@@ -121,10 +110,12 @@ public class AttachmentController {
                 rangeAllowed ? rangeHeader : null);
 
         if (download.isUnsatisfiable()) {
-            return ResponseEntity.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE).eTag(etag)
+            return ResponseEntity.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                    .eTag(etag)
                     .header(HttpHeaders.ACCEPT_RANGES, BYTES_UNIT)
                     .header(HttpHeaders.CONTENT_RANGE, download.range().contentRange(download.sizeBytes()))
-                    .header(HttpHeaders.CACHE_CONTROL, staticProperties.getCacheControl()).build();
+                    .header(HttpHeaders.CACHE_CONTROL, staticProperties.getCacheControl())
+                    .build();
         }
 
         boolean partial = download.isPartial();
@@ -135,12 +126,20 @@ public class AttachmentController {
             }
         };
 
-        ResponseEntity.BodyBuilder response = partial ? ResponseEntity.status(HttpStatus.PARTIAL_CONTENT) : ResponseEntity.ok();
-        response.eTag(etag).header(HttpHeaders.ACCEPT_RANGES, BYTES_UNIT)
+        ResponseEntity.BodyBuilder response = partial
+                ? ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                : ResponseEntity.ok();
+        response.eTag(etag)
+                .header(HttpHeaders.ACCEPT_RANGES, BYTES_UNIT)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename(download.fileName(), StandardCharsets.UTF_8).build().toString())
-                .header(HttpHeaders.CACHE_CONTROL, staticProperties.getCacheControl()).contentType(mediaType(download.contentType()))
-                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(partial ? download.range().length() : download.sizeBytes()));
+                        ContentDisposition.attachment()
+                                .filename(download.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                .header(HttpHeaders.CACHE_CONTROL, staticProperties.getCacheControl())
+                .contentType(mediaType(download.contentType()))
+                .header(HttpHeaders.CONTENT_LENGTH,
+                        String.valueOf(partial ? download.range().length() : download.sizeBytes()));
 
         if (partial) {
             response.header(HttpHeaders.CONTENT_RANGE, download.range().contentRange(download.sizeBytes()));
@@ -153,7 +152,8 @@ public class AttachmentController {
             return MediaType.parseMediaType(contentType);
         } catch (InvalidMediaTypeException e) {
             // Битые метаданные вложения: файл отдаём, но в логе должно быть видно, почему octet-stream
-            logger.warn("Некорректный content-type вложения «{}», отдаю application/octet-stream", LogSanitizer.value(contentType));
+            logger.warn("Некорректный content-type вложения «{}», отдаю application/octet-stream",
+                    LogSanitizer.value(contentType));
             return MediaType.APPLICATION_OCTET_STREAM;
         }
     }

@@ -49,8 +49,9 @@ public class UserDomainService {
     }
 
     /**
-     * Поиск по email без исключения: нужен там, где отсутствие пользователя — штатный сценарий, а не ошибка. Вход через Keycloak решает по
-     * результату, создавать ли учётную запись; {@link #getUserByEmail} в этом же месте бросал бы исключение как способ управления потоком.
+     * Поиск по email без исключения: нужен там, где отсутствие пользователя — штатный сценарий, а не ошибка. Вход через
+     * Keycloak решает по результату, создавать ли учётную запись; {@link #getUserByEmail} в этом же месте бросал бы
+     * исключение как способ управления потоком.
      */
     public Optional<UserModel> findUserByEmail(String email) {
         Objects.requireNonNull(email, "Email не может быть null");
@@ -84,8 +85,8 @@ public class UserDomainService {
     }
 
     /**
-     * Батч-загрузка контактов по списку ID (один запрос вместо N): отсутствующие ID просто не попадают в карту — вызывающий подставляет
-     * заглушку.
+     * Батч-загрузка контактов по списку ID (один запрос вместо N): отсутствующие ID просто не попадают в карту —
+     * вызывающий подставляет заглушку.
      */
     public Map<Long, UserDetailsProjection> getUserDetailsByIds(Collection<Long> userIds) {
         Objects.requireNonNull(userIds, "Список ID не может быть null");
@@ -93,7 +94,8 @@ public class UserDomainService {
             return Map.of();
         }
 
-        return userRepository.findProjectedByIdIn(userIds).stream()
+        return userRepository.findProjectedByIdIn(userIds)
+                .stream()
                 .collect(Collectors.toMap(UserDetailsProjection::getId, user -> user, (first, second) -> first));
     }
 
@@ -104,7 +106,8 @@ public class UserDomainService {
             return Map.of();
         }
 
-        return userRepository.findAllById(userIds).stream()
+        return userRepository.findAllById(userIds)
+                .stream()
                 .collect(Collectors.toMap(UserModel::getId, user -> user, (first, second) -> first));
     }
 

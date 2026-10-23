@@ -209,5 +209,6 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
 | [`testing.md`](docs/testing.md) | Тесты, e2e-сценарии, нагрузочное тестирование |
 | [`dependency-versions.md`](docs/dependency-versions.md) | Полный список версий зависимостей и сервисов |
 | [`code-style.md`](docs/code-style.md) | Стиль кода, инструменты форматирования, конвенции |
+| [`debugging.md`](docs/debugging.md) | Частые ошибки и способы их устранения |
 | [`observability/`](docs/observability/) | Метрики, трейсы, логи, SLO |
 | [`runbooks/`](docs/runbooks/) | Реагирование на алерты |

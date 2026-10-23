@@ -49,16 +49,18 @@ public class PortalModel {
     @JoinColumn(name = "owner_id", nullable = false)
     private UserModel owner;
 
-    // Остаётся EAGER (15 точек чтения, часть вне транзакции — LAZY дал бы
-    // LazyInitializationException), но с батчем: выборка списка порталов грузит
-    // составы одним запросом на батч, а не по запросу на портал
-    @ElementCollection(fetch = FetchType.EAGER)
+    // LAZY + EntityGraph (JOIN FETCH в PortalRepository): батч по 50 порталов,
+    // составы участников подгружаются одним запросом вместо N+1.
+    @ElementCollection(fetch = FetchType.LAZY)
     @BatchSize(size = 50)
     @CollectionTable(name = "portal_access", joinColumns = @JoinColumn(name = "portal_id"))
     @Column(name = "allowed_user_id")
     private Set<Long> allowedUserIds;
 
-    @OneToMany(mappedBy = "portal", cascade = CascadeType.ALL, orphanRemoval = false, fetch = FetchType.LAZY)
+    // Каскад только PERSIST/MERGE: soft-delete портала не трогает заявки, удаление тикетов —
+    // ответственность TicketDomainService (orphanRemoval здесь удалил бы чужие строки при setTickets)
+    @OneToMany(mappedBy = "portal", cascade = {CascadeType.PERSIST,
+            CascadeType.MERGE}, orphanRemoval = false, fetch = FetchType.LAZY)
     private Set<TicketModel> tickets = new HashSet<>();
 
     @Column(nullable = false, updatable = false)

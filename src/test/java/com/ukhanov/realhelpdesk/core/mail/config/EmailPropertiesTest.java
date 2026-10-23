@@ -35,7 +35,8 @@ class EmailPropertiesTest {
 
         // given
         // when
-        BindResult<EmailProperties> result = Binder.get(new MockEnvironment()).bind("email", Bindable.of(EmailProperties.class));
+        BindResult<EmailProperties> result = Binder.get(new MockEnvironment())
+                .bind("email", Bindable.of(EmailProperties.class));
 
         // then
         assertThat(result.isBound()).isFalse();

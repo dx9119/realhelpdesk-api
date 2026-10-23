@@ -12,33 +12,33 @@ public record PageResponse<T>(List<T> content, int page, int size, long totalEle
         private int totalPages;
         private boolean last;
 
-        public Builder<T> content(List<T> content) {
-            this.content = content;
+        public Builder<T> content(List<T> items) {
+            this.content = items;
             return this;
         }
 
-        public Builder<T> page(int page) {
-            this.page = page;
+        public Builder<T> page(int pageNumber) {
+            this.page = pageNumber;
             return this;
         }
 
-        public Builder<T> size(int size) {
-            this.size = size;
+        public Builder<T> size(int pageSize) {
+            this.size = pageSize;
             return this;
         }
 
-        public Builder<T> totalElements(long totalElements) {
-            this.totalElements = totalElements;
+        public Builder<T> totalElements(long total) {
+            this.totalElements = total;
             return this;
         }
 
-        public Builder<T> totalPages(int totalPages) {
-            this.totalPages = totalPages;
+        public Builder<T> totalPages(int pages) {
+            this.totalPages = pages;
             return this;
         }
 
-        public Builder<T> last(boolean last) {
-            this.last = last;
+        public Builder<T> last(boolean isLast) {
+            this.last = isLast;
             return this;
         }
 

@@ -57,14 +57,17 @@ public class WebSecurityConfiguration {
         // Доступ
         http.authorizeHttpRequests(authorize -> authorize
                 // 1. Разрешаем все OPTIONS запросы БЕЗ АУТЕНТИКАЦИИ для Preflight запросов
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**")
+                .permitAll()
 
                 // 2. Разрешаем доступ к публичным URL
                 // Эти пути не будут требовать JWT токена
-                .requestMatchers(WhiteUrlConfig.WHITE_LIST_URLS.toArray(String[]::new)).permitAll()
+                .requestMatchers(WhiteUrlConfig.WHITE_LIST_URLS.toArray(String[]::new))
+                .permitAll()
 
                 // 3. Все остальные запросы требуют аутентификации.
-                .anyRequest().authenticated());
+                .anyRequest()
+                .authenticated());
 
         http.headers(Customizer.withDefaults());
         http.anonymous(AbstractHttpConfigurer::disable);
@@ -75,7 +78,8 @@ public class WebSecurityConfiguration {
         // CSRF держится на обязательном заголовке (CsrfProtectionFilter), а не на
         // встроенной защите Spring: см. javadoc фильтра.
         http.csrf(AbstractHttpConfigurer::disable);
-        http.sessionManagement(sessionManagement -> sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.sessionManagement(
+                sessionManagement -> sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         return http.build();
     }

@@ -4,7 +4,8 @@ public record TokensResponse(String accessToken, String refreshToken, String mes
 
     @Override
     public String toString() {
-        return "TokensResponse{" + "accessToken='" + "***" + '\'' + ", refreshToken='" + "***" + '\'' + ", message='" + message + '\''
+        return "TokensResponse{" + "accessToken='" + "***" + '\'' + ", refreshToken='" + "***" + '\'' + ", message='"
+                + message + '\''
                 + '}';
     }
 }

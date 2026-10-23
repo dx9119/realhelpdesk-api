@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
   Форматтер Eclipse JDT для RealHelpDesk.
-  Задаём только индентацию и длину строки; пробелы/скобки — дефолты JDT
+  Задаём индентацию и длину строки 120; пробелы/скобки — дефолты JDT
   (IntelliJ-совместимые: "x = 1", "if (a) {").
 -->
 <profiles version="13">
@@ -12,14 +12,20 @@
         <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
         <setting id="org.eclipse.jdt.core.formatter.continuation_indentation" value="2"/>
 
-        <!-- Длина строки -->
-        <setting id="org.eclipse.jdt.core.formatter.lineSplit" value="140"/>
-        <setting id="org.eclipse.jdt.core.formatter.comment.line_length" value="140"/>
+        <!-- Длина строки 120 (синхронно с LineLength в checkstyle.xml):
+             короткая строка принуждает выносить промежуточные результаты
+             в именованные переменные. -->
+        <setting id="org.eclipse.jdt.core.formatter.lineSplit" value="120"/>
+        <setting id="org.eclipse.jdt.core.formatter.comment.line_length" value="120"/>
 
         <!-- Не склеивать переносы строк, сделанные автором -->
+        <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="false"/>
         <setting id="org.eclipse.jdt.core.formatter.alignment_for_enum_constants" value="16"/>
         <setting id="org.eclipse.jdt.core.formatter.alignment_for_parameters_in_method_declaration" value="16"/>
         <setting id="org.eclipse.jdt.core.formatter.alignment_for_annotations_on_parameter" value="18"/>
         <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_annotation" value="16"/>
+        <!-- Каждый вызов в длинной цепочке (Stream API, билдеры) — на своей строке:
+             value 80 = wrap all elements (не «простыня» до lineSplit). -->
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_selector_in_method_invocation" value="80"/>
     </profile>
 </profiles>

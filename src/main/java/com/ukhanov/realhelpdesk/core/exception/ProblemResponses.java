@@ -27,19 +27,23 @@ public final class ProblemResponses {
         return problem;
     }
 
-    public static ProblemDetail withErrors(HttpStatus status, String detail, HttpServletRequest request, Map<String, String> errors) {
+    public static ProblemDetail withErrors(HttpStatus status, String detail, HttpServletRequest request,
+            Map<String, String> errors) {
         ProblemDetail problem = of(status, detail, request);
         problem.setProperty("errors", errors);
         return problem;
     }
 
     public static ResponseEntity<ProblemDetail> entity(HttpStatus status, String detail, HttpServletRequest request) {
-        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(of(status, detail, request));
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(of(status, detail, request));
     }
 
     public static ResponseEntity<ProblemDetail> entity(HttpStatus status, String detail, HttpServletRequest request,
             Map<String, String> errors) {
-        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON)
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .body(withErrors(status, detail, request, errors));
     }
 }

@@ -34,8 +34,8 @@ public class EmailPolicyService {
     }
 
     /**
-     * Батч-проверка стоп-листа по адресам (один запрос вместо N при рассылке): карта адрес → событие «тишины»; отсутствующий адрес означает
-     * отсутствие ограничений.
+     * Батч-проверка стоп-листа по адресам (один запрос вместо N при рассылке): карта адрес → событие «тишины»;
+     * отсутствующий адрес означает отсутствие ограничений.
      */
     public Map<String, NotificationEvent> muteEventsByEmails(Collection<String> emails) {
         Objects.requireNonNull(emails, "Список email не может быть null");
@@ -43,8 +43,10 @@ public class EmailPolicyService {
             return Map.of();
         }
 
-        return repository.findByEmailIn(emails).stream()
-                .collect(Collectors.toMap(UnsubscribedEmail::getEmail, UnsubscribedEmail::getMuteEvent, (first, second) -> first));
+        return repository.findByEmailIn(emails)
+                .stream()
+                .collect(Collectors.toMap(UnsubscribedEmail::getEmail, UnsubscribedEmail::getMuteEvent,
+                        (first, second) -> first));
     }
 
     /** «Тишина» по адресу: muteEvent — значение из стоп-листа (или null/NONE — ограничений нет). */
@@ -96,7 +98,8 @@ public class EmailPolicyService {
 
     public EmailInfoResponse getEmailInfo() {
         UserModel user = currentUserProvider.getCurrentUserModel();
-        NotificationEvent level = repository.findByEmail(user.getEmail()).map(UnsubscribedEmail::getMuteEvent)
+        NotificationEvent level = repository.findByEmail(user.getEmail())
+                .map(UnsubscribedEmail::getMuteEvent)
                 .orElse(NotificationEvent.NONE);
 
         return new EmailInfoResponse(level);

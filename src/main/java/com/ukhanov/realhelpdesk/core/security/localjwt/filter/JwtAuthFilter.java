@@ -40,8 +40,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Фильтр аутентификации по локальному JWT. Не загружается в профиле {@code keycloak} — там токены проверяет OAuth2 Resource Server
- * (Keycloak).
+ * Фильтр аутентификации по локальному JWT. Не загружается в профиле {@code keycloak} — там токены проверяет OAuth2
+ * Resource Server (Keycloak).
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -74,7 +74,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         // Пропускаем фильтр для URL из БС
-        if (WhiteUrlConfig.WHITE_LIST_URLS.stream().anyMatch(whiteListedPath -> antPathMatcher.match(whiteListedPath, path))) {
+        if (WhiteUrlConfig.WHITE_LIST_URLS.stream()
+                .anyMatch(whiteListedPath -> antPathMatcher.match(whiteListedPath, path))) {
 
             filterChain.doFilter(request, response);
             return;
@@ -98,7 +99,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             UserModel user = accessTokenAuthService.loadVerifiedUser(claims);
 
             // Аутентификация пользователя (роль берём из БД, а не из токена)
-            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(user.getId().toString(), null,
+            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(user.getId().toString(),
+                    null,
                     List.of(new SimpleGrantedAuthority(user.getUserRole().name())));
             SecurityContextHolder.getContext().setAuthentication(auth);
             // Роль в атрибут запроса: к моменту остановки наблюдения http.server.requests
@@ -129,10 +131,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
     }
 
-    private void unauthorized(HttpServletRequest request, HttpServletResponse response, String detail, String markerHeader)
+    private void unauthorized(HttpServletRequest request, HttpServletResponse response, String detail,
+            String markerHeader)
             throws IOException {
-        // Единый формат problem+json (ProblemResponses + ObjectMapper): раньше JSON собирался
-        // строковой конкатенацией, поэтому detail с кавычкой ломал ответ, а timestamp отсутствовал.
+        // Ответ пишет ProblemResponseWriter, а не локальная конкатенация строк: detail с кавычкой
+        // ломает JSON, а timestamp обязан совпадать с форматом остальных ошибок
         problemResponseWriter.write(response, request, HttpStatus.UNAUTHORIZED, detail, markerHeader);
     }
 
@@ -142,7 +145,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if ("accessToken".equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                if ("accessToken".equals(cookie.getName()) && cookie.getValue() != null
+                        && !cookie.getValue().isBlank()) {
                     return new TokenBearerResponse(cookie.getValue());
                 }
             }

@@ -38,7 +38,8 @@ class GetTokenServiceTest {
         saveTokenService = mock(SaveTokenService.class);
         jwtRefreshTokenRepository = mock(JwtRefreshTokenRepository.class);
 
-        service = new GetTokenService(genTokenService, saveTokenService, jwtRefreshTokenRepository, mock(FindTokenService.class),
+        service = new GetTokenService(genTokenService, saveTokenService, jwtRefreshTokenRepository,
+                mock(FindTokenService.class),
                 mock(ValidTokenService.class), mock(DecodeTokenService.class));
 
         user = new UserModel();
@@ -59,7 +60,8 @@ class GetTokenServiceTest {
 
         // given
         // when
-        when(jwtRefreshTokenRepository.updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.REVOKED)).thenReturn(2);
+        when(jwtRefreshTokenRepository.updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.REVOKED))
+                .thenReturn(2);
 
         TokensResponse response = service.getNewTokens(user);
 
@@ -90,13 +92,15 @@ class GetTokenServiceTest {
 
         // given
         // when
-        when(jwtRefreshTokenRepository.updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.PASSWD_CHANGE)).thenReturn(3);
+        when(jwtRefreshTokenRepository.updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE,
+                TokenStatus.PASSWD_CHANGE)).thenReturn(3);
 
         int revoked = service.revokeActiveRefreshTokens(user, TokenStatus.PASSWD_CHANGE);
 
         // then
         assertThat(revoked).isEqualTo(3);
-        verify(jwtRefreshTokenRepository).updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE, TokenStatus.PASSWD_CHANGE);
+        verify(jwtRefreshTokenRepository).updateStatusByEmailAndStatus(EMAIL, TokenStatus.ACTIVE,
+                TokenStatus.PASSWD_CHANGE);
         verify(saveTokenService, never()).saveRefreshToken(any(RefreshTokenModel.class));
     }
 }

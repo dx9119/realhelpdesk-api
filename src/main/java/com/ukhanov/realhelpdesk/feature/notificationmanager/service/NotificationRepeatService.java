@@ -17,11 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.ukhanov.realhelpdesk.core.exception.SafeSideEffectExecutor;
 import com.ukhanov.realhelpdesk.core.filter.LoggingFilter;
 import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.service.UserDomainService;
+import com.ukhanov.realhelpdesk.domain.notification.model.NotificationCreateCommand;
 import com.ukhanov.realhelpdesk.domain.notification.model.NotificationModel;
 import com.ukhanov.realhelpdesk.domain.notification.model.UserNotificationPreferencesModel;
 import com.ukhanov.realhelpdesk.domain.notification.repository.NotificationRepository;
@@ -31,15 +33,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Повторы непрочитанных оповещений о новых заявках и сообщениях ({@link NotificationPublisher#REPEATABLE_EVENTS}): каждые
- * {@link UserNotificationPreferencesModel#getRepeatIntervalMinutes()} минут получателю создаётся новая строка-напоминание с той же группой
- * и уходит письмо-напоминание — пока он не прочитает ни одну из строк группы. Повторяемость и интервал — настройки пользователя;
- * выключенное событие не повторяется ни in-app, ни по email.
+ * Повторы непрочитанных оповещений о новых заявках и сообщениях ({@link NotificationPublisher#REPEATABLE_EVENTS}):
+ * каждые {@link UserNotificationPreferencesModel#getRepeatIntervalMinutes()} минут получателю создаётся новая
+ * строка-напоминание с той же группой и уходит письмо-напоминание — пока он не прочитает ни одну из строк группы.
+ * Повторяемость и интервал — настройки пользователя; выключенное событие не повторяется ни in-app, ни по email.
  *
  * <p>
- * Обход раз в минуту: интервал задан в минутах, поэтому фактическая периодичность повтора — интервал плюс до одного периода обхода.
- * Пробуждение ожидающих long polling и письма — после коммита: SMTP-обмен не должен держать открытым соединение с БД, а письмо о
- * напоминании не должно уйти при откате транзакции.
+ * Обход раз в минуту: интервал задан в минутах, поэтому фактическая периодичность повтора — интервал плюс до одного
+ * периода обхода. Пробуждение ожидающих long polling и письма — после коммита: SMTP-обмен не должен держать открытым
+ * соединение с БД, а письмо о напоминании не должно уйти при откате транзакции.
  * </p>
  */
 @Slf4j
@@ -78,15 +80,18 @@ public class NotificationRepeatService {
     }
 
     private void scanAndRepeat() {
-        List<NotificationModel> candidates = notificationRepository.findRepeatCandidates(NotificationPublisher.REPEATABLE_EVENTS,
+        List<NotificationModel> candidates = notificationRepository.findRepeatCandidates(
+                NotificationPublisher.REPEATABLE_EVENTS,
                 PageRequest.of(0, SCAN_BATCH_SIZE, Sort.by(Sort.Direction.ASC, "createdAt")));
         if (candidates.isEmpty()) {
             return;
         }
 
         Set<Long> userIds = candidates.stream().map(NotificationModel::getRecipientId).collect(Collectors.toSet());
-        Map<Long, UserNotificationPreferencesModel> preferencesByUser = preferencesRepository.findByUserIdIn(userIds).stream()
-                .collect(Collectors.toMap(UserNotificationPreferencesModel::getUserId, preferences -> preferences, (left, right) -> left));
+        Map<Long, UserNotificationPreferencesModel> preferencesByUser = preferencesRepository.findByUserIdIn(userIds)
+                .stream()
+                .collect(Collectors.toMap(UserNotificationPreferencesModel::getUserId, preferences -> preferences,
+                        (left, right) -> left));
 
         Instant now = Instant.now();
         List<Long> woken = new ArrayList<>();
@@ -127,17 +132,19 @@ public class NotificationRepeatService {
     /** Создаёт строку-напоминание в группе источника — получатель тот же, что у in-app канала. */
     private void remind(NotificationModel source) {
         Long groupId = source.getGroupId() != null ? source.getGroupId() : source.getId();
-        notificationRepository.save(new NotificationModel(source.getRecipientId(), source.getEvent(), source.getTicketId(),
-                source.getPortalId(), source.getTitle(), groupId));
+        notificationRepository
+                .save(NotificationModel.create(new NotificationCreateCommand(source.getRecipientId(), source.getEvent(),
+                        source.getTicketId(), source.getPortalId(), source.getTitle(), groupId)));
     }
 
     /**
-     * Письма-напоминания — после коммита, как пробуждение long polling: письмо не должно уйти, если транзакция откатится, и
-     * SMTP-рукопожатие не должно занимать соединение с БД. Отписка от события учитывается внутри {@link EmailDeliveryService} (стоп-лист),
-     * поэтому повтор по email не приходит тем, кто от него отказался.
+     * Письма-напоминания — после коммита, как пробуждение long polling: письмо не должно уйти, если транзакция
+     * откатится, и SMTP-рукопожатие не должно занимать соединение с БД. Отписка от события учитывается внутри
+     * {@link EmailDeliveryService} (стоп-лист), поэтому повтор по email не приходит тем, кто от него отказался.
      */
     private void emailRemindersAfterCommit(List<NotificationModel> sources) {
-        List<NotificationModel> emailable = sources.stream().filter(source -> source.getTicketId() != null && source.getPortalId() != null)
+        List<NotificationModel> emailable = sources.stream()
+                .filter(source -> source.getTicketId() != null && source.getPortalId() != null)
                 .toList();
         if (emailable.isEmpty()) {
             return;
@@ -182,23 +189,25 @@ public class NotificationRepeatService {
     }
 
     /**
-     * Одно письмо не должно обрывать рассылку остальным и валить фоновую задачу (в отличие от HTTP-контура, где ошибка SMTP — {@code 503}
-     * клиенту). Стоп-лист и квоты проверяет {@link EmailDeliveryService}.
+     * Одно письмо не должно обрывать рассылку остальным и валить фоновую задачу (в отличие от HTTP-контура, где ошибка
+     * SMTP — {@code 503} клиенту). Стоп-лист и квоты проверяет {@link EmailDeliveryService}.
      */
     private boolean sendQuietly(UserModel recipient, NotificationModel source) {
-        try {
-            emailDeliveryService.sendUserNotification(recipient.getEmail(), emailTemplates.notificationRepeatSubject(source.getTitle()),
-                    emailTemplates.notificationRepeatBody(source.getTitle(), source.getTicketId(), source.getPortalId()), source.getEvent(),
+        return SafeSideEffectExecutor.runSafely(() -> {
+            emailDeliveryService.sendUserNotification(recipient.getEmail(),
+                    emailTemplates.notificationRepeatSubject(source.getTitle()),
+                    emailTemplates.notificationRepeatBody(source.getTitle(), source.getTicketId(),
+                            source.getPortalId()),
+                    source.getEvent(),
                     recipient.getId());
-            return true;
-        } catch (Exception e) {
-            logger.warn("Не удалось отправить письмо-напоминание, userId={}, notification={}: {}", recipient.getId(), source.getId(),
-                    e.getMessage());
-            return false;
-        }
+            return null;
+        }, e -> logger.warn("Не удалось отправить письмо-напоминание, userId={}, notification={}: {}",
+                recipient.getId(), source.getId(), e.getMessage()));
     }
 
-    /** Тот же контракт, что у {@link NotificationPublisher#wakeAfterCommit}: вне транзакции действие выполняется сразу. */
+    /**
+     * Тот же контракт, что у {@link NotificationPublisher#wakeAfterCommit}: вне транзакции действие выполняется сразу.
+     */
     private void runAfterCommit(Runnable action) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             action.run();

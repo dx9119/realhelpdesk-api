@@ -34,7 +34,8 @@ class JwtPropertiesTest {
         // then
         assertThat(properties.getSecretForGenJwt()).isEqualTo("c2VjcmV0");
         assertThat(properties.getIssuer()).isEqualTo("https://example.com");
-        assertThat(properties.getAudience()).containsExactlyInAnyOrder("https://example.com", "https://back.example.com");
+        assertThat(properties.getAudience()).containsExactlyInAnyOrder("https://example.com",
+                "https://back.example.com");
         assertThat(properties.getAccessTokenExpirationSeconds()).isEqualTo(3600);
         assertThat(properties.getRefreshTokenExpirationSeconds()).isEqualTo(2592000);
         assertThat(properties.getCookie().getSameSite()).isEqualTo(SameSite.LAX);
@@ -66,7 +67,8 @@ class JwtPropertiesTest {
         environment.setProperty("jwt.cookie.same-site", "Sometimes");
 
         // then
-        assertThatThrownBy(() -> bind(environment)).isInstanceOf(BindException.class).hasMessageContaining("jwt.cookie.same-site");
+        assertThatThrownBy(() -> bind(environment)).isInstanceOf(BindException.class)
+                .hasMessageContaining("jwt.cookie.same-site");
     }
 
     @Test
@@ -119,7 +121,8 @@ class JwtPropertiesTest {
 
         // given
         // when
-        BindResult<JwtProperties> result = Binder.get(new MockEnvironment()).bind("jwt", Bindable.of(JwtProperties.class));
+        BindResult<JwtProperties> result = Binder.get(new MockEnvironment())
+                .bind("jwt", Bindable.of(JwtProperties.class));
 
         // then
         assertThat(result.isBound()).isFalse();

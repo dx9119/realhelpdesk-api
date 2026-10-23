@@ -42,7 +42,7 @@ public class UnsubscribedEmail {
         this.inStopListAt = Instant.now();
     }
 
-    /** Сбрасывает время выхода из стоп-листа на текущее; Lombok-сеттер с Instant здесь конфликтует по имени — оставлен только он. */
+    // Сеттер без аргумента: Instant-перегрузку Lombok генерирует под тем же именем, поэтому метод оставлен вручную
     public void setInStopListAt() {
         this.inStopListAt = Instant.now();
     }

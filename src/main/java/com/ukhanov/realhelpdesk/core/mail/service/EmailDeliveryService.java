@@ -58,8 +58,8 @@ public class EmailDeliveryService {
     }
 
     /**
-     * То же, но с получателем-пользователем: в prod-логе видно, кому ушло письмо, при этом сам адрес остаётся только в DEBUG (PII в prod не
-     * тащим).
+     * То же, но с получателем-пользователем: в prod-логе видно, кому ушло письмо, при этом сам адрес остаётся только в
+     * DEBUG (PII в prod не тащим).
      */
     public void sendEmail(String recipient, String subject, String text, NotificationEvent sourceEvent, Long userId)
             throws MessagingException, EmailAccessDeniedException, UnsupportedEncodingException {
@@ -80,8 +80,10 @@ public class EmailDeliveryService {
     private EmailLog deliver(String recipient, String subject, String text, NotificationEvent sourceEvent, Long userId)
             throws MessagingException, UnsupportedEncodingException {
 
-        Observation observation = Observation.createNotStarted("mail.send", observationRegistry).lowCardinalityKeyValue("operation", "send")
-                .lowCardinalityKeyValue("event", sourceEvent.name()).start();
+        Observation observation = Observation.createNotStarted("mail.send", observationRegistry)
+                .lowCardinalityKeyValue("operation", "send")
+                .lowCardinalityKeyValue("event", sourceEvent.name())
+                .start();
         try {
             logger.debug("Отправка письма, event={}, recipient={}", sourceEvent, LogSanitizer.email(recipient));
 
@@ -109,7 +111,7 @@ public class EmailDeliveryService {
             // журнал — только фактически отправленные письма: он же считает квоту для emailLimiter
             return new EmailLog(subject, emailProperties.getFrom(), recipient, sourceEvent);
         } catch (MessagingException | UnsupportedEncodingException | MailException e) {
-            // MailException (ошибка SMTP) раньше не останавливал наблюдение — и mail.sent не считал неудачу
+            // MailException (ошибка SMTP) тоже останавливает наблюдение: mail.sent должен считать и неудачи
             businessMetrics.mailSent(sourceEvent, false);
             observation.lowCardinalityKeyValue("outcome", "error").stop();
             throw e;
@@ -123,12 +125,14 @@ public class EmailDeliveryService {
 
         // записи в журнале предшествующих отправок уже учтены, поэтому лимит — «не больше requests в окно»
         // цифры нужны, чтобы объяснить 429 «исчерпан лимит восстановления»
-        logger.debug("Писем по событию {} за окно {} сек: {} (лимит {})", NotificationEvent.RECOVERY_PASSWORD, limit.windowSeconds(), count,
+        logger.debug("Писем по событию {} за окно {} сек: {} (лимит {})", NotificationEvent.RECOVERY_PASSWORD,
+                limit.windowSeconds(), count,
                 limit.requests());
 
         if (count >= limit.requests()) {
             throw new EmailAccessDeniedException(
-                    "Исчерпан лимит на количество запросов восстановления, окно лимита " + limit.windowSeconds() + " сек",
+                    "Исчерпан лимит на количество запросов восстановления, окно лимита " + limit.windowSeconds()
+                            + " сек",
                     HttpStatus.TOO_MANY_REQUESTS);
         }
 
@@ -145,7 +149,8 @@ public class EmailDeliveryService {
     }
 
     /** Письмо конкретному пользователю: userId попадает в prod-лог, адрес остаётся в DEBUG. */
-    public void sendUserNotification(String userEmail, String subject, String text, NotificationEvent sourceEvent, Long userId)
+    public void sendUserNotification(String userEmail, String subject, String text, NotificationEvent sourceEvent,
+            Long userId)
             throws MessagingException, EmailAccessDeniedException, UnsupportedEncodingException {
         sendEmail(userEmail, subject, text, sourceEvent, userId);
     }
@@ -162,7 +167,8 @@ public class EmailDeliveryService {
 
     }
 
-    public void sendPortalUsersNotification(Set<Long> userIds, String subject, String text, NotificationEvent sourceEvent)
+    public void sendPortalUsersNotification(Set<Long> userIds, String subject, String text,
+            NotificationEvent sourceEvent)
             throws MessagingException, EmailAccessDeniedException, UnsupportedEncodingException {
 
         if (userIds == null || userIds.isEmpty()) {
@@ -189,7 +195,8 @@ public class EmailDeliveryService {
         for (UserModel user : recipients) {
             if (emailPolicyService.isMuted(muteEvents.get(user.getEmail()), sourceEvent)) {
                 // Отписка конкретного получателя — не повод не отправить письмо остальным
-                logger.debug("Письмо получателю {} не отправлено: адрес в стоп-листе, event={}", user.getId(), sourceEvent);
+                logger.debug("Письмо получателю {} не отправлено: адрес в стоп-листе, event={}", user.getId(),
+                        sourceEvent);
                 continue;
             }
             logs.add(deliver(user.getEmail(), subject, text, sourceEvent, user.getId()));
@@ -206,7 +213,7 @@ public class EmailDeliveryService {
         }
         user.setEmailVerified(true);
         userDomainService.saveUser(user);
-        // успех подтверждения раньше не оставлял следа: был виден только неверный код (WARN в advice)
+        // INFO-след об успешном подтверждении обязателен: иначе в логе виден только неверный код (WARN в advice)
         logger.info("Email подтверждён, userId={}", user.getId());
     }
 
@@ -214,7 +221,8 @@ public class EmailDeliveryService {
         UserModel user = currentUserProvider.getCurrentUserModel();
 
         sendUserNotification(user.getEmail(), emailTemplates.registrationCodeSubject(),
-                emailTemplates.registrationCodeBody(user.getVerifyEmailToken().toString()), NotificationEvent.NEW_SYSTEM_MESSAGE,
+                emailTemplates.registrationCodeBody(user.getVerifyEmailToken().toString()),
+                NotificationEvent.NEW_SYSTEM_MESSAGE,
                 user.getId());
         // Код подтверждения уходит как NEW_SYSTEM_MESSAGE, поэтому отличить его от системного письма
         // по строке «Письмо отправлено, event=…» нельзя — добавляем отдельную запись (B4)

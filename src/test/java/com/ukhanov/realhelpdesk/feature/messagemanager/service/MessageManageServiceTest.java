@@ -84,8 +84,10 @@ class MessageManageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MessageManageService(mockMessageMapper, mockCurrentUserProvider, mockTicketDomainService, mockMessageDomainService,
-                mockEmailDeliveryService, emailTemplates, mockNotificationPublisher, new BusinessMetrics(meterRegistry));
+        service = new MessageManageService(mockMessageMapper, mockCurrentUserProvider, mockTicketDomainService,
+                mockMessageDomainService,
+                mockEmailDeliveryService, emailTemplates, mockNotificationPublisher,
+                new BusinessMetrics(meterRegistry));
     }
 
     // ────────────────────────────────────────────────
@@ -124,8 +126,10 @@ class MessageManageServiceTest {
         assertThat(savedTicket.getTicketStatus()).isEqualTo(TicketStatus.IN_PROGRESS);
 
         // Проверяем вызов отправки email
-        verify(mockEmailDeliveryService).sendUserNotification(eq(USER_EMAIL), eq(emailTemplates.ticketReplySubject(TICKET_ID)),
-                eq(emailTemplates.ticketReplyBody(TICKET_ID, PORTAL_ID)), eq(NotificationEvent.NEW_MESSAGE), eq(USER_ID));
+        verify(mockEmailDeliveryService).sendUserNotification(eq(USER_EMAIL),
+                eq(emailTemplates.ticketReplySubject(TICKET_ID)),
+                eq(emailTemplates.ticketReplyBody(TICKET_ID, PORTAL_ID)), eq(NotificationEvent.NEW_MESSAGE),
+                eq(USER_ID));
 
         // Счётчик сообщений до вставки — для метрики первого ответа
         verify(mockMessageDomainService).countByTicketId(TICKET_ID);
@@ -165,7 +169,9 @@ class MessageManageServiceTest {
         assertThat(firstResponse).isNotNull();
         assertThat(firstResponse.count()).isEqualTo(1);
 
-        Counter transition = meterRegistry.find("tickets.status.transitions").tags("from", "OPEN", "to", "IN_PROGRESS").counter();
+        Counter transition = meterRegistry.find("tickets.status.transitions")
+                .tags("from", "OPEN", "to", "IN_PROGRESS")
+                .counter();
         assertThat(transition).isNotNull();
         assertThat(transition.count()).isEqualTo(1);
     }
@@ -207,7 +213,8 @@ class MessageManageServiceTest {
     void createMessage_nullRequest_throwsNPE() {
 
         // given / when / then
-        assertThatThrownBy(() -> service.createMessage(null, TICKET_ID, PORTAL_ID)).isInstanceOf(NullPointerException.class)
+        assertThatThrownBy(() -> service.createMessage(null, TICKET_ID, PORTAL_ID))
+                .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("Запрос на создание сообщения не должен быть null");
     }
 
@@ -223,7 +230,8 @@ class MessageManageServiceTest {
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenThrow(new TicketException("Тикет не найден"));
 
         // then
-        assertThatThrownBy(() -> service.createMessage(request, TICKET_ID, PORTAL_ID)).isInstanceOf(TicketException.class);
+        assertThatThrownBy(() -> service.createMessage(request, TICKET_ID, PORTAL_ID))
+                .isInstanceOf(TicketException.class);
     }
 
     // ────────────────────────────────────────────────
@@ -252,7 +260,9 @@ class MessageManageServiceTest {
         List<MessageResponse> result = service.getAllMessage(TICKET_ID);
 
         // then
-        assertThat(result).hasSize(2).extracting(MessageResponse::messageText).containsExactly("Сообщение 1", "Сообщение 2");
+        assertThat(result).hasSize(2)
+                .extracting(MessageResponse::messageText)
+                .containsExactly("Сообщение 1", "Сообщение 2");
     }
 
     @Test

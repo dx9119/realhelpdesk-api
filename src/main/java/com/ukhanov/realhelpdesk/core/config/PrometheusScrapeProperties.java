@@ -10,14 +10,15 @@ import lombok.Setter;
  * Учётная запись HTTP Basic для скрейпа {@code /actuator/prometheus} на управляющем порту.
  *
  * <p>
- * Скрейп (alloy → Mimir) не ходит за метриками с пользовательским JWT, поэтому метрики закрыты отдельной сервисной учёткой: имя —
- * {@code METRICS_USER} (infrastructure/.env), пароль — {@code METRICS_PASSWORD} (секрет из infrastructure/.env, в репозиторий не попадает).
- * Пустой пароль означает, что никто не пройдёт аутентификацию — скрейп закрыт, а не открыт.
+ * Скрейп (alloy → Mimir) не ходит за метриками с пользовательским JWT, поэтому метрики закрыты отдельной сервисной
+ * учёткой: имя — {@code METRICS_USER} (infrastructure/.env), пароль — {@code METRICS_PASSWORD} (секрет из
+ * infrastructure/.env, в репозиторий не попадает). Пустой пароль означает, что никто не пройдёт аутентификацию — скрейп
+ * закрыт, а не открыт.
  * </p>
  *
  * <p>
- * Переключатель {@code observability.prometheus.auth.enabled=false} снимает проверку пароля: допустимо только когда управляющий порт закрыт
- * сетью и до него не добирается посторонний.
+ * Переключатель {@code observability.prometheus.auth.enabled=false} снимает проверку пароля: допустимо только когда
+ * управляющий порт закрыт сетью и до него не добирается посторонний.
  * </p>
  */
 @Component
@@ -26,7 +27,10 @@ import lombok.Setter;
 @Setter
 public class PrometheusScrapeProperties {
 
-    /** Проверять Basic-пароль на /actuator/prometheus. false — отдать метрики без аутентификации (только за закрытым портом). */
+    /**
+     * Проверять Basic-пароль на /actuator/prometheus. false — отдать метрики без аутентификации (только за закрытым
+     * портом).
+     */
     private boolean enabled = true;
 
     /** Имя сервисного пользователя скрейпа (METRICS_USER). */

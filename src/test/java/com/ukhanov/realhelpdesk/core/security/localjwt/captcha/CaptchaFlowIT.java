@@ -27,9 +27,9 @@ import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Сквозной поток PoW-капчи по реальному HTTP: challenge → решение в тесте (тот же PowHash, что на сервере) → solve → регистрация токеном.
- * Проверяются и отказы: replay токена, токен чужого действия, honeypot, неверный nonce, отсутствующий токен. Профиль test: капча включена,
- * difficulty=8 (решается за миллисекунды), minimum-fill=0.
+ * Сквозной поток PoW-капчи по реальному HTTP: challenge → решение в тесте (тот же PowHash, что на сервере) → solve →
+ * регистрация токеном. Проверяются и отказы: replay токена, токен чужого действия, honeypot, неверный nonce,
+ * отсутствующий токен. Профиль test: капча включена, difficulty=8 (решается за миллисекунды), minimum-fill=0.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
@@ -170,7 +170,8 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
 
         // given
         // when
-        HttpResponse<String> response = send(HttpRequest.newBuilder(URI.create(url("/api/v1/captcha?capId=x"))).GET().build());
+        HttpResponse<String> response = send(
+                HttpRequest.newBuilder(URI.create(url("/api/v1/captcha?capId=x"))).GET().build());
 
         // then
         assertThat(response.statusCode()).isEqualTo(401);
@@ -219,7 +220,8 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
 
     private String registerJson(String captchaToken, String website, String email) {
         StringBuilder body = new StringBuilder(
-                "{\"firstName\":\"Flow\",\"lastName\":\"Test\",\"email\":\"" + email + "\",\"password\":\"Sup3rSecret123!\"");
+                "{\"firstName\":\"Flow\",\"lastName\":\"Test\",\"email\":\"" + email
+                        + "\",\"password\":\"Sup3rSecret123!\"");
         if (captchaToken != null) {
             body.append(",\"captchaToken\":\"").append(captchaToken).append("\"");
         }
@@ -242,8 +244,11 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
     }
 
     private HttpResponse<String> post(String path, String json) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url(path))).header("Content-Type", "application/json")
-                .header("X-Requested-With", "XMLHttpRequest").POST(HttpRequest.BodyPublishers.ofString(json)).build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url(path)))
+                .header("Content-Type", "application/json")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
         return send(request);
     }
 

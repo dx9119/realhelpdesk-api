@@ -58,7 +58,7 @@ RUN rm -f /usr/bin/pebble && \
 # отдельный слой chown -R: он повторял бы содержимое слоёв jar (+73 МБ).
 COPY --chown=spring-user:spring-group --chmod=755 scripts/docker/entrypoint.sh /app/entrypoint.sh
 
-# Слои jar вместо одного жирного файла (sec.md §7.6). Порядок важен для кэша:
+# Слои jar вместо одного жирного файла. Порядок важен для кэша:
 # реже меняющиеся слои идут первыми, слой приложения — последним.
 # Boot 4.1.1 раскладывает jar так: application/app.jar (свой код и манифест
 # с Class-Path) + dependencies/lib/*.jar (124 библиотеки); запуск — java -jar
@@ -89,7 +89,7 @@ ENV JAVA_RAM_PERCENTAGE="75"
 # Логирование GC и safepoint-пауз: всегда в stderr — попадает в `docker logs`
 # без файлов на диске и без ротации
 ENV JAVA_GC_LOG_OPTS="-Xlog:gc*,safepoint:stderr"
-# Java Flight Recorder по умолчанию выключен (sec.md §7.8); включается ненулевым
+# Java Flight Recorder по умолчанию выключен; включается ненулевым
 # значением JAVA_JFR_OPTS в infrastructure/.env/окружении при необходимости
 ENV JAVA_JFR_OPTS=""
 # Ошибка JVM в файл + heap dump при OOM + немедленный выход (важно для контейнеров)

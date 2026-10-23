@@ -10,11 +10,12 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Настройки JWT из конфигурации: подпись, адреса, сроки жизни и cookie. Только биндинг ключей {@code jwt.*} — валидация значений и
- * вычисление ключа подписи живут в {@link JwtConfig}, их легко тестировать, подставляя готовый экземпляр.
+ * Настройки JWT из конфигурации: подпись, адреса, сроки жизни и cookie. Только биндинг ключей {@code jwt.*} — валидация
+ * значений и вычисление ключа подписи живут в {@link JwtConfig}, их легко тестировать, подставляя готовый экземпляр.
  *
  * <p>
- * Схема ключей: {@code application-domains.properties} (issuer/audience) и {@code application.properties} (секрет, сроки, cookie).
+ * Схема ключей: {@code application-domains.properties} (issuer/audience) и {@code application.properties} (секрет,
+ * сроки, cookie).
  * </p>
  */
 @Component
@@ -39,8 +40,9 @@ public class JwtProperties {
     private Integer refreshTokenExpirationSeconds;
 
     /**
-     * Сколько секунд хранить отозванные строки {@code jwt_tokens} до удаления фоновой задачей. Отзыв токена меняет только статус, поэтому
-     * строки копятся; активные строки удаляются отдельно по истечении срока жизни токена, этот срок их не касается.
+     * Сколько секунд хранить отозванные строки {@code jwt_tokens} до удаления фоновой задачей. Отзыв токена меняет
+     * только статус, поэтому строки копятся; активные строки удаляются отдельно по истечении срока жизни токена, этот
+     * срок их не касается.
      */
     private Integer revokedTokenRetentionSeconds;
 
@@ -60,8 +62,8 @@ public class JwtProperties {
     private Integer tokenCleanupBatchPauseMs;
 
     /**
-     * Настройки auth-cookie. Ключи вложены ({@code jwt.cookie.same-site}), поэтому и класс вложен: плоское поле {@code cookieSameSite} из
-     * двухэлементного ключа не биндится — см. JwtPropertiesTest.
+     * Настройки auth-cookie. Ключи вложены ({@code jwt.cookie.same-site}), поэтому и класс вложен: плоское поле
+     * {@code cookieSameSite} из двухэлементного ключа не биндится — см. JwtPropertiesTest.
      */
     private Cookie cookie = new Cookie();
 
@@ -71,18 +73,23 @@ public class JwtProperties {
     public static class Cookie {
 
         /**
-         * SameSite для auth-cookie: каким элементом {@link SameSite} заполнится поле, решает биндинг по ключу {@code jwt.cookie.same-site}
-         * — список допустимых значений есть и в enum, и в комментариях у ключа в properties.
+         * SameSite для auth-cookie: каким элементом {@link SameSite} заполнится поле, решает биндинг по ключу
+         * {@code jwt.cookie.same-site} — список допустимых значений есть и в enum, и в комментариях у ключа в
+         * properties.
          */
         private SameSite sameSite = SameSite.NONE;
 
         /**
-         * Домен auth-cookie: {@code null} (пусто в конфигурации) — host-only, cookie уходит только на свой хост; {@code .example.com} —
-         * общий для поддоменов, без него файлы на отдельном домене ({@code static.base-url}) браузеру отправить нельзя.
+         * Домен auth-cookie: {@code null} (пусто в конфигурации) — host-only, cookie уходит только на свой хост;
+         * {@code .example.com} — общий для поддоменов, без него файлы на отдельном домене ({@code static.base-url})
+         * браузеру отправить нельзя.
          */
         private String domain;
 
-        /** Пробелы и пустое значение нормализуются в {@code null}: пустой атрибут Domain в Set-Cookie браузер отбрасывает сам. */
+        /**
+         * Пробелы и пустое значение нормализуются в {@code null}: пустой атрибут Domain в Set-Cookie браузер
+         * отбрасывает сам.
+         */
         public void setDomain(String domain) {
             if (domain == null) {
                 this.domain = null;

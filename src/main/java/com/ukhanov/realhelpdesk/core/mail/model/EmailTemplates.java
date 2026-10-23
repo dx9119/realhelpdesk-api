@@ -46,7 +46,8 @@ public class EmailTemplates {
     }
 
     public String ticketReplyBody(Long ticketId, Long portalId) {
-        return text("email.ticket.reply.body", String.valueOf(ticketId), domain(), String.valueOf(portalId), projectName());
+        return text("email.ticket.reply.body", String.valueOf(ticketId), domain(), String.valueOf(portalId),
+                projectName());
     }
 
     public String ticketCreatedSubject(Long ticketId) {
@@ -54,7 +55,8 @@ public class EmailTemplates {
     }
 
     public String ticketCreatedBody(Long ticketId, Long portalId) {
-        return text("email.ticket.created.body", String.valueOf(ticketId), domain(), String.valueOf(portalId), projectName());
+        return text("email.ticket.created.body", String.valueOf(ticketId), domain(), String.valueOf(portalId),
+                projectName());
     }
 
     public String portalCreatedSubject(Long portalId) {
@@ -78,7 +80,8 @@ public class EmailTemplates {
     }
 
     public String updateStatusTicketBody(Long ticketId, Long portalId) {
-        return text("email.ticket.status.body", domain(), String.valueOf(portalId), String.valueOf(ticketId), projectName());
+        return text("email.ticket.status.body", domain(), String.valueOf(portalId), String.valueOf(ticketId),
+                projectName());
     }
 
     public String updatePriorityTicketSubject(Long ticketId, TicketPriority ticketPriority) {
@@ -86,7 +89,8 @@ public class EmailTemplates {
     }
 
     public String updatePriorityTicketBody(Long ticketId, Long portalId) {
-        return text("email.ticket.priority.body", domain(), String.valueOf(portalId), String.valueOf(ticketId), projectName());
+        return text("email.ticket.priority.body", domain(), String.valueOf(portalId), String.valueOf(ticketId),
+                projectName());
     }
 
     public String deletedTicketSubject(Long ticketId) {
@@ -110,7 +114,8 @@ public class EmailTemplates {
     }
 
     public String portalTransferRequestedBody(Long portalId, String initiatorName, String reason) {
-        return text("email.portal.transfer.requested.body", String.valueOf(portalId), initiatorName, reason, projectName());
+        return text("email.portal.transfer.requested.body", String.valueOf(portalId), initiatorName, reason,
+                projectName());
     }
 
     public String portalTransferProposedSubject(Long portalId) {
@@ -118,7 +123,8 @@ public class EmailTemplates {
     }
 
     public String portalTransferProposedBody(Long portalId, String initiatorName, String reason) {
-        return text("email.portal.transfer.proposed.body", String.valueOf(portalId), initiatorName, reason, domain(), projectName());
+        return text("email.portal.transfer.proposed.body", String.valueOf(portalId), initiatorName, reason, domain(),
+                projectName());
     }
 
     public String portalTransferAcceptedSubject(Long portalId) {
@@ -126,7 +132,8 @@ public class EmailTemplates {
     }
 
     public String portalTransferAcceptedBody(Long portalId, String newOwnerName, String reason) {
-        return text("email.portal.transfer.accepted.body", String.valueOf(portalId), newOwnerName, reason, projectName());
+        return text("email.portal.transfer.accepted.body", String.valueOf(portalId), newOwnerName, reason,
+                projectName());
     }
 
     public String portalTransferRejectedSubject(Long portalId) {
@@ -134,7 +141,8 @@ public class EmailTemplates {
     }
 
     public String portalTransferRejectedBody(Long portalId, String proposedName, String reason) {
-        return text("email.portal.transfer.rejected.body", String.valueOf(portalId), proposedName, reason, projectName());
+        return text("email.portal.transfer.rejected.body", String.valueOf(portalId), proposedName, reason,
+                projectName());
     }
 
     public String portalTransferCancelledSubject(Long portalId) {
@@ -153,13 +161,14 @@ public class EmailTemplates {
         return text("email.portal.transfer.expired.body", String.valueOf(portalId), projectName());
     }
 
-    /** Тема напоминания о непрочитанном оповещении: заголовок заявки/события делает письмо различимым в почтовом клиенте. */
+    // Заголовок делает письмо различимым в клиенте без открытия тела
     public String notificationRepeatSubject(String title) {
         return text("email.notification.repeat.subject", title);
     }
 
     public String notificationRepeatBody(String title, Long ticketId, Long portalId) {
-        return text("email.notification.repeat.body", title, domain(), String.valueOf(portalId), String.valueOf(ticketId), projectName());
+        return text("email.notification.repeat.body", title, domain(), String.valueOf(portalId),
+                String.valueOf(ticketId), projectName());
     }
 
     private String text(String code, Object... args) {

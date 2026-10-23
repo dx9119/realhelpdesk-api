@@ -118,8 +118,10 @@ class MinioStorageServiceTest {
         doThrow(new IOException("connection refused")).when(mockMinioClient).putObject(any(PutObjectArgs.class));
 
         // then
-        assertThatThrownBy(() -> storageService.upload(OBJECT_KEY, new ByteArrayInputStream(CONTENT), CONTENT.length, "text/plain"))
-                .isInstanceOf(StorageException.class).hasMessageContaining("Не удалось сохранить файл");
+        assertThatThrownBy(() -> storageService.upload(OBJECT_KEY, new ByteArrayInputStream(CONTENT), CONTENT.length,
+                "text/plain"))
+                .isInstanceOf(StorageException.class)
+                .hasMessageContaining("Не удалось сохранить файл");
     }
 
     @Test
@@ -200,7 +202,8 @@ class MinioStorageServiceTest {
     void download_negativeOffset_throwsIllegalArgumentException() throws Exception {
 
         // given / when / then
-        assertThatThrownBy(() -> storageService.download(OBJECT_KEY, -1, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> storageService.download(OBJECT_KEY, -1, 5))
+                .isInstanceOf(IllegalArgumentException.class);
 
         verify(mockMinioClient, never()).getObject(any(GetObjectArgs.class));
     }
@@ -214,7 +217,8 @@ class MinioStorageServiceTest {
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         when(mockMinioClient.getObject(any(GetObjectArgs.class))).thenThrow(errorResponse("NoSuchKey"));
 
-        StorageException exception = catchThrowableOfType(StorageException.class, () -> storageService.download(OBJECT_KEY));
+        StorageException exception = catchThrowableOfType(StorageException.class,
+                () -> storageService.download(OBJECT_KEY));
 
         // then
         assertThat(exception.getStatus().value()).isEqualTo(404);
@@ -229,7 +233,8 @@ class MinioStorageServiceTest {
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
         when(mockMinioClient.getObject(any(GetObjectArgs.class))).thenThrow(errorResponse("InternalError"));
 
-        StorageException exception = catchThrowableOfType(StorageException.class, () -> storageService.download(OBJECT_KEY));
+        StorageException exception = catchThrowableOfType(StorageException.class,
+                () -> storageService.download(OBJECT_KEY));
 
         // then
         assertThat(exception.getStatus().value()).isEqualTo(503);
@@ -292,14 +297,17 @@ class MinioStorageServiceTest {
         when(mockMinioClient.bucketExists(any(BucketExistsArgs.class))).thenThrow(new IOException("unauthorized"));
 
         // then
-        assertThatThrownBy(() -> storageService.ensureBucket()).isInstanceOf(StorageException.class).hasMessageContaining("не подготовлен");
+        assertThatThrownBy(() -> storageService.ensureBucket()).isInstanceOf(StorageException.class)
+                .hasMessageContaining("не подготовлен");
     }
 
     private ErrorResponseException errorResponse(String code) {
-        return new ErrorResponseException(new ErrorResponse(code, "error", BUCKET, OBJECT_KEY, "/" + BUCKET, "req", "host"), null, "");
+        return new ErrorResponseException(
+                new ErrorResponse(code, "error", BUCKET, OBJECT_KEY, "/" + BUCKET, "req", "host"), null, "");
     }
 
     private GetObjectResponse getObjectResponse() {
-        return new GetObjectResponse(new Headers.Builder().build(), BUCKET, null, OBJECT_KEY, new ByteArrayInputStream(CONTENT));
+        return new GetObjectResponse(new Headers.Builder().build(), BUCKET, null, OBJECT_KEY,
+                new ByteArrayInputStream(CONTENT));
     }
 }

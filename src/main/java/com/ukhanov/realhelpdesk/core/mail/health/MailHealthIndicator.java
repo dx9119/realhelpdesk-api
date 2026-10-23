@@ -4,9 +4,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
+import jakarta.mail.MessagingException;
+
 import org.springframework.boot.health.autoconfigure.contributor.ConditionalOnEnabledHealthIndicator;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.stereotype.Component;
@@ -14,14 +17,16 @@ import org.springframework.stereotype.Component;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Доступность SMTP: рукопожатие с сервером через {@link JavaMailSenderImpl#testConnection()} — письмо при проверке не отправляется.
+ * Доступность SMTP: рукопожатие с сервером через {@link JavaMailSenderImpl#testConnection()} — письмо при проверке не
+ * отправляется.
  *
  * <p>
- * Сознательно НЕ входит в readiness: недоступная почта не должна останавливать трафик — заявки и ответы работают без писем, уведомления
- * подхватятся после восстановления. Индикатор вынесен в отдельную health-группу {@code smtp} (Boot 4 запрещает совпадение имени группы с
- * именем contributor'а, поэтому группа называется smtp, а блок в деталях — mail) и выключается свойством
- * {@code management.health.mail.enabled=false}. Таймауты соединения заданы в {@code spring.mail.properties.mail.smtp.*}, результат
- * кэшируется на несколько секунд — опрос health не должен держать соединения с SMTP.
+ * Сознательно НЕ входит в readiness: недоступная почта не должна останавливать трафик — заявки и ответы работают без
+ * писем, уведомления подхватятся после восстановления. Индикатор вынесен в отдельную health-группу {@code smtp} (Boot 4
+ * запрещает совпадение имени группы с именем contributor'а, поэтому группа называется smtp, а блок в деталях — mail) и
+ * выключается свойством {@code management.health.mail.enabled=false}. Таймауты соединения заданы в
+ * {@code spring.mail.properties.mail.smtp.*}, результат кэшируется на несколько секунд — опрос health не должен держать
+ * соединения с SMTP.
  * </p>
  */
 @Slf4j
@@ -62,9 +67,14 @@ public class MailHealthIndicator implements HealthIndicator {
             return Health.up().withDetail("state", "skipped").withDetail("reason", "not a JavaMailSenderImpl").build();
         }
         try {
-            impl.testConnection();
+            try {
+                impl.testConnection();
+            } catch (MessagingException e) {
+                throw new MailException(e.getMessage(), e) {
+                };
+            }
             return Health.up().withDetail("host", impl.getHost()).withDetail("port", impl.getPort()).build();
-        } catch (Exception e) {
+        } catch (MailException e) {
             logger.warn("SMTP недоступен для health-проверки: {}", e.getMessage());
             return Health.down(e).withDetail("host", impl.getHost()).withDetail("port", impl.getPort()).build();
         }

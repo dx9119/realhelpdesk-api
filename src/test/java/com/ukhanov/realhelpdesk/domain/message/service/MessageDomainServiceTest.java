@@ -106,7 +106,9 @@ class MessageDomainServiceTest {
         List<MessageModel> result = service.getMessagesByTicketId(TICKET_ID);
 
         // then
-        assertThat(result).hasSize(2).usingRecursiveFieldByFieldElementComparatorIgnoringFields("createdAt", "version").isEqualTo(expected);
+        assertThat(result).hasSize(2)
+                .usingRecursiveFieldByFieldElementComparatorIgnoringFields("createdAt", "version")
+                .isEqualTo(expected);
 
         assertThat(result.get(0).getMessageText()).contains("оплатой");
         assertThat(result.get(1).getTicket()).isSameAs(ticket);

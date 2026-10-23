@@ -37,10 +37,15 @@ public class PortalDomainService {
         return portalRepository.findAllByOwnerIdOrderByCreatedAtDesc(ownerId, pageable);
     }
 
+    /**
+     * Портал по id: состав участников читается сразу (JOIN), а не лениво — настройка open-in-view выключена, поэтому
+     * после закрытия транзакции LAZY-коллекция на detached-сущности не догрузится.
+     */
     public PortalModel getPortalById(Long portalId) throws PortalException {
         Objects.requireNonNull(portalId, "portalId must not be null");
         logger.debug("Получен портал ID: {}", portalId);
-        return portalRepository.findById(portalId).orElseThrow(() -> PortalException.notFound("Портал с ID " + portalId + " не найден"));
+        return portalRepository.findWithAccessById(portalId)
+                .orElseThrow(() -> PortalException.notFound("Портал с ID " + portalId + " не найден"));
     }
 
     @Transactional

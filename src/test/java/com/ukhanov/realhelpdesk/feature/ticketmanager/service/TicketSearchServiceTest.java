@@ -22,6 +22,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
+import com.ukhanov.realhelpdesk.core.pagination.dto.PageCriteria;
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
 import com.ukhanov.realhelpdesk.core.pagination.exception.PaginationException;
 import com.ukhanov.realhelpdesk.core.pagination.service.PaginationAdapter;
@@ -31,6 +32,7 @@ import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
 import com.ukhanov.realhelpdesk.domain.portal.repository.PortalRepository;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketModel;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketPriority;
+import com.ukhanov.realhelpdesk.domain.ticket.model.TicketSearchCriteria;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketStatus;
 import com.ukhanov.realhelpdesk.domain.ticket.repository.TicketRepository;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.dto.TicketResponse;
@@ -69,7 +71,8 @@ class TicketSearchServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TicketSearchService(mockTicketRepository, mockPortalRepository, mockCurrentUserProvider, new TicketMapperImpl(),
+        service = new TicketSearchService(mockTicketRepository, mockPortalRepository, mockCurrentUserProvider,
+                new TicketMapperImpl(),
                 new PaginationAdapter());
 
         lenient().when(mockCurrentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
@@ -97,10 +100,11 @@ class TicketSearchServiceTest {
         ticket.setId(100L);
         Page<TicketModel> page = new PageImpl<>(List.of(ticket), DEFAULT_PAGE, 1);
 
-        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE))).thenReturn(page);
+        when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
+                .thenReturn(page);
 
-        PageResponse<TicketResponse> result = service.searchTickets("test search", START_DATE, END_DATE, TicketStatus.OPEN,
-                TicketPriority.HIGH, true, 0, 10, "createdAt", "desc");
+        PageResponse<TicketResponse> result = service.searchTickets(new TicketSearchCriteria("test search", START_DATE,
+                END_DATE, TicketStatus.OPEN, TicketPriority.HIGH, true), new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         assertThat(result.content()).hasSize(1);
@@ -123,8 +127,9 @@ class TicketSearchServiceTest {
         when(mockPortalRepository.findAllAccessibleByUserId(USER_ID)).thenReturn(List.of());
         when(mockPortalRepository.findPublicPortalIdsWithUserTickets(USER_ID)).thenReturn(List.of());
 
-        PageResponse<TicketResponse> result = service.searchTickets("search", START_DATE, END_DATE, null, null, false, 0, 10, "createdAt",
-                "desc");
+        PageResponse<TicketResponse> result = service.searchTickets(
+                new TicketSearchCriteria("search", START_DATE, END_DATE, null, null, false),
+                new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         assertThat(result.content()).isEmpty();
@@ -140,14 +145,17 @@ class TicketSearchServiceTest {
         // when
         when(mockPortalRepository.findAllByOwnerIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of()); // owned пустые
 
-        when(mockPortalRepository.findAllAccessibleByUserId(USER_ID)).thenReturn(List.of(createPortal(5L))); // allowed есть
+        when(mockPortalRepository.findAllAccessibleByUserId(USER_ID)).thenReturn(List.of(createPortal(5L))); // allowed
+                                                                                                             // есть
 
         when(mockPortalRepository.findPublicPortalIdsWithUserTickets(USER_ID)).thenReturn(List.of());
 
         when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 0, 10, "createdAt", "desc");
+        PageResponse<TicketResponse> result = service.searchTickets(
+                new TicketSearchCriteria(null, null, null, null, null, false),
+                new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         assertThat(result.content()).isEmpty();
@@ -167,8 +175,8 @@ class TicketSearchServiceTest {
 
         when(mockPortalRepository.findPublicPortalIdsWithUserTickets(USER_ID)).thenReturn(List.of());
 
-        PageResponse<TicketResponse> result = service.searchTickets("любой поиск", START_DATE, END_DATE, TicketStatus.OPEN,
-                TicketPriority.HIGH, false, 0, 10, "createdAt", "desc");
+        PageResponse<TicketResponse> result = service.searchTickets(new TicketSearchCriteria("любой поиск", START_DATE,
+                END_DATE, TicketStatus.OPEN, TicketPriority.HIGH, false), new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         assertThat(result.content()).isEmpty();
@@ -187,7 +195,9 @@ class TicketSearchServiceTest {
         when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 0, 10, "createdAt", "desc");
+        PageResponse<TicketResponse> result = service.searchTickets(
+                new TicketSearchCriteria(null, null, null, null, null, false),
+                new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         assertThat(result.content()).isEmpty();
@@ -206,7 +216,8 @@ class TicketSearchServiceTest {
         when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        service.searchTickets("bug", null, null, null, null, true, 0, 10, "createdAt", "desc");
+        service.searchTickets(new TicketSearchCriteria("bug", null, null, null, null, true),
+                new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         verify(mockTicketRepository).findAll(specCaptor.capture(), eq(DEFAULT_PAGE));
@@ -245,7 +256,9 @@ class TicketSearchServiceTest {
         when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(new PageImpl<>(List.of(ticket), DEFAULT_PAGE, 1));
 
-        PageResponse<TicketResponse> result = service.searchTickets("доступ", null, null, null, null, false, 0, 10, "createdAt", "desc");
+        PageResponse<TicketResponse> result = service.searchTickets(
+                new TicketSearchCriteria("доступ", null, null, null, null, false),
+                new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         assertThat(result.content()).hasSize(1);
@@ -274,7 +287,9 @@ class TicketSearchServiceTest {
         when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(new PageImpl<>(List.of(createTicket(101L)), DEFAULT_PAGE, 1));
 
-        PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 0, 10, "createdAt", "desc");
+        PageResponse<TicketResponse> result = service.searchTickets(
+                new TicketSearchCriteria(null, null, null, null, null, false),
+                new PageCriteria(0, 10, "createdAt", "desc"));
 
         TicketResponse response = result.content().get(0);
         // then
@@ -295,7 +310,8 @@ class TicketSearchServiceTest {
         when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(DEFAULT_PAGE)))
                 .thenReturn(Page.empty(DEFAULT_PAGE));
 
-        service.searchTickets("поиск", null, null, null, null, false, 0, 10, "createdAt", "desc");
+        service.searchTickets(new TicketSearchCriteria("поиск", null, null, null, null, false),
+                new PageCriteria(0, 10, "createdAt", "desc"));
 
         // then
         verify(mockPortalRepository).findAllByOwnerIdOrderByCreatedAtDesc(USER_ID);
@@ -317,7 +333,8 @@ class TicketSearchServiceTest {
         when(mockTicketRepository.findAll(ArgumentMatchers.<Specification<TicketModel>>any(), eq(secondPage)))
                 .thenReturn(new PageImpl<>(List.of(createTicket(201L), createTicket(202L)), secondPage, 5));
 
-        PageResponse<TicketResponse> result = service.searchTickets(null, null, null, null, null, false, 1, 2, "title", "asc");
+        PageResponse<TicketResponse> result = service.searchTickets(
+                new TicketSearchCriteria(null, null, null, null, null, false), new PageCriteria(1, 2, "title", "asc"));
 
         // then
         assertThat(result.content()).hasSize(2);
@@ -335,7 +352,9 @@ class TicketSearchServiceTest {
     void searchTickets_unknownSortField_isRejected() {
 
         // given / when / then
-        assertThatThrownBy(() -> service.searchTickets(null, null, null, null, null, false, 0, 10, "passwordHash", "desc"))
+        assertThatThrownBy(
+                () -> service.searchTickets(new TicketSearchCriteria(null, null, null, null, null, false),
+                        new PageCriteria(0, 10, "passwordHash", "desc")))
                 .isInstanceOf(PaginationException.class);
 
         verifyNoInteractions(mockTicketRepository);

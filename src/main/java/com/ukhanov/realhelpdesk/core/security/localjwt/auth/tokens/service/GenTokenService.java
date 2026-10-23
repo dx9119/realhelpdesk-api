@@ -38,11 +38,18 @@ public class GenTokenService {
         // jti гарантирует уникальность: два токена, выданные в одну секунду, иначе байт-в-байт одинаковы.
         // Значение токена в лог не идёт — след выпуска оставляем по userId и jti
         String jti = UUID.randomUUID().toString();
-        String token = Jwts.builder().issuer(jwtConfig.getIssuer()).subject(securityUser.getId()).id(jti).expiration(Date.from(expiry))
-                .issuedAt(Date.from(dateNow)).claim(JwtClaims.TYPE, JwtClaims.TYPE_ACCESS)
+        String token = Jwts.builder()
+                .issuer(jwtConfig.getIssuer())
+                .subject(securityUser.getId())
+                .id(jti)
+                .expiration(Date.from(expiry))
+                .issuedAt(Date.from(dateNow))
+                .claim(JwtClaims.TYPE, JwtClaims.TYPE_ACCESS)
                 .claim(JwtClaims.TOKEN_VERSION, securityUser.getOriginalUser().getTokenVersion())
-                .claim(JwtClaims.ROLE, securityUser.getRule()).claim("aud", jwtConfig.getAudience()) // вместо audience().add
-                .signWith((SecretKey) jwtConfig.getJwtKey()).compact();
+                .claim(JwtClaims.ROLE, securityUser.getRule())
+                .claim("aud", jwtConfig.getAudience()) // вместо audience().add
+                .signWith((SecretKey) jwtConfig.getJwtKey())
+                .compact();
 
         logger.debug("Выдан {} токен, userId={}, jti={}", JwtClaims.TYPE_ACCESS, securityUser.getId(), jti);
 
@@ -58,9 +65,18 @@ public class GenTokenService {
         // Уникальный id обязателен: в БД хеш токена хранится с unique-ограничением.
         // В лог — только userId и jti, сам токен и его хешь не пишем
         String jti = UUID.randomUUID().toString();
-        String token = Jwts.builder().issuer(jwtConfig.getIssuer()).subject(securityUser.getId()).id(jti).audience()
-                .add(jwtConfig.getAudience()).and().expiration(Date.from(expiry)).issuedAt(Date.from(now))
-                .claim(JwtClaims.TYPE, JwtClaims.TYPE_REFRESH).signWith((SecretKey) jwtConfig.getJwtKey()).compact();
+        String token = Jwts.builder()
+                .issuer(jwtConfig.getIssuer())
+                .subject(securityUser.getId())
+                .id(jti)
+                .audience()
+                .add(jwtConfig.getAudience())
+                .and()
+                .expiration(Date.from(expiry))
+                .issuedAt(Date.from(now))
+                .claim(JwtClaims.TYPE, JwtClaims.TYPE_REFRESH)
+                .signWith((SecretKey) jwtConfig.getJwtKey())
+                .compact();
 
         RefreshTokenModel jwtRefreshTokenModel = new RefreshTokenModel();
         jwtRefreshTokenModel.setUser(securityUser.getOriginalUser());

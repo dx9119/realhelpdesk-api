@@ -1,11 +1,13 @@
 package com.ukhanov.realhelpdesk.core.mail;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.persistence.EntityManager;
@@ -144,7 +146,8 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
         // given
         // when
-        emailDeliveryService.sendAdminNotification("Новая регистрация", "Кто,что", NotificationEvent.NEW_SYSTEM_MESSAGE);
+        emailDeliveryService.sendAdminNotification("Новая регистрация", "Кто,что",
+                NotificationEvent.NEW_SYSTEM_MESSAGE);
 
         // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
@@ -193,8 +196,10 @@ class EmailSendingIT extends AbstractIntegrationTest {
         seedRecoveryLogs(3);
 
         // then
-        assertThatThrownBy(() -> emailDeliveryService.sendEmail(RECIPIENT, "Сброс пароля", "Текст", NotificationEvent.RECOVERY_PASSWORD))
-                .isInstanceOf(EmailAccessDeniedException.class).extracting(ex -> ((EmailAccessDeniedException) ex).getStatus())
+        assertThatThrownBy(() -> emailDeliveryService.sendEmail(RECIPIENT, "Сброс пароля", "Текст",
+                NotificationEvent.RECOVERY_PASSWORD))
+                .isInstanceOf(EmailAccessDeniedException.class)
+                .extracting(ex -> ((EmailAccessDeniedException) ex).getStatus())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
 
         assertThat(greenMail.getReceivedMessages()).isEmpty();
@@ -203,7 +208,8 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
     private void seedRecoveryLogs(int count) {
         for (int i = 0; i < count; i++) {
-            emailLogRepository.saveAndFlush(new EmailLog("Сброс пароля", FROM, RECIPIENT, NotificationEvent.RECOVERY_PASSWORD));
+            emailLogRepository
+                    .saveAndFlush(new EmailLog("Сброс пароля", FROM, RECIPIENT, NotificationEvent.RECOVERY_PASSWORD));
         }
     }
 
@@ -238,7 +244,8 @@ class EmailSendingIT extends AbstractIntegrationTest {
         authenticateAs(user);
 
         // then
-        assertThatThrownBy(() -> emailDeliveryService.confirmEmail(987654321L)).isInstanceOf(EmailAccessDeniedException.class);
+        assertThatThrownBy(() -> emailDeliveryService.confirmEmail(987654321L))
+                .isInstanceOf(EmailAccessDeniedException.class);
         entityManager.flush();
         entityManager.clear();
 
@@ -271,7 +278,8 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
     private long countLogs(String recipient, NotificationEvent event) {
         LocalDateTime now = LocalDateTime.now();
-        return emailLogRepository.countEmailsByToAndEventBetween(recipient, event, now.minusMinutes(5), now.plusMinutes(1));
+        return emailLogRepository.countEmailsByToAndEventBetween(recipient, event, now.minusMinutes(5),
+                now.plusMinutes(1));
     }
 
     private UserModel saveUser(Long verifyEmailToken) {
@@ -286,21 +294,18 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
     private void authenticateAs(UserModel user) {
         SecurityContextHolder.getContext()
-                .setAuthentication(new UsernamePasswordAuthenticationToken(String.valueOf(user.getId()), null, List.of()));
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(String.valueOf(user.getId()), null, List.of()));
     }
 
-    private static String contentOf(MimeMessage message) {
-        try {
-            Object content = message.getContent();
-            if (content instanceof String text) {
-                return text;
-            }
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            message.writeTo(buffer);
-            return buffer.toString(StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
+    private static String contentOf(MimeMessage message) throws IOException, MessagingException {
+        Object content = message.getContent();
+        if (content instanceof String text) {
+            return text;
         }
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        message.writeTo(buffer);
+        return buffer.toString(StandardCharsets.UTF_8);
     }
 
     @TestConfiguration
@@ -309,21 +314,6 @@ class EmailSendingIT extends AbstractIntegrationTest {
         @Bean
         JavaMailSenderImpl javaMailSender() {
             return new JavaMailSenderImpl();
-        }
-
-        @Bean
-        EmailProperties emailProperties() {
-            EmailProperties properties = EmailTemplatesFixture.emailProperties();
-            properties.setFrom(FROM);
-            properties.setNotify(ADMIN);
-            return properties;
-        }
-
-        @Bean
-        RateLimitProperties rateLimitProperties() {
-            RateLimitProperties properties = new RateLimitProperties();
-            properties.setLimits(Map.of("email-recovery", new RateLimitProperties.Limit(3, 86400)));
-            return properties;
         }
 
         @Bean
@@ -337,28 +327,34 @@ class EmailSendingIT extends AbstractIntegrationTest {
         }
 
         @Bean
-        EmailPolicyService emailPolicyService(UnsubscribedEmailRepository repository, CurrentUserProvider currentUserProvider) {
+        EmailPolicyService emailPolicyService(UnsubscribedEmailRepository repository,
+                CurrentUserProvider currentUserProvider) {
             return new EmailPolicyService(repository, currentUserProvider);
         }
 
-        @Bean
-        EmailLogService emailLogService(EmailLogRepository emailLogRepository) {
-            return new EmailLogService(emailLogRepository);
-        }
-
-        @Bean
-        EmailTemplates emailTemplates(EmailProperties emailProperties) {
-            return new EmailTemplates(EmailTemplatesFixture.messageSource(), emailProperties);
-        }
-
+        /**
+         * Остальные зависимости рассылки строятся здесь, а не @Autowired-полями конфига: поле, ссылающееся на @Bean
+         * того же класса, растёт в циклическую зависимость. Пять параметров — лимит ParameterNumber.
+         */
         @Bean
         EmailDeliveryService emailDeliveryService(JavaMailSender mailSender, UserDomainService userDomainService,
-                EmailProperties emailProperties, EmailPolicyService emailPolicyService, CurrentUserProvider currentUserProvider,
-                EmailLogService emailLogService, RateLimitProperties rateLimitProperties, EmailTemplates emailTemplates) {
+                EmailPolicyService emailPolicyService, CurrentUserProvider currentUserProvider,
+                EmailLogRepository emailLogRepository) {
+            EmailProperties emailProperties = emailProperties();
+            RateLimitProperties rateLimitProperties = new RateLimitProperties();
+            rateLimitProperties.setLimits(Map.of("email-recovery", new RateLimitProperties.Limit(3, 86400)));
+            EmailTemplates emailTemplates = new EmailTemplates(EmailTemplatesFixture.messageSource(), emailProperties);
             // NOOP-реестр: слайсу @DataJpaTest наблюдаемость не нужна, тесту важна только SMTP-логика.
-            return new EmailDeliveryService(mailSender, userDomainService, emailProperties, emailPolicyService, currentUserProvider,
-                    emailLogService, rateLimitProperties, emailTemplates, ObservationRegistry.NOOP,
-                    new BusinessMetrics(new SimpleMeterRegistry()));
+            return new EmailDeliveryService(mailSender, userDomainService, emailProperties, emailPolicyService,
+                    currentUserProvider, new EmailLogService(emailLogRepository), rateLimitProperties, emailTemplates,
+                    ObservationRegistry.NOOP, new BusinessMetrics(new SimpleMeterRegistry()));
+        }
+
+        private static EmailProperties emailProperties() {
+            EmailProperties properties = EmailTemplatesFixture.emailProperties();
+            properties.setFrom(FROM);
+            properties.setNotify(ADMIN);
+            return properties;
         }
     }
 }

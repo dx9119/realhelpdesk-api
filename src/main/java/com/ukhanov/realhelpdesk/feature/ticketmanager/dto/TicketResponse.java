@@ -6,21 +6,15 @@ import com.ukhanov.realhelpdesk.domain.ticket.model.TicketAccessStatus;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketPriority;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketStatus;
 
-/**
- * Единое представление заявки для всех эндпоинтов: список портала, деталь, «мои заявки» и поиск.
- *
- * <p>
- * Раньше список/деталь отдавали {@code TicketResponseOld}, а поиск — урезанный {@code TicketResponse} без тела и статусов, поэтому клиент
- * держал два типа и две ветки рендера для одного списка заявок.
- *
- * <p>
- * {@code authorId} нужен UI, чтобы отличить свои заявки от чужих: сравнивать по {@code authorFullName} нельзя (однофамильцы, смена имени).
- *
- * <p>
- * {@code version} — колонка {@code @Version}: конфликт при параллельном изменении приходит как 409, а наличие версии в ответе позволяет
- * клиенту заметить устаревшие данные до отправки.
- */
-public record TicketResponse(Long id, String title, String body, Long authorId, String authorFullName, String portalName, Long portalId,
-        TicketPriority ticketPriority, TicketStatus ticketStatus, TicketAccessStatus ticketAccessStatus, Instant createdAt,
-        Integer version) {
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Единое представление заявки для всех эндпоинтов")
+public record TicketResponse(Long id, String title, String body,
+        @Schema(description = "authorId нужен UI, чтобы отличить свои заявки от чужих: "
+                + "сравнивать по fullName нельзя (однофамильцы, смена имени).") Long authorId,
+        String authorFullName, String portalName, Long portalId, TicketPriority ticketPriority,
+        TicketStatus ticketStatus,
+        TicketAccessStatus ticketAccessStatus, Instant createdAt,
+        @Schema(description = "version — колонка @Version: конфликт при параллельном изменении "
+                + "приходит как 409.") Integer version) {
 }

@@ -35,14 +35,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Сквозной поток эскалации на эмодзи-уровень по реальному HTTP: провалы с разных IP одной подсети доводят риск до
- * {@code captcha.risk-subnet-offender-threshold=2} (отдельный контекст приложения), следующий challenge приходит как эмодзи-задание,
- * неверный ответ отклоняется (wrong_answer), правильный ответ (подбирается локально по HMAC с тестовым секретом) решает captcha-токен и
- * завершается регистрацией 201. Клиентский IP берётся из {@code X-Forwarded-For} (доверие заголовкам включено в контексте), поэтому подсеть
- * задаётся тестом. Контекст свой — не мешает PoW-потоку CaptchaFlowIT с завышенным порогом.
+ * {@code captcha.risk-subnet-offender-threshold=2} (отдельный контекст приложения), следующий challenge приходит как
+ * эмодзи-задание, неверный ответ отклоняется (wrong_answer), правильный ответ (подбирается локально по HMAC с тестовым
+ * секретом) решает captcha-токен и завершается регистрацией 201. Клиентский IP берётся из {@code X-Forwarded-For}
+ * (доверие заголовкам включено в контексте), поэтому подсеть задаётся тестом. Контекст свой — не мешает PoW-потоку
+ * CaptchaFlowIT с завышенным порогом.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
-                "email.domain=example.com", "client-ip.trust-proxy-headers=true", "captcha.risk-subnet-offender-threshold=2"})
+                "email.domain=example.com", "client-ip.trust-proxy-headers=true",
+                "captcha.risk-subnet-offender-threshold=2"})
 @DisplayName("Эмодзи-капча: эскалация по риску, wrong_answer и полный поток (HTTP)")
 class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
 
@@ -52,7 +54,9 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
     /** Два разных IP одной подсети /24: второй провал доводит подсеть до порога распределённости. */
     private static final String CLIENT_IP = "203.0.113.10";
     private static final String SECOND_CLIENT_IP = "203.0.113.11";
-    /** Тестовый HMAC-секрет из application-test.properties — позволяет подобрать ответ локально, без перебора по HTTP. */
+    /**
+     * Тестовый HMAC-секрет из application-test.properties — позволяет подобрать ответ локально, без перебора по HTTP.
+     */
     private static final String TEST_SECRET = "test-only-captcha-hmac-secret-0123456789abcdef";
 
     private static GreenMail greenMail;
@@ -98,8 +102,9 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
         List<Integer> answer = correctAnswer(challenge);
         HttpResponse<String> solved = solveEmoji(challenge.jwt(), answer);
         String token = JSON.readTree(solved.body()).get("captchaToken").asText();
-        HttpResponse<String> register = post("/api/v1/auth/register", "{\"firstName\":\"Emoji\",\"lastName\":\"Flow\",\"email\":\""
-                + uniqueEmail() + "\",\"password\":\"Sup3rSecret123!\",\"captchaToken\":\"" + token + "\"}");
+        HttpResponse<String> register = post("/api/v1/auth/register",
+                "{\"firstName\":\"Emoji\",\"lastName\":\"Flow\",\"email\":\""
+                        + uniqueEmail() + "\",\"password\":\"Sup3rSecret123!\",\"captchaToken\":\"" + token + "\"}");
 
         // then
         assertThat(wrong.statusCode()).as("ответ из двух ячеек никогда не бывает верным").isEqualTo(400);
@@ -125,18 +130,21 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
 
     // ── вспомогательные ──
 
-    private record EmojiChallenge(String jwt, String challengeId, String prompt, List<String> cells, String answerHash) {
+    private record EmojiChallenge(String jwt, String challengeId, String prompt, List<String> cells,
+            String answerHash) {
     }
 
     /**
-     * Два провала с разных IP одной подсети доводят подсеть до порога распределённости. Уровень первого challenge зависит от состояния
-     * общего контекста (предыдущий тест мог оставить подсеть рискованной) — провал засчитывается и pow_failed, и wrong_answer: любой отказ
-     * двигает риск-счётчик. Для pow берётся детерминированное не-решение (nonce "0" на малой сложности мог бы случайно решить задание).
+     * Два провала с разных IP одной подсети доводят подсеть до порога распределённости. Уровень первого challenge
+     * зависит от состояния общего контекста (предыдущий тест мог оставить подсеть рискованной) — провал засчитывается и
+     * pow_failed, и wrong_answer: любой отказ двигает риск-счётчик. Для pow берётся детерминированное не-решение (nonce
+     * "0" на малой сложности мог бы случайно решить задание).
      */
     private void escalateRiskToEmoji() throws Exception {
         String[] offenders = {CLIENT_IP, SECOND_CLIENT_IP};
         for (String offender : offenders) {
-            HttpResponse<String> challenge = post("/api/v1/captcha/challenge", "{\"action\":\"" + ACTION_REGISTER + "\"}", offender);
+            HttpResponse<String> challenge = post("/api/v1/captcha/challenge",
+                    "{\"action\":\"" + ACTION_REGISTER + "\"}", offender);
             assertThat(challenge.statusCode()).isEqualTo(200);
             JsonNode body = JSON.readTree(challenge.body());
             String jwt = body.get("challengeId").asText();
@@ -146,7 +154,8 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
                 // эмодзи-задание: пустой ответ никогда не верный
                 solveBody = "{\"challengeId\":\"" + jwt + "\"}";
             } else {
-                String nonce = nonceThatDoesNotSolve(body.get("params").get("salt").asText(), body.get("params").get("difficulty").asInt());
+                String nonce = nonceThatDoesNotSolve(body.get("params").get("salt").asText(),
+                        body.get("params").get("difficulty").asInt());
                 solveBody = "{\"challengeId\":\"" + jwt + "\",\"nonce\":\"" + nonce + "\"}";
             }
             HttpResponse<String> failed = post("/api/v1/captcha/solve", solveBody, offender);
@@ -170,7 +179,8 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
         HttpResponse<String> response = post("/api/v1/captcha/challenge", "{\"action\":\"" + action + "\"}");
         assertThat(response.statusCode()).as("challenge выдаётся").isEqualTo(200);
         JsonNode body = JSON.readTree(response.body());
-        assertThat(body.get("type").asText()).as("рискованный IP получает эмодзи-задание").isEqualTo(ChallengeResponse.TYPE_EMOJI);
+        assertThat(body.get("type").asText()).as("рискованный IP получает эмодзи-задание")
+                .isEqualTo(ChallengeResponse.TYPE_EMOJI);
 
         String jwt = body.get("challengeId").asText();
         JsonNode claims = jwtPayload(jwt);
@@ -181,8 +191,8 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
     }
 
     /**
-     * Правильный ответ: локальный перебор кандидатов (один глиф или три — ровно такие варианты генерирует фабрика) и сравнение HMAC с
-     * подписанным в claims. Тестовый секрет известен, HTTP-перебор не нужен.
+     * Правильный ответ: локальный перебор кандидатов (один глиф или три — ровно такие варианты генерирует фабрика) и
+     * сравнение HMAC с подписанным в claims. Тестовый секрет известен, HTTP-перебор не нужен.
      */
     private List<Integer> correctAnswer(EmojiChallenge challenge) throws Exception {
         for (int i = 0; i < challenge.cells().size(); i++) {
@@ -208,7 +218,10 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
         throw new IllegalStateException("верный ответ эмодзи-задания не найден перебором");
     }
 
-    /** Тот же алгоритм, что в CaptchaTokenService.answerHash: HMACSHA256(cid + ":" + отсортированные индексы через запятую), hex. */
+    /**
+     * Тот же алгоритм, что в CaptchaTokenService.answerHash: HMACSHA256(cid + ":" + отсортированные индексы через
+     * запятую), hex.
+     */
     private String answerHash(String challengeId, List<Integer> answer) throws Exception {
         String canonical = answer.stream().sorted().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse("");
         Mac mac = Mac.getInstance("HmacSHA256");
@@ -245,9 +258,12 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
     }
 
     private HttpResponse<String> post(String path, String json, String clientIp) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url(path))).header("Content-Type", "application/json")
-                .header("X-Requested-With", "XMLHttpRequest").header("X-Forwarded-For", clientIp)
-                .POST(HttpRequest.BodyPublishers.ofString(json)).build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url(path)))
+                .header("Content-Type", "application/json")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("X-Forwarded-For", clientIp)
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
         return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     }
 

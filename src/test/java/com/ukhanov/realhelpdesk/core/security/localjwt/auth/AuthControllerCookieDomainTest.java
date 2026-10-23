@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import com.ukhanov.realhelpdesk.core.config.ClientIpProperties;
 import com.ukhanov.realhelpdesk.core.http.ClientIpResolver;
+import com.ukhanov.realhelpdesk.core.security.localjwt.auth.controller.AuthController;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.login.service.LoginService;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.logout.service.LogoutService;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.refresh.service.RefreshService;
@@ -24,8 +25,8 @@ import com.ukhanov.realhelpdesk.feature.usermanager.service.UserManageService;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Атрибут Domain у auth-cookie из jwt.cookie.domain: задан — общий для поддоменов (файлы на отдельном домене); пусто — cookie host-only,
- * как раньше.
+ * Атрибут Domain у auth-cookie из jwt.cookie.domain: задан — общий для поддоменов (файлы на отдельном домене); пусто —
+ * cookie host-only, как раньше.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Атрибут Domain у auth-cookie (jwt.cookie.domain)")
@@ -50,8 +51,9 @@ class AuthControllerCookieDomainTest {
     @BeforeEach
     void setUp() {
         jwtProperties = new JwtProperties();
-        mockMvc = MockMvcTester.of(new AuthController(registrationService, loginService, logoutService, getTokenService, refreshService,
-                jwtProperties, userManageService, new ClientIpResolver(new ClientIpProperties())));
+        mockMvc = MockMvcTester.of(
+                new AuthController(registrationService, loginService, logoutService, getTokenService, refreshService,
+                        jwtProperties, userManageService, new ClientIpResolver(new ClientIpProperties())));
     }
 
     @Test

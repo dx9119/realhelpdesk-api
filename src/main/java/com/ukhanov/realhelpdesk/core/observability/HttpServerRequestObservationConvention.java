@@ -14,13 +14,13 @@ import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
 
 /**
- * Добавляет к http.server.requests низкокардинальный тег {@code role} — роль аутентифицированного пользователя (OPERATOR/USER/NONE) либо
- * ANONYMOUS.
+ * Добавляет к http.server.requests низкокардинальный тег {@code role} — роль аутентифицированного пользователя
+ * (OPERATOR/USER/NONE) либо ANONYMOUS.
  *
  * <p>
  * Роль читается из атрибута запроса, а не из {@code SecurityContextHolder}: наблюдение останавливается в
- * {@code ServerHttpObservationFilter}, то есть после завершения security-цепочки, когда контекст безопасности уже очищен. Допустимые
- * значения тега — конечный набор имён ролей, никаких id, email и других ПДн.
+ * {@code ServerHttpObservationFilter}, то есть после завершения security-цепочки, когда контекст безопасности уже
+ * очищен. Допустимые значения тега — конечный набор имён ролей, никаких id, email и других ПДн.
  * </p>
  */
 public class HttpServerRequestObservationConvention extends DefaultServerRequestObservationConvention {
@@ -37,9 +37,10 @@ public class HttpServerRequestObservationConvention extends DefaultServerRequest
     private static final String ANONYMOUS = "ANONYMOUS";
 
     /**
-     * Ресурсный обработчик Spring матчит {@code /**} на несуществующие пути: шаблон не описывает маршрут, поэтому такие запросы помечаются
-     * NOT_FOUND — как и случаи без шаблона в {@link DefaultServerRequestObservationConvention}. Иначе каждый неизвестный URL прятался бы
-     * под одной строкой, но с неверным смыслом, а кардинальность держалась бы только случайно.
+     * Ресурсный обработчик Spring матчит {@code /**} на несуществующие пути: шаблон не описывает маршрут, поэтому такие
+     * запросы помечаются NOT_FOUND — как и случаи без шаблона в {@link DefaultServerRequestObservationConvention}.
+     * Иначе каждый неизвестный URL прятался бы под одной строкой, но с неверным смыслом, а кардинальность держалась бы
+     * только случайно.
      */
     private static final String RESOURCE_FALLBACK_PATTERN = "/**";
 
@@ -77,7 +78,9 @@ public class HttpServerRequestObservationConvention extends DefaultServerRequest
         return ANONYMOUS;
     }
 
-    /** Имя роли для тега метрики и MDC: без префикса Spring Security {@code ROLE_} — тот же набор OPERATOR/USER/NONE. */
+    /**
+     * Имя роли для тега метрики и MDC: без префикса Spring Security {@code ROLE_} — тот же набор OPERATOR/USER/NONE.
+     */
     public static String roleName(String role) {
         return role.startsWith(ROLE_PREFIX) ? role.substring(ROLE_PREFIX.length()) : role;
     }

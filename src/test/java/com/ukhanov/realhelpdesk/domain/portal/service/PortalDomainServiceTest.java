@@ -100,7 +100,7 @@ class PortalDomainServiceTest {
 
         // given
         PortalModel expected = createPortal(PORTAL_ID, "Test Portal");
-        when(mockPortalRepository.findById(PORTAL_ID)).thenReturn(Optional.of(expected));
+        when(mockPortalRepository.findWithAccessById(PORTAL_ID)).thenReturn(Optional.of(expected));
 
         // when
         PortalModel result = service.getPortalById(PORTAL_ID);
@@ -114,7 +114,7 @@ class PortalDomainServiceTest {
     void getPortalById_missingPortal_throwsPortalException() {
 
         // given
-        when(mockPortalRepository.findById(PORTAL_ID)).thenReturn(Optional.empty());
+        when(mockPortalRepository.findWithAccessById(PORTAL_ID)).thenReturn(Optional.empty());
 
         // when / then
         assertThatThrownBy(() -> service.getPortalById(PORTAL_ID)).isInstanceOf(PortalException.class)

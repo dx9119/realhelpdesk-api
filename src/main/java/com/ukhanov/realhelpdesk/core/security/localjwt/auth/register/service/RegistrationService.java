@@ -31,6 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class RegistrationService {
 
+    private static final int MIN_PASSWORD_LENGTH = 8;
+
     private final PasswordEncoder passwordEncoder;
     private final UserDomainService userDomainService;
     private final GetTokenService getTokenService;
@@ -46,12 +48,14 @@ public class RegistrationService {
 
         // Проверяем наличие прошлой регистрации
         if (userDomainService.isUserExistsByEmail(registerRequest.email())) {
-            throw new RegistrationException("Почта уже используется.", new Throwable("Пользователь может занимать только один аккаунт."));
+            throw new RegistrationException("Почта уже используется.",
+                    new Throwable("Пользователь может занимать только один аккаунт."));
         }
 
         // Проверяем длину пароля(перестраховка)
-        if (registerRequest.password().length() < 8) {
-            throw new RegistrationException("Минимальная длина пароля - 8 символов.", new Throwable("Слишком короткий пароль."));
+        if (registerRequest.password().length() < MIN_PASSWORD_LENGTH) {
+            throw new RegistrationException("Минимальная длина пароля - 8 символов.",
+                    new Throwable("Слишком короткий пароль."));
         }
 
         // создаем пользователя
@@ -62,18 +66,21 @@ public class RegistrationService {
         logger.info("Зарегистрирован пользователь {}", newUser.getId());
 
         // Оповещаем админа о регистрации
-        emailDeliveryService.sendAdminNotification("Новая регистрация:" + newUser.getEmail(), "Кто,что:" + newUser.toString(),
+        emailDeliveryService.sendAdminNotification("Новая регистрация:" + newUser.getEmail(),
+                "Кто,что:" + newUser.toString(),
                 NotificationEvent.NEW_SYSTEM_MESSAGE);
 
         emailDeliveryService.sendUserNotification(newUser.getEmail(), emailTemplates.registrationLinkSubject(),
-                emailTemplates.registrationLinkBody(newUser.getVerifyEmailToken().toString()), NotificationEvent.NEW_SYSTEM_MESSAGE,
+                emailTemplates.registrationLinkBody(newUser.getVerifyEmailToken().toString()),
+                NotificationEvent.NEW_SYSTEM_MESSAGE,
                 newUser.getId());
 
         return newUser;
     }
 
     public TokensResponse processRegistration(RegisterRequest registerRequest, String clientIp)
-            throws RegistrationException, MessagingException, EmailAccessDeniedException, CaptchaException, UnsupportedEncodingException {
+            throws RegistrationException, MessagingException, EmailAccessDeniedException, CaptchaException,
+            UnsupportedEncodingException {
 
         captchaService.verifyRegistration(registerRequest.captchaToken(), registerRequest.website(), clientIp);
         UserModel user = addUser(registerRequest);

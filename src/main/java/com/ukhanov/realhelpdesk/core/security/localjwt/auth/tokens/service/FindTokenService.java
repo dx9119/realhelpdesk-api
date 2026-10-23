@@ -24,12 +24,14 @@ public class FindTokenService {
         Objects.requireNonNull(token, "Токен не может быть null!");
         Objects.requireNonNull(token.getToken(), "Значение токена не может быть null!");
 
-        RefreshTokenModel refreshTokenModel = jwtRefreshTokenRepository.findByTokenRefresh(TokenHasher.sha256(token.getToken()))
+        RefreshTokenModel refreshTokenModel = jwtRefreshTokenRepository
+                .findByTokenRefresh(TokenHasher.sha256(token.getToken()))
                 .orElseThrow(() -> {
                     return new TokenException("Токен обновления не найден", null);
                 });
 
-        logger.debug("Токен обновления найден: id={}, статус={}", refreshTokenModel.getUuid(), refreshTokenModel.getStatus());
+        logger.debug("Токен обновления найден: id={}, статус={}", refreshTokenModel.getUuid(),
+                refreshTokenModel.getStatus());
         return refreshTokenModel;
     }
 }

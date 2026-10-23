@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.ukhanov.realhelpdesk.core.security.accesscontrol.service.TicketAccessValidationService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
@@ -165,10 +166,10 @@ class TicketAccessValidationServiceTest {
         return userModel;
     }
 
-    private PortalModel portal(Long id, UserModel owner, Set<Long> allowedUserIds) {
+    private PortalModel portal(Long id, UserModel ownerModel, Set<Long> allowedUserIds) {
         PortalModel portalModel = new PortalModel();
         portalModel.setId(id);
-        portalModel.setOwner(owner);
+        portalModel.setOwner(ownerModel);
         portalModel.setAllowedUserIds(new HashSet<>(allowedUserIds));
         return portalModel;
     }

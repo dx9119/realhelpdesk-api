@@ -33,8 +33,8 @@ import com.ukhanov.realhelpdesk.core.security.user.repository.UserRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Сквозной поток операторской очистки: доступ только у {@code ROLE_OPERATOR}, удаление старых отозванных токенов с возвратом счётчиков.
- * Срок хранения отозванных занижен до суток (86400 с), токены состариваются bulk-запросом.
+ * Сквозной поток операторской очистки: доступ только у {@code ROLE_OPERATOR}, удаление старых отозванных токенов с
+ * возвратом счётчиков. Срок хранения отозванных занижен до суток (86400 с), токены состариваются bulk-запросом.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.profiles.active=test", "jwt.revoked-token-retention-seconds=86400"})
@@ -104,7 +104,8 @@ class OperatorTokenCleanupIT extends AbstractIntegrationTest {
 
         // then
         assertThat(response.statusCode()).isEqualTo(403);
-        assertThat(jwtRefreshTokenRepository.findById(revokedOld)).as("обычный пользователь не запускает очистку").isPresent();
+        assertThat(jwtRefreshTokenRepository.findById(revokedOld)).as("обычный пользователь не запускает очистку")
+                .isPresent();
     }
 
     @Test
@@ -131,7 +132,8 @@ class OperatorTokenCleanupIT extends AbstractIntegrationTest {
 
     private HttpResponse<String> cleanup(String token) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + serverPort + PATH))
-                .header("X-Requested-With", "test").POST(HttpRequest.BodyPublishers.noBody());
+                .header("X-Requested-With", "test")
+                .POST(HttpRequest.BodyPublishers.noBody());
         if (token != null) {
             request.header("Cookie", "accessToken=" + token);
         }
@@ -163,10 +165,14 @@ class OperatorTokenCleanupIT extends AbstractIntegrationTest {
         token.setStatus(status);
         token.setUser(operator);
         jwtRefreshTokenRepository.saveAndFlush(token);
-        // createdAt выставляет только @PrePersist и сеттера снаружи нет — состариваем bulk-запросом в отдельной транзакции
+        // createdAt выставляет только @PrePersist и сеттера снаружи нет — состариваем bulk-запросом в отдельной
+        // транзакции
         transactionTemplate
-                .executeWithoutResult(ignored -> em.createQuery("UPDATE RefreshTokenModel t SET t.createdAt = :ts WHERE t.uuid = :id")
-                        .setParameter("ts", createdAt).setParameter("id", token.getUuid()).executeUpdate());
+                .executeWithoutResult(
+                        ignored -> em.createQuery("UPDATE RefreshTokenModel t SET t.createdAt = :ts WHERE t.uuid = :id")
+                                .setParameter("ts", createdAt)
+                                .setParameter("id", token.getUuid())
+                                .executeUpdate());
         return token.getUuid();
     }
 }

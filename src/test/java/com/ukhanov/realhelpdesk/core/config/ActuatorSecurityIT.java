@@ -26,8 +26,9 @@ import io.micrometer.core.instrument.MeterRegistry;
  * Безопасность и доступность actuator на управляющем порту.
  *
  * <p>
- * Приложение поднимается с {@code spring.profiles.active=test} (профиль {@code src/test/resources/application-test.properties}):
- * prod-preflight требует боевого keystore и включённых миграций, а контекст тестам нужен без инфраструктуры.
+ * Приложение поднимается с {@code spring.profiles.active=test} (профиль
+ * {@code src/test/resources/application-test.properties}): prod-preflight требует боевого keystore и включённых
+ * миграций, а контекст тестам нужен без инфраструктуры.
  * </p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
@@ -77,7 +78,8 @@ class ActuatorSecurityIT extends AbstractIntegrationTest {
 
         // given
         // when
-        HttpResponse<String> response = get(managementPort, "/actuator/prometheus", METRICS_USER + ":" + METRICS_PASSWORD);
+        HttpResponse<String> response = get(managementPort, "/actuator/prometheus",
+                METRICS_USER + ":" + METRICS_PASSWORD);
 
         // then
         assertThat(response.statusCode()).isEqualTo(200);
@@ -95,7 +97,8 @@ class ActuatorSecurityIT extends AbstractIntegrationTest {
         String credentials = METRICS_USER + ":" + METRICS_PASSWORD;
 
         // when / then
-        for (String path : new String[]{"/actuator/env", "/actuator/heapdump", "/actuator/configprops", "/actuator/mappings"}) {
+        for (String path : new String[]{"/actuator/env", "/actuator/heapdump", "/actuator/configprops",
+                "/actuator/mappings"}) {
             int status = get(managementPort, path, credentials).statusCode();
             assertThat(status).as("статус %s", path).isIn(401, 403, 404);
         }
@@ -108,7 +111,8 @@ class ActuatorSecurityIT extends AbstractIntegrationTest {
         // given / when / then
         assertThat(get(serverPort, "/actuator/prometheus", null).statusCode()).isIn(401, 403, 404);
 
-        HttpResponse<String> withCredentials = get(serverPort, "/actuator/prometheus", METRICS_USER + ":" + METRICS_PASSWORD);
+        HttpResponse<String> withCredentials = get(serverPort, "/actuator/prometheus",
+                METRICS_USER + ":" + METRICS_PASSWORD);
         assertThat(withCredentials.body()).doesNotContain("jvm_memory_used_bytes");
     }
 
@@ -122,13 +126,15 @@ class ActuatorSecurityIT extends AbstractIntegrationTest {
         // then
         assertThat(health.statusCode()).isEqualTo(200);
 
-        HttpResponse<String> scrape = get(managementPort, "/actuator/prometheus", METRICS_USER + ":" + METRICS_PASSWORD);
+        HttpResponse<String> scrape = get(managementPort, "/actuator/prometheus",
+                METRICS_USER + ":" + METRICS_PASSWORD);
         assertThat(scrape.body()).contains("http_server_requests");
         assertThat(meterRegistry.find("http.server.requests").meters()).isNotEmpty();
     }
 
     private HttpResponse<String> get(int port, String path, String basicCredentials) {
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).timeout(Duration.ofSeconds(15))
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .timeout(Duration.ofSeconds(15))
                 .GET();
         if (basicCredentials != null) {
             String encoded = Base64.getEncoder().encodeToString(basicCredentials.getBytes(StandardCharsets.UTF_8));

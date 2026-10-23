@@ -31,7 +31,8 @@ public class RateLimitProperties {
                 throw new IllegalArgumentException("ratelimit: requests должен быть больше 0, получено " + requests);
             }
             if (windowSeconds < 1) {
-                throw new IllegalArgumentException("ratelimit: windowSeconds должен быть больше 0, получено " + windowSeconds);
+                throw new IllegalArgumentException(
+                        "ratelimit: windowSeconds должен быть больше 0, получено " + windowSeconds);
             }
         }
     }

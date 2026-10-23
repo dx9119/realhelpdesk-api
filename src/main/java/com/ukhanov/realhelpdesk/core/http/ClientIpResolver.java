@@ -10,12 +10,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Единственное место, где приложение определяет IP посетителя: логи ({@code LoggingFilter}, MDC {@code clientIp}) и ключ рейт-лимита
- * ({@code RateLimitInterceptor}) пользуются одним и тем же резолвером, чтобы лог и лимит видели один и тот же адрес.
+ * Единственное место, где приложение определяет IP посетителя: логи ({@code LoggingFilter}, MDC {@code clientIp}) и
+ * ключ рейт-лимита ({@code RateLimitInterceptor}) пользуются одним и тем же резолвером, чтобы лог и лимит видели один и
+ * тот же адрес.
  *
  * <p>
- * Порядок поиска задаёт {@link ClientIpProperties}: без доверия заголовкам — сокетный адрес; с довериями — первый пригодный из списка
- * {@link ClientIpProperties#getHeaders()}, элемент списка выбирается по {@link ClientIpProperties#getForwardedIndex()}.
+ * Порядок поиска задаёт {@link ClientIpProperties}: без доверия заголовкам — сокетный адрес; с довериями — первый
+ * пригодный из списка {@link ClientIpProperties#getHeaders()}, элемент списка выбирается по
+ * {@link ClientIpProperties#getForwardedIndex()}.
  * </p>
  */
 @Slf4j
@@ -29,8 +31,8 @@ public class ClientIpResolver {
     private final ClientIpProperties properties;
 
     /**
-     * IP клиента для логов и рейт-лимита. Заголовкам доверяем только при {@code client-ip.trust-proxy-headers=true}; иначе — адрес сокета
-     * запроса.
+     * IP клиента для логов и рейт-лимита. Заголовкам доверяем только при {@code client-ip.trust-proxy-headers=true};
+     * иначе — адрес сокета запроса.
      *
      * @return адрес клиента; {@code null} возможен только если контейнер вернул {@code null} из {@code getRemoteAddr()}
      */
@@ -69,6 +71,20 @@ public class ClientIpResolver {
      * {@code [2001:db8::1]:443}), кавычки и {@code unknown} отбрасываются.
      */
     private String normalize(String entry) {
+        String value = extractForwardedForValue(entry);
+        if (value == null) {
+            return null;
+        }
+        value = stripQuotes(value);
+        if (isIgnored(value)) {
+            return null;
+        }
+        value = stripPortAndBrackets(value);
+        return value.isEmpty() ? null : value;
+    }
+
+    /** Оставляет значение после {@code for=} (если параметр есть), отбрасывая {@code ;proto=...}. */
+    private static String extractForwardedForValue(String entry) {
         String value = entry.trim();
         int semicolon = value.indexOf(';');
         if (semicolon >= 0) {
@@ -76,25 +92,35 @@ public class ClientIpResolver {
         }
         int equalsIndex = value.indexOf('=');
         if (equalsIndex >= 0) {
-            if (!value.regionMatches(true, 0, "for=", 0, 4)) {
+            if (!value.regionMatches(true, 0, "for=", 0, "for=".length())) {
                 return null;
             }
             value = value.substring(equalsIndex + 1).trim();
         }
+        return value;
+    }
+
+    private static String stripQuotes(String value) {
         if (value.length() > 1 && value.startsWith("\"") && value.endsWith("\"")) {
-            value = value.substring(1, value.length() - 1).trim();
+            return value.substring(1, value.length() - 1).trim();
         }
-        if (value.isEmpty() || UNKNOWN.equalsIgnoreCase(value) || value.startsWith("_")) {
-            return null;
-        }
+        return value;
+    }
+
+    private static boolean isIgnored(String value) {
+        return value.isEmpty() || UNKNOWN.equalsIgnoreCase(value) || value.startsWith("_");
+    }
+
+    private static String stripPortAndBrackets(String value) {
         int firstColon = value.indexOf(':');
         if (value.startsWith("[")) {
             int close = value.indexOf(']');
-            value = close > 0 ? value.substring(1, close) : value.substring(1);
-        } else if (firstColon > 0 && value.indexOf(':', firstColon + 1) < 0) {
-            // один двоеточие в не-IPv6 значении — это порт: 1.2.3.4:8080 → 1.2.3.4
-            value = value.substring(0, firstColon);
+            return close > 0 ? value.substring(1, close) : value.substring(1);
         }
-        return value.isEmpty() ? null : value;
+        if (firstColon > 0 && value.indexOf(':', firstColon + 1) < 0) {
+            // единственное двоеточие в не-IPv6 значении — это порт: 1.2.3.4:8080 → 1.2.3.4
+            return value.substring(0, firstColon);
+        }
+        return value;
     }
 }

@@ -20,18 +20,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * CSRF-защита для cookie-аутентификации: изменяющие запросы обязаны нести кастомный заголовок {@value #REQUIRED_HEADER}.
+ * CSRF-защита для cookie-аутентификации: изменяющие запросы обязаны нести кастомный заголовок
+ * {@value #REQUIRED_HEADER}.
  *
  * <p>
- * Зачем именно заголовок. Токены лежат в cookie, а {@code SameSite=None} (значение по умолчанию в infrastructure/.env.dev.example) означает,
- * что браузер отправит их и в кросс-сайтовом запросе. Классический double-submit на cookie здесь не работает: фронт на другом origin не
- * может прочитать cookie API. Заголовок же закрывает вектор иначе — браузер не добавит кастомный заголовок без предварительного запроса
- * (CORS preflight), а preflight чужого origin отклоняет CORS-конфигурация (allow-list origin'ов, см. AppConfig#corsConfigurationSource).
+ * Зачем именно заголовок. Токены лежат в cookie, а {@code SameSite=None} (значение по умолчанию в
+ * infrastructure/.env.dev.example) означает, что браузер отправит их и в кросс-сайтовом запросе. Классический
+ * double-submit на cookie здесь не работает: фронт на другом origin не может прочитать cookie API. Заголовок же
+ * закрывает вектор иначе — браузер не добавит кастомный заголовок без предварительного запроса (CORS preflight), а
+ * preflight чужого origin отклоняет CORS-конфигурация (allow-list origin'ов, см. AppConfig#corsConfigurationSource).
  * Для односайтового развёртывания дополнительно достаточно SameSite=Lax.
  *
  * <p>
- * Безопасные методы (GET/HEAD/OPTIONS/TRACE) не проверяются: они не меняют состояние. Заголовок проверяется на непустое значение (обычное
- * значение — {@code XMLHttpRequest}).
+ * Безопасные методы (GET/HEAD/OPTIONS/TRACE) не проверяются: они не меняют состояние. Заголовок проверяется на непустое
+ * значение (обычное значение — {@code XMLHttpRequest}).
  *
  * <p>
  * Профиль {@code keycloak} этот фильтр не загружает — там аутентификация через Bearer-токен, cookie не используются.

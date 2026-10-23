@@ -40,67 +40,87 @@ import com.ukhanov.realhelpdesk.feature.portalmanager.dto.PortalVisibilityReques
 import com.ukhanov.realhelpdesk.feature.portalmanager.dto.PortalVisibilityResponse;
 import com.ukhanov.realhelpdesk.feature.portalmanager.dto.UpdatePortalInfoRequest;
 import com.ukhanov.realhelpdesk.feature.portalmanager.exception.PortalException;
+import com.ukhanov.realhelpdesk.feature.portalmanager.service.PortalAccessService;
+import com.ukhanov.realhelpdesk.feature.portalmanager.service.PortalDeletionService;
 import com.ukhanov.realhelpdesk.feature.portalmanager.service.PortalManageService;
 import com.ukhanov.realhelpdesk.feature.usermanager.exception.UserManageException;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Пути порталов: {@code /portals/{id}} — информация о портале, {@code /portals/{id}/settings} — его настройки, {@code /portals/accessible}
- * — порталы, доступные пользователю.
- *
- * <p>
- * Раньше настройки жили под {@code /portals/shared/...} («shared» читалось как отдельная сущность, а не как настройки того же портала), а
- * массовое удаление — в query {@code DELETE /portals?ids=}.
- */
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/v1/portals")
 public class PortalController {
 
     private final PortalManageService portalManageService;
+    /** Состав участников портала: отдельная зона ответственности (см. PortalAccessService). */
+    private final PortalAccessService portalAccessService;
+    /** Мягкое удаление порталов с best-effort уведомлениями (см. PortalDeletionService). */
+    private final PortalDeletionService portalDeletionService;
 
+    @Operation(summary = "Создание портала",
+            description = "Создаёт портал для текущего владельца. Доступно только при подтверждённом "
+                    + "email — иначе 403.")
     @PostMapping
     @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
-    public ResponseEntity<CreatePortalResponse> createPortal(@Valid @RequestBody CreatePortalRequest createPortalRequest)
-            throws PortalException, LimitException, UserManageException, MessagingException, UnsupportedEncodingException {
+    public ResponseEntity<CreatePortalResponse> createPortal(
+            @Valid @RequestBody CreatePortalRequest createPortalRequest)
+            throws PortalException, LimitException, UserManageException, MessagingException,
+            UnsupportedEncodingException {
         CreatePortalResponse response = portalManageService.createPortal(createPortalRequest);
         return ResponseEntity.created(URI.create("/api/v1/portals/" + response.id())).body(response);
     }
 
+    @Operation(summary = "Порталы владельца (пагинированно)",
+            description = "Возвращает порталы, принадлежащие текущему пользователю, с пагинацией.")
     @GetMapping
     public PageResponse<PortalResponse> getPagedPortals(@RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String order) {
         return portalManageService.getPagePortalsByOwner(page, size, sortBy, order);
     }
 
-    /** Порталы, к которым у пользователя есть доступ (было {@code /portals/shared}). */
+    @Operation(summary = "Порталы с доступом",
+            description = "Возвращает все порталы, к которым у пользователя есть доступ: собственные "
+                    + "и общие. Пагинированно.")
     @GetMapping("/accessible")
     public PageResponse<PortalResponse> getPagePortalsByAccess(@RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String order) {
         return portalManageService.getPagePortalsByAccess(page, size, sortBy, order);
     }
 
+    @Operation(summary = "ID доступных порталов",
+            description = "Возвращает список id всех порталов, доступных текущему пользователю.")
     @GetMapping("/ids")
     public ResponseEntity<ItemsResponse<Long>> getPortalIds() {
         return ResponseEntity.ok(ItemsResponse.of(portalManageService.mapAccessiblePortalsToIds()));
     }
 
+    @Operation(summary = "Информация о доступных порталах",
+            description = "Возвращает краткую информацию (id, name) о всех доступных порталах.")
     @GetMapping("/info")
     public ResponseEntity<ItemsResponse<PortalInfoResponse>> getPortalInfos() throws PortalException {
         return ResponseEntity.ok(ItemsResponse.of(portalManageService.mapAccessiblePortalsToInfo()));
     }
 
+    @Operation(summary = "Информация о портале",
+            description = "Возвращает детальную информацию о портале. Поддерживает ETag / If-Match.")
     @PreAuthorize("@accessValidationService.hasPortalAccess(#portalId)")
     @GetMapping("/{portalId}")
-    public ResponseEntity<PortalInfoResponse> getPortalInfo(@PathVariable @NotNull Long portalId) throws PortalException {
+    public ResponseEntity<PortalInfoResponse> getPortalInfo(@PathVariable @NotNull Long portalId)
+            throws PortalException {
         PortalInfoResponse info = portalManageService.getPortalInfo(portalId);
         return ResponseEntity.ok().eTag(EntityTag.of("portal", info.version())).body(info);
     }
 
+    @Operation(summary = "Полная замена портала",
+            description = "Полная замена name и description. If-Match с версией из GET "
+                    + "защищает от потери чужого изменения.")
     @PreAuthorize("@accessValidationService.hasPortalManageAccess(#portalId)")
     @PutMapping("/{portalId}")
     public ResponseEntity<PortalInfoResponse> updatePortalInfo(@PathVariable @NotNull Long portalId,
@@ -111,7 +131,9 @@ public class PortalController {
         return ResponseEntity.ok().eTag(EntityTag.of("portal", response.version())).body(response);
     }
 
-    /** PATCH: меняет только переданные поля; If-Match с версией из GET защищает от потери чужого изменения. */
+    @Operation(summary = "Частичное обновление портала (PATCH)",
+            description = "Меняет только переданные поля (name и/или description). If-Match "
+                    + "защищает от потери чужого изменения.")
     @PreAuthorize("@accessValidationService.hasPortalManageAccess(#portalId)")
     @PatchMapping("/{portalId}")
     public ResponseEntity<PortalInfoResponse> patchPortalInfo(@PathVariable @NotNull Long portalId,
@@ -122,13 +144,16 @@ public class PortalController {
         return ResponseEntity.ok().eTag(EntityTag.of("portal", response.version())).body(response);
     }
 
+    @Operation(summary = "Публичность портала", description = "Возвращает текущее значение флага публичности портала.")
     @PreAuthorize("@accessValidationService.hasPortalOwner(#portalId)")
     @GetMapping("/{portalId}/settings/visibility")
-    public ResponseEntity<PortalVisibilityResponse> getPortalVisibility(@PathVariable @NotNull Long portalId) throws PortalException {
+    public ResponseEntity<PortalVisibilityResponse> getPortalVisibility(@PathVariable @NotNull Long portalId)
+            throws PortalException {
         return ResponseEntity.ok(new PortalVisibilityResponse(portalManageService.getStatusPortal(portalId)));
     }
 
-    /** Флаг видимости — команда, поэтому 204 без тела (см. docs/api.md, раздел о кодах). */
+    @Operation(summary = "Смена публичности портала",
+            description = "Команда: включает или отключает публичный доступ. Возвращает 204 без тела.")
     @PreAuthorize("@accessValidationService.hasPortalOwner(#portalId)")
     @PutMapping("/{portalId}/settings/visibility")
     @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
@@ -138,25 +163,31 @@ public class PortalController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Настройки портала", description = "Возвращает участников портала и флаг публичности.")
     @PreAuthorize("@accessValidationService.hasPortalManageAccess(#portalId)")
     @GetMapping("/{portalId}/settings")
-    public ResponseEntity<PortalSettingsResponse> getPortalSettings(@PathVariable @NotNull Long portalId) throws PortalException {
-        return ResponseEntity.ok(portalManageService.getPortalSettings(portalId));
+    public ResponseEntity<PortalSettingsResponse> getPortalSettings(@PathVariable @NotNull Long portalId)
+            throws PortalException {
+        return ResponseEntity.ok(portalAccessService.getPortalSettings(portalId));
     }
 
-    /** Полная замена списка пользователей — изменение ресурса, поэтому 200 с актуальными настройками. */
+    @Operation(summary = "Замена участников портала",
+            description = "Полная замена списка пользователей с доступом к порталу. Возвращает актуальные настройки.")
     @PreAuthorize("@accessValidationService.hasPortalOwner(#portalId)")
     @PutMapping("/{portalId}/settings/users")
     public ResponseEntity<PortalSettingsResponse> setPortalUsers(@PathVariable @NotNull Long portalId,
             @Valid @RequestBody PortalUsersRequest request) throws PortalException, LimitException {
-        portalManageService.addUserForPortal(portalId, request.userIds());
-        return ResponseEntity.ok(portalManageService.getPortalSettings(portalId));
+        portalAccessService.replacePortalUsers(portalId, request.userIds());
+        return ResponseEntity.ok(portalAccessService.getPortalSettings(portalId));
     }
 
-    /** Массовое удаление: набор id в теле, ответ — сколько удалено и какие id (было {@code DELETE /portals?ids=}). */
+    @Operation(summary = "Массовое удаление порталов",
+            description = "Мягкое удаление нескольких порталов. Каждый портал удаляет только свой "
+                    + "владелец, чужие пропускаются.")
     @PostMapping("/bulk-delete")
-    public ResponseEntity<DeleteResult> deletePortals(@Valid @RequestBody PortalBulkDeleteRequest request) throws PortalException {
-        DeleteResult response = portalManageService.deletePortals(request.ids());
+    public ResponseEntity<DeleteResult> deletePortals(@Valid @RequestBody PortalBulkDeleteRequest request)
+            throws PortalException {
+        DeleteResult response = portalDeletionService.deletePortals(request.ids());
         return ResponseEntity.ok(response);
     }
 

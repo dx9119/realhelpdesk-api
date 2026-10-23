@@ -24,7 +24,8 @@ class ClientIpPropertiesTest {
         // then
         assertThat(properties.isTrustProxyHeaders()).isFalse();
         assertThat(properties.getForwardedIndex()).isZero();
-        assertThat(properties.getHeaders()).containsExactly("X-Forwarded-For", "X-Real-IP", "CF-Connecting-IP", "True-Client-IP",
+        assertThat(properties.getHeaders()).containsExactly("X-Forwarded-For", "X-Real-IP", "CF-Connecting-IP",
+                "True-Client-IP",
                 "X-Client-IP", "Proxy-Client-IP", "WL-Proxy-Client-IP", "Forwarded");
     }
 
@@ -39,7 +40,9 @@ class ClientIpPropertiesTest {
         environment.setProperty("client-ip.headers", "X-Real-IP,CF-Connecting-IP");
         environment.setProperty("client-ip.forwarded-index", "-1");
 
-        ClientIpProperties properties = Binder.get(environment).bind("client-ip", Bindable.of(ClientIpProperties.class)).get();
+        ClientIpProperties properties = Binder.get(environment)
+                .bind("client-ip", Bindable.of(ClientIpProperties.class))
+                .get();
 
         // then
         assertThat(properties.isTrustProxyHeaders()).isTrue();

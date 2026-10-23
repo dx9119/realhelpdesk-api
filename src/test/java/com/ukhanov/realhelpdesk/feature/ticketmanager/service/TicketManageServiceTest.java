@@ -26,7 +26,7 @@ import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
 import com.ukhanov.realhelpdesk.core.pagination.service.PaginationAdapter;
-import com.ukhanov.realhelpdesk.core.security.accesscontrol.TicketAccessValidationService;
+import com.ukhanov.realhelpdesk.core.security.accesscontrol.service.TicketAccessValidationService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
@@ -100,7 +100,8 @@ class TicketManageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TicketManageService(mockTicketDomainService, mockCurrentUserProvider, mockPortalDomainService, mockPaginationAdapter,
+        service = new TicketManageService(mockTicketDomainService, mockCurrentUserProvider, mockPortalDomainService,
+                mockPaginationAdapter,
                 mockEmailDeliveryService, mockTicketAccessValidationService, mockTicketRepository, emailTemplates,
                 mockNotificationPublisher, Mappers.getMapper(TicketMapper.class), ObservationRegistry.NOOP,
                 new BusinessMetrics(meterRegistry));
@@ -165,7 +166,8 @@ class TicketManageServiceTest {
         verify(mockTicketDomainService).saveTicket(ticketCaptor.capture());
         assertThat(ticketCaptor.getValue().getTitle()).isEqualTo("New Issue");
 
-        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), anyString(), anyString(), eq(NotificationEvent.NEW_TICKET));
+        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), anyString(), anyString(),
+                eq(NotificationEvent.NEW_TICKET));
     }
 
     // ────────────────────────────────────────────────
@@ -205,7 +207,8 @@ class TicketManageServiceTest {
         when(mockTicketAccessValidationService.hasTicketChange(PORTAL_ID, TICKET_ID)).thenReturn(false);
 
         // then
-        assertThatThrownBy(() -> service.setTicketStatus(PORTAL_ID, TICKET_ID, TicketStatus.CLOSED)).isInstanceOf(TicketException.class);
+        assertThatThrownBy(() -> service.setTicketStatus(PORTAL_ID, TICKET_ID, TicketStatus.CLOSED))
+                .isInstanceOf(TicketException.class);
 
         verifyNoInteractions(mockEmailDeliveryService);
     }
@@ -249,7 +252,8 @@ class TicketManageServiceTest {
 
         // then
         assertThat(ticket.getTicketLiveStatus()).isEqualTo(TicketLiveStatus.DELETE);
-        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), eq(emailTemplates.deletedTicketSubject(TICKET_ID)),
+        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal),
+                eq(emailTemplates.deletedTicketSubject(TICKET_ID)),
                 eq(emailTemplates.deletedTicketBody(TICKET_ID, "test@user.com")), eq(NotificationEvent.TICKET_DELETED));
     }
 
@@ -278,19 +282,25 @@ class TicketManageServiceTest {
         // given
         // when
         PageRequest pageRequest = PageRequest.of(0, 10);
-        when(mockPaginationAdapter.buildPageRequest(eq(0), eq(10), eq("title"), eq("asc"), any())).thenReturn(pageRequest);
+        when(mockPaginationAdapter.buildPageRequest(eq(0), eq(10), eq("title"), eq("asc"), any()))
+                .thenReturn(pageRequest);
 
         TicketModel ticketModel = defaultTicket(1L);
         Page<TicketModel> ticketPage = new PageImpl<>(List.of(ticketModel), pageRequest, 1);
         when(mockTicketDomainService.getTicketsPageByPortalId(PORTAL_ID, pageRequest)).thenReturn(ticketPage);
 
         // Создаём маппинг вручную
-        TicketResponse dto = new TicketResponse(1L, "Test Ticket", null, null, null, null, null, null, null, null, null, null);
+        TicketResponse dto = new TicketResponse(1L, "Test Ticket", null, null, null, null, null, null, null, null, null,
+                null);
 
         Page<TicketResponse> mappedPage = ticketPage.map(t -> dto); // имитируем map
 
-        PageResponse<TicketResponse> expected = new PageResponse.Builder<TicketResponse>().page(0).size(10).totalElements(1L).totalPages(1)
-                .content(List.of(dto)).build();
+        PageResponse<TicketResponse> expected = new PageResponse.Builder<TicketResponse>().page(0)
+                .size(10)
+                .totalElements(1L)
+                .totalPages(1)
+                .content(List.of(dto))
+                .build();
 
         // Стабим mapToResponse с mappedPage (имитируем, что map уже прошёл)
         when(mockPaginationAdapter.<TicketResponse>mapToResponse(any(), eq("title"), eq("asc"))).thenReturn(expected);
@@ -319,7 +329,9 @@ class TicketManageServiceTest {
 
         service.createTicket(request, PORTAL_ID);
 
-        Counter created = meterRegistry.find("tickets.created").tags("priority", "MEDIUM", "access", "CREATOR_AND_PORTAL_USERS").counter();
+        Counter created = meterRegistry.find("tickets.created")
+                .tags("priority", "MEDIUM", "access", "CREATOR_AND_PORTAL_USERS")
+                .counter();
         // then
         assertThat(created).isNotNull();
         assertThat(created.count()).isEqualTo(1);
@@ -339,7 +351,9 @@ class TicketManageServiceTest {
 
         service.setTicketStatus(PORTAL_ID, TICKET_ID, TicketStatus.CLOSED);
 
-        Counter transition = meterRegistry.find("tickets.status.transitions").tags("from", "OPEN", "to", "CLOSED").counter();
+        Counter transition = meterRegistry.find("tickets.status.transitions")
+                .tags("from", "OPEN", "to", "CLOSED")
+                .counter();
         // then
         assertThat(transition).isNotNull();
         assertThat(transition.count()).isEqualTo(1);

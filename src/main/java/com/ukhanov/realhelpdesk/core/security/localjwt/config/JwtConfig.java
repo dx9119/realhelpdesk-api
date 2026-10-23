@@ -10,14 +10,14 @@ import io.jsonwebtoken.security.Keys;
 import lombok.Getter;
 
 /**
- * Готовый к работе конфиг JWT: проверяет настройки из {@link JwtProperties} и собирает ключ подписи. Падает на старте с понятной ошибкой,
- * если секрет или адреса не заданы.
+ * Готовый к работе конфиг JWT: проверяет настройки из {@link JwtProperties} и собирает ключ подписи. Падает на старте с
+ * понятной ошибкой, если секрет или адреса не заданы.
  *
  * <p>
- * Профиль {@code keycloak} его не отключает: выдачу и отзыв токенов локального контура (register/login/refresh) собирают
- * {@code GenTokenService}, {@code GetTokenService} и {@code RefreshTokenCleanupService} — все они зависят от этого бина. В keycloak-контуре
- * входящие токены проверяет {@code KeycloakSecurityConfiguration}, поэтому {@code JwtConfig} остаётся неработающим «нагрузочным» конфигом,
- * а не точкой отказа.
+ * Профиль {@code keycloak} его не отключает: выдачу и отзыв токенов локального контура (register/login/refresh)
+ * собирают {@code GenTokenService}, {@code GetTokenService} и {@code RefreshTokenCleanupService} — все они зависят от
+ * этого бина. В keycloak-контуре входящие токены проверяет {@code KeycloakSecurityConfiguration}, поэтому
+ * {@code JwtConfig} остаётся неработающим «нагрузочным» конфигом, а не точкой отказа.
  * </p>
  */
 @Component
@@ -31,42 +31,47 @@ public class JwtConfig {
     private final Integer refreshTokenExpirationSeconds;
 
     public JwtConfig(JwtProperties properties) {
-        String secretForGenJwt = properties.getSecretForGenJwt();
-        String issuer = properties.getIssuer();
-        Set<String> audience = properties.getAudience();
-        Integer accessExpSeconds = properties.getAccessTokenExpirationSeconds();
-        Integer refreshExpSeconds = properties.getRefreshTokenExpirationSeconds();
-
-        if (secretForGenJwt == null || secretForGenJwt.isBlank()) {
-            throw new IllegalArgumentException("jwt.secret-for-gen-jwt не содержит значение");
-        }
-
-        if (issuer == null || issuer.isBlank()) {
-            throw new IllegalArgumentException("jwt.issuer не содержит значение");
-        }
-
-        if (audience == null || audience.isEmpty()) {
-            throw new IllegalArgumentException("jwt.audience не содержит значение");
-        }
-
-        if (accessExpSeconds == null || accessExpSeconds <= 0) {
-            throw new IllegalArgumentException("jwt.access-token-expiration-seconds не содержит значение");
-        }
-
-        if (refreshExpSeconds == null || refreshExpSeconds <= 0) {
-            throw new IllegalArgumentException("jwt.refresh-token-expiration-seconds не содержит значение");
-        }
+        String secretForGenJwt = requireNonBlank(properties.getSecretForGenJwt(), "jwt.secret-for-gen-jwt");
+        String issuerFromProperties = requireNonBlank(properties.getIssuer(), "jwt.issuer");
+        Set<String> audienceFromProperties = requireNonEmpty(properties.getAudience(), "jwt.audience");
+        Integer accessExpSeconds = requirePositive(properties.getAccessTokenExpirationSeconds(),
+                "jwt.access-token-expiration-seconds");
+        Integer refreshExpSeconds = requirePositive(properties.getRefreshTokenExpirationSeconds(),
+                "jwt.refresh-token-expiration-seconds");
 
         try {
             this.jwtKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(secretForGenJwt));
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Ошибка при декодировании секрета JWT: должен быть корректной строкой в формате Base64 "
-                    + "достаточной длины для генерации ключа HMAC (HS256 требует ключ длиной 256 бит).", e);
+            throw new IllegalStateException(
+                    "Ошибка при декодировании секрета JWT: должен быть корректной строкой в формате Base64 "
+                            + "достаточной длины для генерации ключа HMAC (HS256 требует ключ длиной 256 бит).",
+                    e);
         }
 
-        this.issuer = issuer;
-        this.audience = audience;
+        this.issuer = issuerFromProperties;
+        this.audience = audienceFromProperties;
         this.accessTokenExpirationSeconds = accessExpSeconds;
         this.refreshTokenExpirationSeconds = refreshExpSeconds;
+    }
+
+    private static String requireNonBlank(String value, String property) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(property + " не содержит значение");
+        }
+        return value;
+    }
+
+    private static Set<String> requireNonEmpty(Set<String> value, String property) {
+        if (value == null || value.isEmpty()) {
+            throw new IllegalArgumentException(property + " не содержит значение");
+        }
+        return value;
+    }
+
+    private static Integer requirePositive(Integer value, String property) {
+        if (value == null || value <= 0) {
+            throw new IllegalArgumentException(property + " не содержит значение");
+        }
+        return value;
     }
 }

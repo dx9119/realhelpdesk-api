@@ -9,8 +9,8 @@ import io.micrometer.core.instrument.MeterRegistry;
  * Счётчик попыток аутентификации {@code auth.attempts} с тегами {@code type} и {@code result}.
  *
  * <p>
- * Значения тегов — конечные списки: type = login/refresh/captcha/password_reset, result = success/failure/locked. Email, имя пользователя и
- * текст ошибки в теги не попадают — они высококардинальные и могут содержать ПДн.
+ * Значения тегов — конечные списки: type = login/refresh/captcha/password_reset, result = success/failure/locked.
+ * Email, имя пользователя и текст ошибки в теги не попадают — они высококардинальные и могут содержать ПДн.
  * </p>
  */
 @Component
@@ -36,6 +36,11 @@ public class AuthMetrics {
     }
 
     public void record(String type, String result) {
-        Counter.builder(METRIC_NAME).description(DESCRIPTION).tag("type", type).tag("result", result).register(meterRegistry).increment();
+        Counter.builder(METRIC_NAME)
+                .description(DESCRIPTION)
+                .tag("type", type)
+                .tag("result", result)
+                .register(meterRegistry)
+                .increment();
     }
 }

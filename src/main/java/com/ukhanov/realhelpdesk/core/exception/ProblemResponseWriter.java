@@ -15,13 +15,14 @@ import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Единая запись problem+json из мест, где ответ формируется вне MVC: фильтров (JwtAuthFilter, CsrfProtectionFilter), интерсепторов
- * (RateLimitInterceptor) и обработчиков Spring Security (AuthenticationEntryPoint, AccessDeniedHandler).
+ * Единая запись problem+json из мест, где ответ формируется вне MVC: фильтров (JwtAuthFilter, CsrfProtectionFilter),
+ * интерсепторов (RateLimitInterceptor) и обработчиков Spring Security (AuthenticationEntryPoint, AccessDeniedHandler).
  *
  * <p>
- * До этого каждый такой ответ собирался вручную — строковой конкатенацией (JwtAuthFilter) или Map без обязательных полей
- * (RateLimitInterceptor). Здесь используется тот же {@link ProblemResponses}, что и в GlobalExceptionHandler, поэтому формат и набор полей
- * (type/title/status/detail/instance/timestamp) совпадают, а JSON сериализует ObjectMapper — экранирование не на нашей стороне.
+ * До этого каждый такой ответ собирался вручную — строковой конкатенацией (JwtAuthFilter) или Map без обязательных
+ * полей (RateLimitInterceptor). Здесь используется тот же {@link ProblemResponses}, что и в GlobalExceptionHandler,
+ * поэтому формат и набор полей (type/title/status/detail/instance/timestamp) совпадают, а JSON сериализует ObjectMapper
+ * — экранирование не на нашей стороне.
  */
 @Component
 @RequiredArgsConstructor
@@ -29,7 +30,8 @@ public class ProblemResponseWriter {
 
     private final ObjectMapper objectMapper;
 
-    public void write(HttpServletResponse response, HttpServletRequest request, HttpStatus status, String detail) throws IOException {
+    public void write(HttpServletResponse response, HttpServletRequest request, HttpStatus status, String detail)
+            throws IOException {
         ProblemDetail problem = ProblemResponses.of(status, detail, request);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
@@ -37,7 +39,8 @@ public class ProblemResponseWriter {
         objectMapper.writeValue(response.getOutputStream(), problem);
     }
 
-    public void write(HttpServletResponse response, HttpServletRequest request, HttpStatus status, String detail, String markerHeader)
+    public void write(HttpServletResponse response, HttpServletRequest request, HttpStatus status, String detail,
+            String markerHeader)
             throws IOException {
         if (markerHeader != null) {
             response.setHeader(markerHeader, "true");

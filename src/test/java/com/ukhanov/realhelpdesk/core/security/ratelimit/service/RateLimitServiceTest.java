@@ -78,7 +78,8 @@ class RateLimitServiceTest {
         assertThat(service.check("key", 1, window).allowed()).isFalse();
 
         // when / then
-        await().atMost(Duration.ofSeconds(2)).pollInterval(Duration.ofMillis(10))
+        await().atMost(Duration.ofSeconds(2))
+                .pollInterval(Duration.ofMillis(10))
                 .untilAsserted(() -> assertThat(service.check("key", 1, window).allowed()).isTrue());
     }
 

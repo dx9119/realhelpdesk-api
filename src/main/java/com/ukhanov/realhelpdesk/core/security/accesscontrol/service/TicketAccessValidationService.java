@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.accesscontrol;
+package com.ukhanov.realhelpdesk.core.security.accesscontrol.service;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -50,7 +50,8 @@ public class TicketAccessValidationService {
             return allowedUsers.contains(currentUserId);
         }
 
-        logger.warn("Доступ запрещён: политика доступа заявки {} не допускает пользователя {}", ticketId, currentUserId);
+        logger.warn("Доступ запрещён: политика доступа заявки {} не допускает пользователя {}", ticketId,
+                currentUserId);
         return false;
     }
 

@@ -26,8 +26,9 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 
 /**
- * HTTP-метрики: uri-шаблон вместо фактического пути, NOT_FOUND для несуществующих маршрутов, тег exception из @ControllerAdvice и тег role.
- * Отдельный контекст не нужен — используется тот же профиль test, что и в ActuatorSecurityIT.
+ * HTTP-метрики: uri-шаблон вместо фактического пути, NOT_FOUND для несуществующих маршрутов, тег exception
+ * из @ControllerAdvice и тег role. Отдельный контекст не нужен — используется тот же профиль test, что и в
+ * ActuatorSecurityIT.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
 @DisplayName("http.server.requests: шаблоны uri, шум, exception и роль")
@@ -79,7 +80,8 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
         long notFoundMeters = metersWith("uri", "NOT_FOUND").size();
         assertThat(notFoundMeters).as("uri=NOT_FOUND — ровно одна серия").isEqualTo(1);
         assertThat(meterRegistry.find(METER_NAME).meters()).allSatisfy(
-                meter -> assertThat(tagValue(meter, "uri")).as("uri не должен содержать фактический путь").doesNotContain("extra-"));
+                meter -> assertThat(tagValue(meter, "uri")).as("uri не должен содержать фактический путь")
+                        .doesNotContain("extra-"));
     }
 
     @Test
@@ -93,7 +95,8 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
 
         // then
         assertThat(status).isEqualTo(405);
-        assertThat(metersWith("exception", "HttpRequestMethodNotSupportedException")).as("тег exception с именем класса, без текста ошибки")
+        assertThat(metersWith("exception", "HttpRequestMethodNotSupportedException"))
+                .as("тег exception с именем класса, без текста ошибки")
                 .isNotEmpty();
     }
 
@@ -110,7 +113,8 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
         assertThat(managementStatus).isEqualTo(200);
         assertThat(serverStatus).isIn(401, 403, 404);
         assertThat(meterRegistry.find(METER_NAME).meters()).allSatisfy(
-                meter -> assertThat(tagValue(meter, "uri")).as("actuator не должен попадать в метрики").doesNotStartWith("/actuator"));
+                meter -> assertThat(tagValue(meter, "uri")).as("actuator не должен попадать в метрики")
+                        .doesNotStartWith("/actuator"));
     }
 
     @Test
@@ -128,8 +132,10 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(counterValue("auth.attempts", "type", "login", "result", "failure")).isEqualTo(before + 1);
 
-        meterRegistry.find("auth.attempts").meters()
-                .forEach(meter -> assertThat(tags(meter)).extracting(Tag::getKey).doesNotContain("email", "username", "userId"));
+        meterRegistry.find("auth.attempts")
+                .meters()
+                .forEach(meter -> assertThat(tags(meter)).extracting(Tag::getKey)
+                        .doesNotContain("email", "username", "userId"));
     }
 
     @Test
@@ -168,14 +174,17 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
         requestSeriesWithDifferentIds(11);
 
         // then
-        assertThat(uniqueUriValues()).as("вторая серия с другими ID не добавляет uri-значений").isEqualTo(afterFirstSeries);
+        assertThat(uniqueUriValues()).as("вторая серия с другими ID не добавляет uri-значений")
+                .isEqualTo(afterFirstSeries);
         assertThat(meterRegistry.find(METER_NAME).meters()).allSatisfy(meter -> assertThat(tagValue(meter, "uri"))
-                .as("uri не должен содержать фактический portalId/ticketId").doesNotContain("1001", "1002", "1011", "1012"));
+                .as("uri не должен содержать фактический portalId/ticketId")
+                .doesNotContain("1001", "1002", "1011", "1012"));
     }
 
     private void requestSeriesWithDifferentIds(int offset) {
         for (int i = 1; i <= 10; i++) {
-            int status = get(serverPort, "/api/v1/portals/" + (offset + i) + "/tickets/" + (1000 + offset + i)).statusCode();
+            int status = get(serverPort, "/api/v1/portals/" + (offset + i) + "/tickets/" + (1000 + offset + i))
+                    .statusCode();
             assertThat(status).as("статус запроса %d", offset + i).isIn(401, 403, 404, 200);
         }
     }
@@ -192,7 +201,9 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
         assertThat(meterRegistry.find("disk.free").meter()).as("disk.free отклонён MeterFilter").isNull();
         assertThat(meterRegistry.find("disk.total").meter()).as("disk.total отклонён MeterFilter").isNull();
         assertThat(meterRegistry.find("jvm.buffer.count").meter()).as("jvm.buffer.count отклонён MeterFilter").isNull();
-        assertThat(meterRegistry.find("jvm.buffer.memory.used").meter()).as("jvm.buffer.memory.used отклонён MeterFilter").isNull();
+        assertThat(meterRegistry.find("jvm.buffer.memory.used").meter())
+                .as("jvm.buffer.memory.used отклонён MeterFilter")
+                .isNull();
     }
 
     @Test
@@ -205,13 +216,17 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
         Meter queueRemaining = meterRegistry.find("executor.queue.remaining").tags("name", "taskScheduler").meter();
 
         // then
-        assertThat(poolMax).as("Boot автоматически биндит ThreadPoolTaskScheduler как executor.*{name=taskScheduler}").isNotNull();
+        assertThat(poolMax).as("Boot автоматически биндит ThreadPoolTaskScheduler как executor.*{name=taskScheduler}")
+                .isNotNull();
         assertThat(queueRemaining).as("очередь планировщика измеряется").isNotNull();
     }
 
     private Set<String> uniqueUriValues() {
-        return meterRegistry.find(METER_NAME).meters().stream()
-                .flatMap(meter -> meter.getId().getTags().stream().filter(tag -> tag.getKey().equals("uri"))).map(Tag::getValue)
+        return meterRegistry.find(METER_NAME)
+                .meters()
+                .stream()
+                .flatMap(meter -> meter.getId().getTags().stream().filter(tag -> tag.getKey().equals("uri")))
+                .map(Tag::getValue)
                 .collect(Collectors.toSet());
     }
 
@@ -242,13 +257,19 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
     }
 
     private HttpResponse<String> get(int port, String path) {
-        return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).timeout(Duration.ofSeconds(15)).GET().build());
+        return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build());
     }
 
     private HttpResponse<String> post(int port, String path, String body) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).timeout(Duration.ofSeconds(15))
-                .header("Content-Type", "application/json").header("X-Requested-With", "XMLHttpRequest")
-                .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .timeout(Duration.ofSeconds(15))
+                .header("Content-Type", "application/json")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
         return send(request);
     }
 

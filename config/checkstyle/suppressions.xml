@@ -14,7 +14,6 @@
 
     <!-- Продакшн-код: тестовые конвенции (given/when/then, имена из трёх сегментов,
          @DisplayName, package-private, суффикс класса) к нему не применяются. -->
-    <suppress id="NoThreadSleepInTests" files="src[\\/]main[\\/].*"/>
     <suppress id="TestMethodNamingConvention" files="src[\\/]main[\\/].*"/>
     <suppress id="RequireDisplayNameOnTests" files="src[\\/]main[\\/].*"/>
     <suppress id="GivenWhenThenStructure" files="src[\\/]main[\\/].*"/>
@@ -23,16 +22,60 @@
     <suppress id="TestClassSuffix" files="src[\\/]main[\\/].*"/>
     <suppress id="MethodNameMain" files="src[\\/]test[\\/].*"/>
 
-    <!-- Backoff в очистке refresh-токенов: спящий поток — часть механизма повторов,
-         а не ожидание в тесте. -->
+    <!-- Фикстуры и утилиты тестов — не тест-классы: если в них появятся
+         мета-аннотации (@Test через composed-аннотацию), конвенции им не нужны.
+         Подавляем весь набор тестовых правил сразу для папок fixture/util.
+         Здесь id, а не checks: у MatchXpath-правил задан собственный id. -->
+    <suppress id="TestMethodNamingConvention"
+              files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
+    <suppress id="RequireDisplayNameOnTests"
+              files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
+    <suppress id="GivenWhenThenStructure"
+              files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
+    <suppress id="JUnit5PackagePrivate"
+              files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
+    <suppress id="NoSpringContextInUnitTests"
+              files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
+    <suppress id="TestClassSuffix"
+              files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
+
+    <!-- Thread.sleep запрещён везде, кроме единственного легитимного backoff
+         в очистке refresh-токенов: спящий поток — часть механизма повторов,
+         а не ожидание в тесте (там — Awaitility). -->
     <suppress id="NoThreadSleepInTests"
               files="RefreshTokenCleanupService\.java"/>
 
-    <!-- Helper-классы тестовой инфраструктуры: @Test-методов не содержат, поэтому
-         структура и суффиксы к ним неприменимы. -->
-    <suppress id="GivenWhenThenStructure"
-              files="EmailTemplatesFixture\.java|SseEmitterCapture\.java"/>
-    <suppress id="TestClassSuffix"
-              files="EmailTemplatesFixture\.java|SseEmitterCapture\.java"/>
+    <!-- @Autowired на полях — идиома Spring Test (нет жизненного цикла бина,
+         конструктор только усложняет фикстуры); в main действует NoFieldInjection. -->
+    <suppress id="NoFieldInjection" files="src[\\/]test[\\/].*"/>
+
+    <!-- Подготовка данных в IT бывает многострочной: лимиты длины и объёма
+         метода относятся к продакшн-коду.
+         Для модулей без явного id матчинг идёт по checks (имя класса), не по id. -->
+    <suppress checks="MethodLength" files="src[\\/]test[\\/].*"/>
+    <suppress checks="ExecutableStatementCount" files="src[\\/]test[\\/].*"/>
+
+    <!-- Легаси-код: ParameterNumber, CyclomaticComplexity, ReturnCount, FileLength,
+         NoEagerFetch и NoCascadeAll больше не подавляются — классы разбиты,
+         связи переведены на LAZY, длинные сигнатуры заменены рекордами-командами. -->
+
+    <!-- Best-effort side effects: единственная точка catch(Exception) — обёртка,
+         через которую проходят SMTP/SSE/in-app-сбои. -->
+    <suppress checks="IllegalCatch" files="SafeSideEffectExecutor\.java"/>
+    <suppress checks="IllegalThrows" files="src[\\/]test[\\/].*"/>
+
+    <!-- Security DSL Spring Security объявляет throws Exception в контракте
+         SecurityFilterChain/AuthenticationManager. -->
+    <suppress checks="IllegalThrows"
+              files="AppConfig\.java|ManagementSecurityConfiguration\.java|KeycloakSecurityConfiguration\.java|WebSecurityConfiguration\.java"/>
+
+    <!-- FileLength: тестовая подготовка данных бывает длинной. -->
+    <suppress checks="FileLength" files="src[\\/]test[\\/].*"/>
+
+    <!-- ClassDataAbstractionCoupling: тесты собирают много фикстур/моков. -->
+    <suppress checks="ClassDataAbstractionCoupling" files="src[\\/]test[\\/].*"/>
+
+    <!-- MagicNumber: тестовые данные намеренно содержат числа. -->
+    <suppress checks="MagicNumber" files="src[\\/]test[\\/].*"/>
 
 </suppressions>

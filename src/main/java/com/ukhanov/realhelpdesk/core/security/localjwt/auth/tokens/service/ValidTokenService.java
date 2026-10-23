@@ -34,7 +34,8 @@ public class ValidTokenService {
             throw new TokenException("Недопустимый тип токена", null);
         }
 
-        Instant expiration = Optional.ofNullable(claims.getExpiration()).map(Date::toInstant)
+        Instant expiration = Optional.ofNullable(claims.getExpiration())
+                .map(Date::toInstant)
                 .orElseThrow(() -> new TokenException("Отсутствует claim 'expiration'", null));
 
         Set<String> actual = claims.getAudience();

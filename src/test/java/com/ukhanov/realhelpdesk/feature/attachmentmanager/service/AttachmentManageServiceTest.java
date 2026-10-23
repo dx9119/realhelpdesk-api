@@ -94,8 +94,14 @@ class AttachmentManageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AttachmentManageService(mockStorageService, mockAttachmentDomainService, mockMessageDomainService,
-                mockMessageManageService, mockTicketDomainService, mockCurrentUserProvider, attachmentMapper, staticProperties,
+        AttachmentStorageService storageService = new AttachmentStorageService(mockStorageService);
+        AttachmentMappingService mappingService = new AttachmentMappingService(attachmentMapper, staticProperties);
+        AttachmentMessageService messageService = new AttachmentMessageService(mockMessageManageService,
+                mockMessageDomainService, mockAttachmentDomainService, mappingService, mockCurrentUserProvider);
+        AttachmentDownloadService downloadService = new AttachmentDownloadService(mockAttachmentDomainService,
+                storageService);
+        AttachmentTicketGuard ticketGuard = new AttachmentTicketGuard(mockTicketDomainService);
+        service = new AttachmentManageService(storageService, messageService, downloadService, ticketGuard,
                 new BusinessMetrics(meterRegistry));
     }
 
@@ -104,9 +110,9 @@ class AttachmentManageServiceTest {
     void constructor_nullStaticProperties_throwsNullPointerException() {
 
         // given / when / then
-        assertThatThrownBy(() -> new AttachmentManageService(mockStorageService, mockAttachmentDomainService, mockMessageDomainService,
-                mockMessageManageService, mockTicketDomainService, mockCurrentUserProvider, attachmentMapper, null,
-                new BusinessMetrics(meterRegistry))).isInstanceOf(NullPointerException.class).hasMessageContaining("staticProperties");
+        assertThatThrownBy(() -> new AttachmentMappingService(attachmentMapper, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("staticProperties");
     }
 
     // ────────────────────────────────────────────────
@@ -145,7 +151,8 @@ class AttachmentManageServiceTest {
         assertThat(response.downloadUrl()).isEqualTo("/api/v1/portals/5/tickets/77/attachments/15");
         assertThat(response.createdAt()).isNotNull();
 
-        verify(mockStorageService).upload(keyCaptor.capture(), any(InputStream.class), eq((long) CONTENT.length), eq("application/pdf"));
+        verify(mockStorageService).upload(keyCaptor.capture(), any(InputStream.class), eq((long) CONTENT.length),
+                eq("application/pdf"));
         assertThat(keyCaptor.getValue()).startsWith("tickets/77/").endsWith(".pdf");
 
         verify(mockMessageManageService).createMessage(requestCaptor.capture(), eq(TICKET_ID), eq(PORTAL_ID));
@@ -155,7 +162,9 @@ class AttachmentManageServiceTest {
         Counter uploaded = meterRegistry.find("attachments.uploaded").tags("content_type", "application").counter();
         assertThat(uploaded).isNotNull();
         assertThat(uploaded.count()).isEqualTo(1);
-        DistributionSummary summary = meterRegistry.find("attachments.size").tags("content_type", "application").summary();
+        DistributionSummary summary = meterRegistry.find("attachments.size")
+                .tags("content_type", "application")
+                .summary();
         assertThat(summary).isNotNull();
         assertThat(summary.totalAmount()).isEqualTo(CONTENT.length);
         assertThat(summary.getId().getBaseUnit()).isEqualTo("bytes");
@@ -173,7 +182,8 @@ class AttachmentManageServiceTest {
         when(mockMessageManageService.createMessage(any(CreateMessageRequest.class), eq(TICKET_ID), eq(PORTAL_ID)))
                 .thenReturn(new CreateMessageResponse(MESSAGE_ID));
         when(mockMessageDomainService.getMessageById(MESSAGE_ID)).thenReturn(message());
-        when(mockAttachmentDomainService.saveAttachment(any(AttachmentModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(mockAttachmentDomainService.saveAttachment(any(AttachmentModel.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         service.uploadAttachment(file, "   ", PORTAL_ID, TICKET_ID);
 
@@ -205,7 +215,8 @@ class AttachmentManageServiceTest {
         // then
         assertThat(response.fileName()).isEqualTo("report.PDF");
         assertThat(response.contentType()).isEqualTo("application/octet-stream");
-        verify(mockStorageService).upload(keyCaptor.capture(), any(InputStream.class), anyLong(), eq("application/octet-stream"));
+        verify(mockStorageService).upload(keyCaptor.capture(), any(InputStream.class), anyLong(),
+                eq("application/octet-stream"));
         assertThat(keyCaptor.getValue()).endsWith(".pdf");
     }
 
@@ -239,7 +250,8 @@ class AttachmentManageServiceTest {
         when(mockTicketDomainService.findTicketById(TICKET_ID)).thenReturn(ticket(OTHER_PORTAL_ID));
 
         // then
-        assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID)).isInstanceOf(TicketException.class);
+        assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID))
+                .isInstanceOf(TicketException.class);
 
         verifyNoInteractions(mockStorageService, mockMessageManageService);
     }
@@ -255,13 +267,15 @@ class AttachmentManageServiceTest {
         doThrow(new StorageException("MinIO down")).when(mockStorageService).upload(any(), any(), anyLong(), any());
 
         // then
-        assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID)).isInstanceOf(StorageException.class);
+        assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID))
+                .isInstanceOf(StorageException.class);
 
         verifyNoInteractions(mockMessageManageService);
     }
 
     @Test
-    @DisplayName("uploadAttachment → сообщение не создалось → объект в MinIO удаляется (осиротевшего файла не остаётся)")
+    @DisplayName("uploadAttachment → сообщение не создалось → объект в MinIO удаляется "
+            + "(осиротевшего файла не остаётся)")
     void uploadAttachment_messageFailure_removesUploadedObject() throws Exception {
 
         // given
@@ -272,7 +286,8 @@ class AttachmentManageServiceTest {
                 .thenThrow(new MessagingException("smtp down"));
 
         // then
-        assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID)).isInstanceOf(MessagingException.class);
+        assertThatThrownBy(() -> service.uploadAttachment(file, null, PORTAL_ID, TICKET_ID))
+                .isInstanceOf(MessagingException.class);
 
         verify(mockStorageService).delete(keyCaptor.capture());
         assertThat(keyCaptor.getValue()).startsWith("tickets/77/");
@@ -289,7 +304,8 @@ class AttachmentManageServiceTest {
         // given
         // when
         givenTicketInPortal();
-        when(mockAttachmentDomainService.getAttachmentsForTicket(TICKET_ID, PORTAL_ID)).thenReturn(List.of(attachment()));
+        when(mockAttachmentDomainService.getAttachmentsForTicket(TICKET_ID, PORTAL_ID))
+                .thenReturn(List.of(attachment()));
 
         List<AttachmentResponse> responses = service.getAttachments(PORTAL_ID, TICKET_ID);
 
@@ -325,7 +341,8 @@ class AttachmentManageServiceTest {
 
         // given
         // when
-        when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID)).thenReturn(attachment());
+        when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID))
+                .thenReturn(attachment());
         when(mockStorageService.download(STORAGE_KEY)).thenReturn(new ByteArrayInputStream(CONTENT));
 
         FileDownload download = service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, null);
@@ -345,7 +362,8 @@ class AttachmentManageServiceTest {
 
         // given
         // when
-        when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID)).thenReturn(attachment());
+        when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID))
+                .thenReturn(attachment());
         when(mockStorageService.download(STORAGE_KEY, 3, 5)).thenReturn(new ByteArrayInputStream(new byte[5]));
 
         FileDownload download = service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, "bytes=3-7");
@@ -365,7 +383,8 @@ class AttachmentManageServiceTest {
 
         // given
         // when
-        when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID)).thenReturn(attachment());
+        when(mockAttachmentDomainService.getAttachmentForTicket(ATTACHMENT_ID, TICKET_ID, PORTAL_ID))
+                .thenReturn(attachment());
 
         FileDownload download = service.downloadAttachment(PORTAL_ID, TICKET_ID, ATTACHMENT_ID, "bytes=999-");
 

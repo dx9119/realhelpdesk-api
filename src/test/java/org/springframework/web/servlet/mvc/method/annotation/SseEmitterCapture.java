@@ -11,9 +11,10 @@ import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.DataWithMediaType;
 
 /**
- * Тестовый захват payload SSE-emitter: публичной подписки на отправку нет — {@code ResponseBodyEmitter.initialize(Handler)} и интерфейс
- * {@code Handler} package-private, поэтому хелпер лежит в пакете Spring. Подключается сразу после {@code subscribe()}: события,
- * отправленные без обработчика, лежат во внутреннем буфере и всплывают при подключении, дальнейшие приходят напрямую.
+ * Тестовый захват payload SSE-emitter: публичной подписки на отправку нет —
+ * {@code ResponseBodyEmitter.initialize(Handler)} и интерфейс {@code Handler} package-private, поэтому хелпер лежит в
+ * пакете Spring. Подключается сразу после {@code subscribe()}: события, отправленные без обработчика, лежат во
+ * внутреннем буфере и всплывают при подключении, дальнейшие приходят напрямую.
  */
 public final class SseEmitterCapture {
 

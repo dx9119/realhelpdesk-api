@@ -7,8 +7,8 @@ import com.ukhanov.realhelpdesk.core.exception.ApiException;
 import lombok.Getter;
 
 /**
- * Провал капчи: HTTP 400 с problem+json. {@link #getReason()} — машинная причина ({@code code} в ответе и тег метрики); у старых
- * конструкторов без причины она считается {@link CaptchaReason#INVALID}.
+ * Провал капчи: HTTP 400 с problem+json. {@link #getReason()} — машинная причина ({@code code} в ответе и тег метрики);
+ * у старых конструкторов без причины она считается {@link CaptchaReason#INVALID}.
  */
 @Getter
 public class CaptchaException extends ApiException {

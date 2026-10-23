@@ -1,5 +1,6 @@
 package com.ukhanov.realhelpdesk.core.config;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,13 +26,20 @@ class ProdPreflightValidatorTest {
     @BeforeEach
     void setUp() {
         // Безопасная база: каждый тест подменяет один ключ
-        env = new MockEnvironment().withProperty("captcha.enabled", "true").withProperty("captcha.hmac-secret", VALID_CAPTCHA_SECRET)
-                .withProperty("jwt.cookie.same-site", "Lax").withProperty("jwt.cookie.domain", "")
-                .withProperty("cors.allowed-origins", "https://example.com").withProperty("spring.liquibase.enabled", "true")
-                .withProperty("server.ssl.key-alias", "tomcat").withProperty("server.ssl.key-store-password", "changeit")
-                .withProperty("server.ssl.key-store-type", "PKCS12").withProperty("spring.mail.host", "smtp.example.com")
-                .withProperty("spring.mail.port", "587").withProperty("spring.mail.username", "user@example.com")
-                .withProperty("spring.mail.properties.mail.smtp.auth", "true").withProperty("email.from", "noreply@example.com");
+        env = new MockEnvironment().withProperty("captcha.enabled", "true")
+                .withProperty("captcha.hmac-secret", VALID_CAPTCHA_SECRET)
+                .withProperty("jwt.cookie.same-site", "Lax")
+                .withProperty("jwt.cookie.domain", "")
+                .withProperty("cors.allowed-origins", "https://example.com")
+                .withProperty("spring.liquibase.enabled", "true")
+                .withProperty("server.ssl.key-alias", "tomcat")
+                .withProperty("server.ssl.key-store-password", "changeit")
+                .withProperty("server.ssl.key-store-type", "PKCS12")
+                .withProperty("spring.mail.host", "smtp.example.com")
+                .withProperty("spring.mail.port", "587")
+                .withProperty("spring.mail.username", "user@example.com")
+                .withProperty("spring.mail.properties.mail.smtp.auth", "true")
+                .withProperty("email.from", "noreply@example.com");
     }
 
     @Test
@@ -52,7 +60,8 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("captcha.enabled", "false").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
+        env.withProperty("captcha.enabled", "false")
+                .withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -65,7 +74,8 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("captcha.hmac-secret", "").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
+        env.withProperty("captcha.hmac-secret", "")
+                .withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -78,7 +88,8 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("captcha.hmac-secret", "short-secret").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
+        env.withProperty("captcha.hmac-secret", "short-secret")
+                .withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -91,8 +102,9 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("captcha.hmac-secret", "dev-only-local-captcha-hmac-secret-0123456789").withProperty("server.ssl.key-store",
-                "file:" + keystore("CN=example.com"));
+        env.withProperty("captcha.hmac-secret", "dev-only-local-captcha-hmac-secret-0123456789")
+                .withProperty("server.ssl.key-store",
+                        "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -105,7 +117,8 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("jwt.cookie.same-site", "None").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
+        env.withProperty("jwt.cookie.same-site", "None")
+                .withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -118,8 +131,9 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("cors.allowed-origins", "https://localhost.ru,https://example.com").withProperty("server.ssl.key-store",
-                "file:" + keystore("CN=example.com"));
+        env.withProperty("cors.allowed-origins", "https://localhost.ru,https://example.com")
+                .withProperty("server.ssl.key-store",
+                        "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -132,7 +146,8 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("spring.liquibase.enabled", "false").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
+        env.withProperty("spring.liquibase.enabled", "false")
+                .withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -145,8 +160,9 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("spring.liquibase.contexts", "schema,seed").withProperty("server.ssl.key-store",
-                "file:" + keystore("CN=example.com"));
+        env.withProperty("spring.liquibase.contexts", "schema,seed")
+                .withProperty("server.ssl.key-store",
+                        "file:" + keystore("CN=example.com"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
@@ -159,7 +175,8 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("spring.liquibase.contexts", "schema").withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
+        env.withProperty("spring.liquibase.contexts", "schema")
+                .withProperty("server.ssl.key-store", "file:" + keystore("CN=example.com"));
 
         // then
         assertThatCode(() -> new ProdPreflightValidator(env).validate()).doesNotThrowAnyException();
@@ -184,14 +201,18 @@ class ProdPreflightValidatorTest {
 
         // given
         // when
-        env.withProperty("captcha.enabled", "false").withProperty("jwt.cookie.same-site", "None")
-                .withProperty("cors.allowed-origins", "http://localhost:3000").withProperty("spring.liquibase.enabled", "false")
+        env.withProperty("captcha.enabled", "false")
+                .withProperty("jwt.cookie.same-site", "None")
+                .withProperty("cors.allowed-origins", "http://localhost:3000")
+                .withProperty("spring.liquibase.enabled", "false")
                 .withProperty("server.ssl.key-store", "file:" + keystore("CN=localhost"));
 
         // then
         assertThatThrownBy(() -> new ProdPreflightValidator(env).validate()).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("captcha.enabled=false").hasMessageContaining("jwt.cookie.same-site=None")
-                .hasMessageContaining("localhost:3000").hasMessageContaining("spring.liquibase.enabled=false")
+                .hasMessageContaining("captcha.enabled=false")
+                .hasMessageContaining("jwt.cookie.same-site=None")
+                .hasMessageContaining("localhost:3000")
+                .hasMessageContaining("spring.liquibase.enabled=false")
                 .hasMessageContaining("CN=localhost");
     }
 
@@ -278,15 +299,17 @@ class ProdPreflightValidatorTest {
         String file = "ks-" + Math.abs(distinguishedName.hashCode()) + ".p12";
         Path path = tempDir.resolve(file);
         try {
-            Process process = new ProcessBuilder("keytool", "-genkeypair", "-alias", "tomcat", "-keyalg", "RSA", "-keysize", "2048",
-                    "-storetype", "PKCS12", "-keystore", path.toString(), "-storepass", "changeit", "-keypass", "changeit", "-dname",
+            Process process = new ProcessBuilder("keytool", "-genkeypair", "-alias", "tomcat", "-keyalg", "RSA",
+                    "-keysize", "2048",
+                    "-storetype", "PKCS12", "-keystore", path.toString(), "-storepass", "changeit", "-keypass",
+                    "changeit", "-dname",
                     distinguishedName, "-validity", "30").redirectErrorStream(true).start();
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 String output = new String(process.getInputStream().readAllBytes());
                 throw new IllegalStateException("keytool не создал keystore (код " + exitCode + "): " + output);
             }
-        } catch (Exception e) {
+        } catch (IOException | InterruptedException e) {
             throw new IllegalStateException(e);
         }
         return path.toString();

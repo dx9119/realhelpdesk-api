@@ -7,6 +7,7 @@ import java.util.Set;
 import jakarta.persistence.PersistenceException;
 import jakarta.transaction.Transactional;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,8 +36,9 @@ public class TicketDomainService {
             TicketModel savedTicket = ticketRepository.save(ticketModel);
             logger.debug("Заявка сохранена: {}", savedTicket.getId());
             return savedTicket;
-        } catch (Exception e) {
-            // Ошибка логируется один раз на границе (GlobalExceptionHandler: ERROR со стектрейсом) — здесь только debug для отладки.
+        } catch (DataAccessException e) {
+            // Ошибка логируется один раз на границе (GlobalExceptionHandler: ERROR со стектрейсом) — здесь только debug
+            // для отладки.
             logger.debug("Не удалось сохранить заявку «{}»", ticketModel.getTitle(), e);
             throw new PersistenceException("Не удалось сохранить заявку", e);
         }
@@ -46,9 +48,10 @@ public class TicketDomainService {
     public TicketModel findTicketById(Long ticketId) throws TicketException {
         Objects.requireNonNull(ticketId, "ID заявки не должен быть null!");
 
-        TicketModel ticket = ticketRepository.findByIdAndTicketLiveStatus(ticketId, TicketLiveStatus.ACTIVE).orElseThrow(() -> {
-            return TicketException.notFound("Заявка не найдена!");
-        });
+        TicketModel ticket = ticketRepository.findByIdAndTicketLiveStatus(ticketId, TicketLiveStatus.ACTIVE)
+                .orElseThrow(() -> {
+                    return TicketException.notFound("Заявка не найдена!");
+                });
 
         return ticket;
     }
@@ -80,13 +83,15 @@ public class TicketDomainService {
     public Set<Long> getIdTicketWithNoAnswer(Long portalId) {
         Objects.requireNonNull(portalId, "portalId не должен быть null");
         logger.debug("Получение ID заявок без ответа для портала с ID: {}", portalId);
-        return ticketRepository.findOpenTicketIdsWithoutMessagesByPortalIdAndLiveStatus(portalId, TicketLiveStatus.ACTIVE);
+        return ticketRepository.findOpenTicketIdsWithoutMessagesByPortalIdAndLiveStatus(portalId,
+                TicketLiveStatus.ACTIVE);
     }
 
     public Set<Long> getIdTicketWithStatus(Long portalId, TicketStatus status) {
         Objects.requireNonNull(portalId, "portalId не должен быть null");
         logger.debug("Получение ID заявок со статусом {} для портала с ID: {}", status, portalId);
-        return ticketRepository.findTicketIdsByPortalIdAndStatusAndLiveStatus(portalId, status, TicketLiveStatus.ACTIVE);
+        return ticketRepository.findTicketIdsByPortalIdAndStatusAndLiveStatus(portalId, status,
+                TicketLiveStatus.ACTIVE);
     }
 
 }

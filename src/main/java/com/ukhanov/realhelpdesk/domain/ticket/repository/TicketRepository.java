@@ -22,18 +22,21 @@ import com.ukhanov.realhelpdesk.domain.ticket.model.TicketStatus;
 public interface TicketRepository extends JpaRepository<TicketModel, Long>, JpaSpecificationExecutor<TicketModel> {
 
     @EntityGraph(attributePaths = {"assignedUser", "author", "portal"})
-    List<TicketModel> findAllByPortalIdAndTicketLiveStatus(@Param("portalId") Long portalId, TicketLiveStatus ticketLiveStatus);
+    List<TicketModel> findAllByPortalIdAndTicketLiveStatus(@Param("portalId") Long portalId,
+            TicketLiveStatus ticketLiveStatus);
 
     @EntityGraph(attributePaths = {"assignedUser", "author", "portal"})
     Page<TicketModel> findAllByPortalIdAndTicketLiveStatus(@Param("portalId") Long portalId, Pageable pageable,
             TicketLiveStatus ticketLiveStatus);
 
     @EntityGraph(attributePaths = {"assignedUser", "author", "portal"})
-    Page<TicketModel> findAllByAuthorIdAndTicketLiveStatus(@Param("authorId") Long authorId, TicketLiveStatus ticketLiveStatus,
+    Page<TicketModel> findAllByAuthorIdAndTicketLiveStatus(@Param("authorId") Long authorId,
+            TicketLiveStatus ticketLiveStatus,
             Pageable pageable);
 
     @EntityGraph(attributePaths = {"assignedUser", "author", "portal"})
-    Page<TicketModel> findByIdInAndTicketLiveStatus(Set<Long> ids, TicketLiveStatus ticketLiveStatus, Pageable pageable);
+    Page<TicketModel> findByIdInAndTicketLiveStatus(Set<Long> ids, TicketLiveStatus ticketLiveStatus,
+            Pageable pageable);
 
     @EntityGraph(attributePaths = {"assignedUser", "author", "portal"})
     Optional<TicketModel> findByIdAndTicketLiveStatus(Long id, TicketLiveStatus ticketLiveStatus);

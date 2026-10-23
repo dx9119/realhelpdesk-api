@@ -10,9 +10,9 @@ import lombok.Setter;
  * Подключение к MinIO: адрес, учётные данные и бакет для файлов вложений заявок.
  *
  * <p>
- * Значения — только переменные окружения (см. application.properties): адрес сервиса и имя бакета — из infrastructure/.env, учётки — из
- * infrastructure/docker-compose.yaml (секреты infrastructure/.env). Файлы лежат в MinIO, в БД хранятся только метаданные
- * (attachment_model).
+ * Значения — только переменные окружения (см. application.properties): адрес сервиса и имя бакета — из
+ * infrastructure/.env, учётки — из infrastructure/docker-compose.yaml (секреты infrastructure/.env). Файлы лежат в
+ * MinIO, в БД хранятся только метаданные (attachment_model).
  * </p>
  */
 @Component

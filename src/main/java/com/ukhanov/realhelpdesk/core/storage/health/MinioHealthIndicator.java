@@ -1,5 +1,8 @@
 package com.ukhanov.realhelpdesk.core.storage.health;
 
+import java.io.IOException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -13,13 +16,19 @@ import com.ukhanov.realhelpdesk.core.storage.config.MinioProperties;
 
 import io.minio.BucketExistsArgs;
 import io.minio.MinioClient;
+import io.minio.errors.ErrorResponseException;
+import io.minio.errors.InsufficientDataException;
+import io.minio.errors.InternalException;
+import io.minio.errors.InvalidResponseException;
+import io.minio.errors.ServerException;
+import io.minio.errors.XmlParserException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Готовность хранилища вложений: readiness падает, когда MinIO недоступен или бакет пропал. Проверка — bucketExists по одному бакету, без
- * записи файлов; таймаут соединения задан на клиенте (MinioClientConfig), результат кэшируется на несколько секунд, чтобы опрос health не
- * превращался в нагрузку на MinIO.
+ * Готовность хранилища вложений: readiness падает, когда MinIO недоступен или бакет пропал. Проверка — bucketExists по
+ * одному бакету, без записи файлов; таймаут соединения задан на клиенте (MinioClientConfig), результат кэшируется на
+ * несколько секунд, чтобы опрос health не превращался в нагрузку на MinIO.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -54,13 +63,19 @@ public class MinioHealthIndicator implements HealthIndicator {
     private Health doCheck() {
         Objects.requireNonNull(minioClient, "MinioClient не должен быть null");
         try {
-            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(properties.getBucket()).build());
+            boolean exists = minioClient
+                    .bucketExists(BucketExistsArgs.builder().bucket(properties.getBucket()).build());
             if (exists) {
                 return Health.up().withDetail("bucket", properties.getBucket()).build();
             }
             // бакет создаётся при первом обращении приложения — его отсутствие ещё не сбой
-            return Health.up().withDetail("bucket", properties.getBucket()).withDetail("state", "not created yet").build();
-        } catch (Exception e) {
+            return Health.up()
+                    .withDetail("bucket", properties.getBucket())
+                    .withDetail("state", "not created yet")
+                    .build();
+        } catch (ErrorResponseException | InsufficientDataException | InternalException | InvalidResponseException
+                | InvalidKeyException | IOException | NoSuchAlgorithmException | ServerException
+                | XmlParserException e) {
             logger.warn("MinIO недоступен для health-проверки: {}", e.getMessage());
             return Health.down(e).withDetail("endpoint", properties.getEndpoint()).build();
         }

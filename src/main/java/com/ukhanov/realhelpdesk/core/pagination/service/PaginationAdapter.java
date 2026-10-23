@@ -7,7 +7,7 @@ import java.util.TreeSet;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
 import com.ukhanov.realhelpdesk.core.pagination.exception.PaginationException;
@@ -15,7 +15,7 @@ import com.ukhanov.realhelpdesk.core.pagination.exception.PaginationException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Service
+@Component
 public class PaginationAdapter {
 
     public <T> PageResponse<T> mapToResponse(Page<T> page, String sortBy, String order) {
@@ -25,11 +25,13 @@ public class PaginationAdapter {
     public <T> PageResponse<T> mapToResponse(Page<T> page) {
         Objects.requireNonNull(page, "Защита от null: Page необходим для маппинга");
 
-        return new PageResponse<>(page.getContent(), page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages(),
+        return new PageResponse<>(page.getContent(), page.getNumber(), page.getSize(), page.getTotalElements(),
+                page.getTotalPages(),
                 page.isLast());
     }
 
-    public PageRequest buildPageRequest(int page, int size, String sortBy, String order, Set<String> allowedSortFields) {
+    public PageRequest buildPageRequest(int page, int size, String sortBy, String order,
+            Set<String> allowedSortFields) {
         Objects.requireNonNull(sortBy, "Параметр sortBy не должен быть null");
         Objects.requireNonNull(order, "Параметр order не должен быть null");
         Objects.requireNonNull(allowedSortFields, "allowedSortFields не должен быть null");

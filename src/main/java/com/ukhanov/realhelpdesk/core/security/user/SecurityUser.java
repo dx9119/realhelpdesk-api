@@ -43,7 +43,8 @@ public class SecurityUser implements UserDetails {
     public Optional<String> getLatestJwtRefreshToken() {
         return this.user.getJwtTokenRefresh() // Получаем список всех refresh-токенов, связанных с пользователем
                 .stream() // список в потоки
-                .max(Comparator.comparing(RefreshTokenModel::getCreatedAt)) // Сравниваем refresh-токены по дате создания
+                .max(Comparator.comparing(RefreshTokenModel::getCreatedAt)) // Сравниваем refresh-токены по дате
+                                                                            // создания
                 .map(RefreshTokenModel::getToken); // Преобразуем найденный объект в строковое значение токена
     }
 

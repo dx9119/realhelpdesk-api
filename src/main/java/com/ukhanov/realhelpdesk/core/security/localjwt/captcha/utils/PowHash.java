@@ -5,10 +5,15 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * Proof-of-Work: решение — подобрать nonce, чтобы SHA-256 от строки {@code "salt:nonce"} начинался с N нулевых бит. Хэш считается по UTF-8
- * строке (не по байтам соли), чтобы клиент (JS-виджет) и сервер считали одинаково — см. {@code static/captcha/widget.js}.
+ * Proof-of-Work: решение — подобрать nonce, чтобы SHA-256 от строки {@code "salt:nonce"} начинался с N нулевых бит. Хэш
+ * считается по UTF-8 строке (не по байтам соли), чтобы клиент (JS-виджет) и сервер считали одинаково — см.
+ * {@code static/captcha/widget.js}.
  */
 public final class PowHash {
+
+    private static final int BYTE_MASK = 0xff;
+    private static final int BITS_PER_BYTE = 8;
+    private static final int LEADING_ZEROS_OFFSET = 24;
 
     private PowHash() {
     }
@@ -28,11 +33,11 @@ public final class PowHash {
     public static int leadingZeroBits(byte[] digest) {
         int bits = 0;
         for (byte b : digest) {
-            int value = b & 0xff;
+            int value = b & BYTE_MASK;
             if (value == 0) {
-                bits += 8;
+                bits += BITS_PER_BYTE;
             } else {
-                bits += Integer.numberOfLeadingZeros(value) - 24;
+                bits += Integer.numberOfLeadingZeros(value) - LEADING_ZEROS_OFFSET;
                 break;
             }
         }

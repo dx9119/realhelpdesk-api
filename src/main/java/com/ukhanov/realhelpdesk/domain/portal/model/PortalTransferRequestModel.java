@@ -15,10 +15,6 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * Запрос владельца на передачу владения порталом другому пользователю. Пока статус PENDING — новый владелец может подтвердить или отклонить
- * запрос своим паролем; активных запросов на портал не больше одного (частичный уникальный индекс в БД).
- */
 @Entity
 @Table(name = "portal_transfer_requests")
 @Getter

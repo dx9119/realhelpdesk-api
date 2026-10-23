@@ -5,8 +5,8 @@ import org.springframework.http.HttpStatus;
 import com.ukhanov.realhelpdesk.core.exception.ApiRuntimeException;
 
 /**
- * Сбой хранилища файлов (MinIO недоступен, бакет не создан, объект пропал). Невы-checked: ошибка инфраструктуры, а не контракта вызывающего
- * кода; ловится один раз в GlobalExceptionHandler и уходит клиенту как problem+json.
+ * Сбой хранилища файлов (MinIO недоступен, бакет не создан, объект пропал). Невы-checked: ошибка инфраструктуры, а не
+ * контракта вызывающего кода; ловится один раз в GlobalExceptionHandler и уходит клиенту как problem+json.
  */
 public class StorageException extends ApiRuntimeException {
 

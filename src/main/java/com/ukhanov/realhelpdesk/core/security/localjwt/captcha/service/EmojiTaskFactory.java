@@ -12,9 +12,10 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * Генератор эмодзи-заданий для эскалационного уровня: сетка из девяти глифов и одно из двух заданий — «выберите все глифы категории» или
- * «выберите только этот глиф». Списки категорий и ответ сервер не отдаёт (кроме видимых ячеек): правильные индексы превращаются в HMAC в
- * {@link CaptchaTokenService#answerHash}, маппинг глиф→категория живёт только здесь.
+ * Генератор эмодзи-заданий для эскалационного уровня: сетка из девяти глифов и одно из двух заданий — «выберите все
+ * глифы категории» или «выберите только этот глиф». Списки категорий и ответ сервер не отдаёт (кроме видимых ячеек):
+ * правильные индексы превращаются в HMAC в {@link CaptchaTokenService#answerHash}, маппинг глиф→категория живёт только
+ * здесь.
  */
 @Component
 public class EmojiTaskFactory {
@@ -44,7 +45,9 @@ public class EmojiTaskFactory {
         return glyphTask();
     }
 
-    /** Выбрать в сетке все глифы одной категории: правильных ячеек CATEGORY_ANSWER_SIZE, остальные — из чужих категорий. */
+    /**
+     * Выбрать в сетке все глифы одной категории: правильных ячеек CATEGORY_ANSWER_SIZE, остальные — из чужих категорий.
+     */
     private EmojiTask categoryTask() {
         String name = pick(new ArrayList<>(CATEGORIES.keySet()));
         List<String> category = CATEGORIES.get(name);

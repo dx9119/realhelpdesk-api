@@ -12,8 +12,8 @@ import com.ukhanov.realhelpdesk.feature.messagemanager.controller.MessageControl
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Файл в ленте заявки — это сообщение, поэтому политика доступа к вложениям должна совпадать с политикой сообщений заявки: одно и то же
- * выражение {@code hasTicketAccess} на загрузке, в списке и в скачивании.
+ * Файл в ленте заявки — это сообщение, поэтому политика доступа к вложениям должна совпадать с политикой сообщений
+ * заявки: одно и то же выражение {@code hasTicketAccess} на загрузке, в списке и в скачивании.
  */
 @DisplayName("Тесты паритета политики доступа: вложения = сообщения заявки")
 class AttachmentAccessPolicyTest {
@@ -32,8 +32,11 @@ class AttachmentAccessPolicyTest {
     }
 
     private String preAuthorize(Class<?> controller, String methodName) {
-        Method method = Arrays.stream(controller.getDeclaredMethods()).filter(m -> m.getName().equals(methodName)).findFirst()
-                .orElseThrow(() -> new AssertionError("Метод " + methodName + " не найден в " + controller.getSimpleName()));
+        Method method = Arrays.stream(controller.getDeclaredMethods())
+                .filter(m -> m.getName().equals(methodName))
+                .findFirst()
+                .orElseThrow(
+                        () -> new AssertionError("Метод " + methodName + " не найден в " + controller.getSimpleName()));
         PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
         assertThat(annotation).as("%s.%s без @PreAuthorize", controller.getSimpleName(), methodName).isNotNull();
         return annotation.value();

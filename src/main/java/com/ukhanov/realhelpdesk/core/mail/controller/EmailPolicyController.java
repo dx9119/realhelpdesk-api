@@ -25,6 +25,7 @@ import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaSe
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaTokenService;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.annotation.RateLimit;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +39,8 @@ public class EmailPolicyController {
     private final CaptchaService captchaService;
     private final ClientIpResolver clientIpResolver;
 
+    @Operation(summary = "Подтверждение email",
+            description = "Подтверждает email по токену из письма. Возвращает 204 без тела.")
     @PostMapping("/confirmations/{token}")
     @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> confirmEmail(@PathVariable Long token) throws EmailAccessDeniedException {
@@ -45,12 +48,16 @@ public class EmailPolicyController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Уровень email-оповещений",
+            description = "Возвращает текущий уровень mute для in-app оповещений.")
     @GetMapping("/info")
     public ResponseEntity<EmailInfoResponse> getInfo() {
         EmailInfoResponse response = emailPolicyService.getEmailInfo();
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Отписка от email-уведомлений",
+            description = "Добавляет событие в список стоп-лист. Возвращает 204 без тела.")
     @DeleteMapping("/notifications/{event}")
     @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> stopNotifications(@PathVariable NotificationEvent event) {
@@ -58,12 +65,17 @@ public class EmailPolicyController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Запрос кода подтверждения email",
+            description = "Отправляет код подтверждения на текущий email клиента. "
+                    + "Опционально принимает X-Captcha-Token. Возвращает 202 — код отправляется асинхронно.")
     @PostMapping("/codes")
     @RateLimit(key = "email-code")
     @ApiResponse(responseCode = "202", description = "Принято в обработку")
-    public ResponseEntity<Void> sendConfirmCode(@RequestHeader(value = "X-Captcha-Token", required = false) String captchaToken,
+    public ResponseEntity<Void> sendConfirmCode(
+            @RequestHeader(value = "X-Captcha-Token", required = false) String captchaToken,
             HttpServletRequest httpRequest) throws MessagingException, CaptchaException, UnsupportedEncodingException {
-        captchaService.verify(captchaToken, CaptchaTokenService.ACTION_EMAIL_CODE, clientIpResolver.resolve(httpRequest));
+        captchaService.verify(captchaToken, CaptchaTokenService.ACTION_EMAIL_CODE,
+                clientIpResolver.resolve(httpRequest));
         emailDeliveryService.sendConfirmCode();
         return ResponseEntity.accepted().build();
     }

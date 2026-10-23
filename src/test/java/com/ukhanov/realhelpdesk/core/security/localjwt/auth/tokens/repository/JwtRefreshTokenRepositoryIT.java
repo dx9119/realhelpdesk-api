@@ -68,12 +68,15 @@ class JwtRefreshTokenRepositoryIT extends AbstractIntegrationTest {
         assertThat(repository.countByStatusAndCreatedAtBefore(TokenStatus.ACTIVE, CUTOFF)).isEqualTo(1);
 
         // выборка порции делит отозванные и активные, свежие строки не попадают
-        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 10))).containsExactly(revokedOld);
-        assertThat(repository.findActiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 10))).containsExactly(activeOld);
+        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 10)))
+                .containsExactly(revokedOld);
+        assertThat(repository.findActiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 10)))
+                .containsExactly(activeOld);
 
         // размер батча ограничивает выборку
         assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 1))).hasSize(1);
-        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 10))).doesNotContain(revokedFresh);
+        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 10)))
+                .doesNotContain(revokedFresh);
     }
 
     @Test
@@ -87,8 +90,10 @@ class JwtRefreshTokenRepositoryIT extends AbstractIntegrationTest {
         save(TokenStatus.REVOKED, FRESH);
 
         // then
-        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 1))).containsExactly(oldest);
-        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 2))).containsExactly(oldest, middle);
+        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 1)))
+                .containsExactly(oldest);
+        assertThat(repository.findInactiveIdsBefore(TokenStatus.ACTIVE, CUTOFF, PageRequest.of(0, 2)))
+                .containsExactly(oldest, middle);
     }
 
     @Test
@@ -117,8 +122,10 @@ class JwtRefreshTokenRepositoryIT extends AbstractIntegrationTest {
         token.setUser(user);
         repository.saveAndFlush(token);
         // createdAt выставляет только @PrePersist и сеттера снаружи нет — сдвигаем назад bulk-запросом
-        em.createQuery("UPDATE RefreshTokenModel t SET t.createdAt = :ts WHERE t.uuid = :id").setParameter("ts", createdAt)
-                .setParameter("id", token.getUuid()).executeUpdate();
+        em.createQuery("UPDATE RefreshTokenModel t SET t.createdAt = :ts WHERE t.uuid = :id")
+                .setParameter("ts", createdAt)
+                .setParameter("id", token.getUuid())
+                .executeUpdate();
         em.flush();
         em.clear();
         return token.getUuid();

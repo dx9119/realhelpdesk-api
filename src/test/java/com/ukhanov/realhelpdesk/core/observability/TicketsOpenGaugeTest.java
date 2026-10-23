@@ -59,8 +59,10 @@ class TicketsOpenGaugeTest {
 
         // given
         // when
-        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE)).thenReturn(3L);
-        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE)).thenReturn(5L);
+        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE))
+                .thenReturn(3L);
+        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE))
+                .thenReturn(5L);
 
         ticketsOpenGauge.refresh();
 
@@ -71,7 +73,8 @@ class TicketsOpenGaugeTest {
         // scrape читает значение из памяти: новые вызовы репозитория не появляются
         assertThat(meterRegistry.find("tickets.open").tags("status", "OPEN").gauge().value()).isEqualTo(3.0);
         assertThat(meterRegistry.find("tickets.open").tags("status", "IN_PROGRESS").gauge().value()).isEqualTo(5.0);
-        verify(ticketRepository, times(2)).countByTicketStatusAndTicketLiveStatus(any(TicketStatus.class), any(TicketLiveStatus.class));
+        verify(ticketRepository, times(2)).countByTicketStatusAndTicketLiveStatus(any(TicketStatus.class),
+                any(TicketLiveStatus.class));
     }
 
     @Test
@@ -80,12 +83,16 @@ class TicketsOpenGaugeTest {
 
         // given
         // when
-        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE)).thenReturn(7L);
-        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE)).thenReturn(2L);
+        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE))
+                .thenReturn(7L);
+        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE))
+                .thenReturn(2L);
         ticketsOpenGauge.refresh();
 
-        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE)).thenReturn(0L);
-        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE)).thenReturn(0L);
+        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.OPEN, TicketLiveStatus.ACTIVE))
+                .thenReturn(0L);
+        when(ticketRepository.countByTicketStatusAndTicketLiveStatus(TicketStatus.IN_PROGRESS, TicketLiveStatus.ACTIVE))
+                .thenReturn(0L);
 
         ticketsOpenGauge.refresh();
 

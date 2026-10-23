@@ -117,7 +117,8 @@ class EmailPolicyServiceTest {
     void isStopList_nullEmail_throwsNpe() {
 
         // given / when / then
-        assertThatThrownBy(() -> service.isStopList(null, NotificationEvent.NEW_TICKET)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.isStopList(null, NotificationEvent.NEW_TICKET))
+                .isInstanceOf(NullPointerException.class);
     }
 
     // ────────────────────────────────────────────────
@@ -134,7 +135,8 @@ class EmailPolicyServiceTest {
 
         // then
         verify(repository).save(argThat(
-                (UnsubscribedEmail entry) -> EMAIL.equals(entry.getEmail()) && entry.getMuteEvent() == NotificationEvent.NEW_TICKET));
+                (UnsubscribedEmail entry) -> EMAIL.equals(entry.getEmail())
+                        && entry.getMuteEvent() == NotificationEvent.NEW_TICKET));
     }
 
     @Test

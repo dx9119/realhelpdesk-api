@@ -75,8 +75,11 @@ public class UserModel {
     private int tokenVersion = 0;
 
     // Связь с JWT Refresh-токенами: LAZY + батч, чтобы загрузка пользователя не
-    // тянула токены (N+1 на каждый findById / findByEmail) и не разрасталась в e-мейл-фолдауте
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    // тянула токены (N+1 на каждый findById / findByEmail) и не разрасталась в e-мейл-фолдауте.
+    // Каскад только PERSIST/MERGE: отзыв и очистка токенов идут через JwtRefreshTokenRepository
+    // (@Modifying UPDATE / DELETE), каскадное удаление отсюда не используется.
+    @OneToMany(mappedBy = "user", cascade = {CascadeType.PERSIST,
+            CascadeType.MERGE}, fetch = FetchType.LAZY)
     @BatchSize(size = 50)
     private Set<RefreshTokenModel> jwtTokenRefresh = new HashSet<>();
 
@@ -102,8 +105,10 @@ public class UserModel {
     // Логи не должны раскрывать passwordHash/токены — поэтому ручной toString, а не сгенерированный
     @Override
     public String toString() {
-        return "UserModel{" + "createdAt=" + createdAt + ", userRole=" + userRole + ", id=" + id + ", firstName='" + firstName + '\''
-                + ", lastName='" + lastName + '\'' + ", middleName='" + middleName + '\'' + ", email='" + email + '\'' + ", userStatus="
+        return "UserModel{" + "createdAt=" + createdAt + ", userRole=" + userRole + ", id=" + id + ", firstName='"
+                + firstName + '\''
+                + ", lastName='" + lastName + '\'' + ", middleName='" + middleName + '\'' + ", email='" + email + '\''
+                + ", userStatus="
                 + userStatus + '}';
     }
 
@@ -112,8 +117,8 @@ public class UserModel {
         return userPlatformSource;
     }
 
-    public void setUserExternalSource(UserPlatformSource userPlatformSource) {
-        this.userPlatformSource = userPlatformSource;
+    public void setUserExternalSource(UserPlatformSource source) {
+        this.userPlatformSource = source;
     }
 
     public String getFullName() {

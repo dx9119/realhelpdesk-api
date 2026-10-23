@@ -23,6 +23,7 @@ import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.ukhanov.realhelpdesk.core.exception.GlobalExceptionHandler;
+import com.ukhanov.realhelpdesk.core.exception.InfrastructureExceptionHandler;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
 import com.ukhanov.realhelpdesk.feature.notificationmanager.dto.NotificationPreferencesRequest;
@@ -57,12 +58,15 @@ class NotificationControllerTest {
     void setUp() {
         NotificationController controller = new NotificationController(mockNotificationManageService);
         mockMvc = MockMvcTester.of(List.of(validatedController(controller)),
-                builder -> builder.setControllerAdvice(new GlobalExceptionHandler()).build());
+                builder -> builder
+                        .setControllerAdvice(new GlobalExceptionHandler(), new InfrastructureExceptionHandler())
+                        .build());
     }
 
     /**
-     * В приложении @Validated обрабатывает MethodValidationPostProcessor из ValidationAutoConfiguration. В standalone-тесте контекста нет,
-     * поэтому прокси создаём тем же пост-процессором вручную (как в TicketSearchControllerTest).
+     * В приложении @Validated обрабатывает MethodValidationPostProcessor из ValidationAutoConfiguration. В
+     * standalone-тесте контекста нет, поэтому прокси создаём тем же пост-процессором вручную (как в
+     * TicketSearchControllerTest).
      */
     private NotificationController validatedController(NotificationController controller) {
         MethodValidationPostProcessor processor = new MethodValidationPostProcessor();
@@ -80,9 +84,11 @@ class NotificationControllerTest {
     @DisplayName("GET /api/v1/notifications → 200 со списком оповещений")
     void getNotifications_defaultPaging_returnsNotificationPage() {
         // given
-        NotificationResponse response = new NotificationResponse(1L, NotificationEvent.NEW_TICKET, 11L, 2L, "Проблема с оплатой", false,
+        NotificationResponse response = new NotificationResponse(1L, NotificationEvent.NEW_TICKET, 11L, 2L,
+                "Проблема с оплатой", false,
                 Instant.parse("2026-10-05T10:00:00Z"));
-        when(mockNotificationManageService.getNotifications(0, 10, "createdAt", "desc", false)).thenReturn(pageOf(response));
+        when(mockNotificationManageService.getNotifications(0, 10, "createdAt", "desc", false))
+                .thenReturn(pageOf(response));
 
         // when
         MvcTestResult result = mockMvc.get().uri("/api/v1/notifications").exchange();
@@ -105,7 +111,11 @@ class NotificationControllerTest {
         when(mockNotificationManageService.getNotifications(1, 5, "createdAt", "desc", true)).thenReturn(pageOf());
 
         // when / then
-        assertThat(mockMvc.get().uri("/api/v1/notifications").param("page", "1").param("size", "5").param("unreadOnly", "true"))
+        assertThat(mockMvc.get()
+                .uri("/api/v1/notifications")
+                .param("page", "1")
+                .param("size", "5")
+                .param("unreadOnly", "true"))
                 .hasStatusOk();
 
         verify(mockNotificationManageService).getNotifications(1, 5, "createdAt", "desc", true);
@@ -145,7 +155,8 @@ class NotificationControllerTest {
         MvcTestResult pending = mockMvc.get().uri("/api/v1/notifications/wait").param("afterId", "5").asyncExchange();
         assertThat(pending).request().hasAsyncStarted(true);
 
-        NotificationResponse response = new NotificationResponse(9L, NotificationEvent.CHANGE_TICKET, 11L, 2L, "Заявка", false,
+        NotificationResponse response = new NotificationResponse(9L, NotificationEvent.CHANGE_TICKET, 11L, 2L, "Заявка",
+                false,
                 Instant.parse("2026-10-05T10:00:00Z"));
         deferred.setResult(ResponseEntity.ok(pageOf(response)));
 
@@ -182,7 +193,8 @@ class NotificationControllerTest {
     @DisplayName("GET /wait?timeoutSec=99 → 400 (значение вне 1..30)")
     void waitForNew_timeoutOutOfRange_badRequest() {
         // given / when / then
-        assertThat(mockMvc.get().uri("/api/v1/notifications/wait").param("timeoutSec", "99")).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(mockMvc.get().uri("/api/v1/notifications/wait").param("timeoutSec", "99"))
+                .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     // ────────────────────────────────────────────────
@@ -203,7 +215,8 @@ class NotificationControllerTest {
 
         // then
         assertThat(result).request().hasAsyncStarted(true);
-        assertThat(result).hasStatusOk().hasHeader(HttpHeaders.CACHE_CONTROL, "no-store")
+        assertThat(result).hasStatusOk()
+                .hasHeader(HttpHeaders.CACHE_CONTROL, "no-store")
                 .hasContentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM);
 
         verify(mockNotificationManageService).subscribe(0L, 10);
@@ -213,7 +226,8 @@ class NotificationControllerTest {
     @DisplayName("GET /stream?afterId=-1 → 400 (значение вне диапазона), в сервис не уходим")
     void stream_afterIdNegative_badRequest() {
         // given / when / then
-        assertThat(mockMvc.get().uri("/api/v1/notifications/stream").param("afterId", "-1")).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(mockMvc.get().uri("/api/v1/notifications/stream").param("afterId", "-1"))
+                .hasStatus(HttpStatus.BAD_REQUEST);
 
         verifyNoInteractions(mockNotificationManageService);
     }
@@ -222,7 +236,8 @@ class NotificationControllerTest {
     @DisplayName("GET /stream?size=51 → 400 (значение вне 1..50)")
     void stream_sizeOutOfRange_badRequest() {
         // given / when / then
-        assertThat(mockMvc.get().uri("/api/v1/notifications/stream").param("size", "51")).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(mockMvc.get().uri("/api/v1/notifications/stream").param("size", "51"))
+                .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     // ────────────────────────────────────────────────
@@ -233,7 +248,8 @@ class NotificationControllerTest {
     @DisplayName("PUT /{id}/read → 204")
     void markRead_existingNotification_returnsNoContent() throws NotificationException {
         // given / when / then
-        assertThat(mockMvc.put().uri("/api/v1/notifications/{id}/read", NOTIFICATION_ID)).hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mockMvc.put().uri("/api/v1/notifications/{id}/read", NOTIFICATION_ID))
+                .hasStatus(HttpStatus.NO_CONTENT);
 
         verify(mockNotificationManageService).markRead(NOTIFICATION_ID);
     }
@@ -242,7 +258,8 @@ class NotificationControllerTest {
     @DisplayName("PUT /{id}/read → уведомление не найдено → 404 problem+json")
     void markRead_missingNotification_returnsNotFound() throws NotificationException {
         // given
-        doThrow(NotificationException.notFound("Уведомление не найдено")).when(mockNotificationManageService).markRead(NOTIFICATION_ID);
+        doThrow(NotificationException.notFound("Уведомление не найдено")).when(mockNotificationManageService)
+                .markRead(NOTIFICATION_ID);
 
         // when / then
         MvcTestResult result = mockMvc.put().uri("/api/v1/notifications/{id}/read", NOTIFICATION_ID).exchange();
@@ -289,7 +306,10 @@ class NotificationControllerTest {
         String body = "{\"events\":[\"NEW_MESSAGE\"],\"repeatEnabled\":false,\"repeatIntervalMinutes\":5}";
 
         // when
-        MvcTestResult result = mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(body)
+        MvcTestResult result = mockMvc.put()
+                .uri("/api/v1/notifications/preferences")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
                 .exchange();
 
         // then
@@ -306,7 +326,10 @@ class NotificationControllerTest {
         String body = "{\"events\":[]}";
 
         // when / then
-        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(body))
+        assertThat(mockMvc.put()
+                .uri("/api/v1/notifications/preferences")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
                 .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
@@ -317,7 +340,10 @@ class NotificationControllerTest {
         String body = "{\"events\":[\"SOME_UNKNOWN_EVENT\"]}";
 
         // when / then
-        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(body))
+        assertThat(mockMvc.put()
+                .uri("/api/v1/notifications/preferences")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
                 .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
@@ -329,9 +355,15 @@ class NotificationControllerTest {
         String tooLarge = "{\"events\":[\"NEW_TICKET\"],\"repeatIntervalMinutes\":10081}";
 
         // when / then
-        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(tooSmall))
+        assertThat(mockMvc.put()
+                .uri("/api/v1/notifications/preferences")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tooSmall))
                 .hasStatus(HttpStatus.BAD_REQUEST);
-        assertThat(mockMvc.put().uri("/api/v1/notifications/preferences").contentType(MediaType.APPLICATION_JSON).content(tooLarge))
+        assertThat(mockMvc.put()
+                .uri("/api/v1/notifications/preferences")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tooLarge))
                 .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
@@ -339,7 +371,12 @@ class NotificationControllerTest {
 
     private PageResponse<NotificationResponse> pageOf(NotificationResponse... content) {
         List<NotificationResponse> items = List.of(content);
-        return new PageResponse.Builder<NotificationResponse>().content(items).page(0).size(10).totalElements(items.size())
-                .totalPages(items.isEmpty() ? 0 : 1).last(true).build();
+        return new PageResponse.Builder<NotificationResponse>().content(items)
+                .page(0)
+                .size(10)
+                .totalElements(items.size())
+                .totalPages(items.isEmpty() ? 0 : 1)
+                .last(true)
+                .build();
     }
 }

@@ -22,7 +22,8 @@ public class ChangeTokenService {
     private final DecodeTokenService decodeTokenService;
     private final FindTokenService findTokenService;
 
-    public RefreshTokenModel changeStatusRefreshToken(HttpServletRequest request, TokenStatus newStatus) throws TokenException {
+    public RefreshTokenModel changeStatusRefreshToken(HttpServletRequest request, TokenStatus newStatus)
+            throws TokenException {
         TokenBearer tokenBearer = new Token(decodeTokenService.extractTokenFromCookies(request, "refreshToken"));
         RefreshTokenModel refreshToken = findTokenService.findRefreshToken(tokenBearer);
         TokenStatus previousStatus = refreshToken.getStatus();

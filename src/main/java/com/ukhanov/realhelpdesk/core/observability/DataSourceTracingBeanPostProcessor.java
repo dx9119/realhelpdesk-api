@@ -15,16 +15,17 @@ import io.opentelemetry.instrumentation.jdbc.datasource.JdbcTelemetry;
 import io.opentelemetry.instrumentation.jdbc.datasource.OpenTelemetryDataSource;
 
 /**
- * Трассировка SQL через opentelemetry-jdbc: соединения из пула Hikari оборачиваются в {@link OpenTelemetryDataSource}, поэтому каждый
- * JDBC-запрос получает спан {@code db.client.query} с таймингом и санитизированным SQL (параметры в спан не попадают:
- * captureQueryParameters выключен по умолчанию).
+ * Трассировка SQL через opentelemetry-jdbc: соединения из пула Hikari оборачиваются в {@link OpenTelemetryDataSource},
+ * поэтому каждый JDBC-запрос получает спан {@code db.client.query} с таймингом и санитизированным SQL (параметры в спан
+ * не попадают: captureQueryParameters выключен по умолчанию).
  *
  * <p>
  * Обёртка возвращает {@link javax.sql.DataSource}, а не {@link HikariDataSource}, поэтому штатный биндовщик Boot
- * (HikariDataSourceMeterBinder) на обёрнутом бине метрики пула не видит. Компенсируем: в момент пост-обработки на делегат ставится
- * {@link MicrometerMetricsTrackerFactory} — метрики hikaricp.connections.* с тегом pool сохраняются. Порядок с биндовщиком Boot не важен:
- * он либо уже привязал метрики (тогда trackerFactory не null и мы не трогаем пул), либо привязывает после нас и получает обёртку, которую
- * игнорирует. Без бина {@link OpenTelemetry} (старые окружения, юнит-контексты) бин не оборачивается вовсе.
+ * (HikariDataSourceMeterBinder) на обёрнутом бине метрики пула не видит. Компенсируем: в момент пост-обработки на
+ * делегат ставится {@link MicrometerMetricsTrackerFactory} — метрики hikaricp.connections.* с тегом pool сохраняются.
+ * Порядок с биндовщиком Boot не важен: он либо уже привязал метрики (тогда trackerFactory не null и мы не трогаем пул),
+ * либо привязывает после нас и получает обёртку, которую игнорирует. Без бина {@link OpenTelemetry} (старые окружения,
+ * юнит-контексты) бин не оборачивается вовсе.
  * </p>
  */
 @Component
@@ -35,7 +36,8 @@ public class DataSourceTracingBeanPostProcessor implements BeanPostProcessor {
 
     private final ObjectProvider<MeterRegistry> meterRegistries;
 
-    public DataSourceTracingBeanPostProcessor(ObjectProvider<OpenTelemetry> openTelemetry, ObjectProvider<MeterRegistry> meterRegistries) {
+    public DataSourceTracingBeanPostProcessor(ObjectProvider<OpenTelemetry> openTelemetry,
+            ObjectProvider<MeterRegistry> meterRegistries) {
         this.openTelemetry = openTelemetry;
         this.meterRegistries = meterRegistries;
     }
@@ -57,7 +59,8 @@ public class DataSourceTracingBeanPostProcessor implements BeanPostProcessor {
         if (hikari.getMetricsTrackerFactory() != null) {
             return;
         }
-        meterRegistries.orderedStream().findFirst()
+        meterRegistries.orderedStream()
+                .findFirst()
                 .ifPresent(registry -> hikari.setMetricsTrackerFactory(new MicrometerMetricsTrackerFactory(registry)));
     }
 }

@@ -12,14 +12,15 @@ import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Ошибки внутри SpEL-выражения {@code @PreAuthorize} фреймворк оборачивает в IllegalArgumentException — без распаковки клиент получал бы
- * 500 вместо 404 (и у сообщений, и у вложений).
+ * Ошибки внутри SpEL-выражения {@code @PreAuthorize} фреймворк оборачивает в IllegalArgumentException — без распаковки
+ * клиент получал бы 500 вместо 404 (и у сообщений, и у вложений).
  */
 @DisplayName("Тесты GlobalExceptionHandler: распаковка ошибки из выражения @PreAuthorize")
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
-    private final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portals/1/tickets/2/attachments");
+    private final MockHttpServletRequest request = new MockHttpServletRequest("GET",
+            "/api/v1/portals/1/tickets/2/attachments");
 
     @Test
     @DisplayName("IllegalArgumentException с причиной ApiException → статус и текст ApiException (404), а не 500")
@@ -45,7 +46,8 @@ class GlobalExceptionHandlerTest {
 
         // given
         // when
-        ResponseEntity<ProblemDetail> response = handler.handleIllegalArgument(new IllegalArgumentException("boom"), request);
+        ResponseEntity<ProblemDetail> response = handler.handleIllegalArgument(new IllegalArgumentException("boom"),
+                request);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);

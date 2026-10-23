@@ -12,11 +12,10 @@ import com.ukhanov.realhelpdesk.domain.ticket.model.TicketModel;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.dto.CreateTicketRequest;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.dto.TicketResponse;
 
-/** Маппинг заявок: автор и портал приходят отдельными параметрами, статус и приоритет получают значения по умолчанию. */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface TicketMapper {
 
-    /** Копируются заголовок, текст, автор и портал; статус всегда новый, приоритет и доступ — с дефолтами запроса. */
+    // ticketStatus зафиксирован в constant: клиент не может создать заявку сразу закрытой
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "title", source = "request.title")
     @Mapping(target = "body", source = "request.body")

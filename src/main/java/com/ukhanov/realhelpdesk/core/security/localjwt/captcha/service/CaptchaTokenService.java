@@ -1,6 +1,8 @@
 package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service;
 
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Date;
@@ -14,6 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.stereotype.Service;
 
+import com.ukhanov.realhelpdesk.core.config.ConfigValidator;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.config.CaptchaProperties;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaException;
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaReason;
@@ -24,22 +27,22 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 
 /**
- * Подпись и проверка токенов капчи (stateless: ответы и соль не хранятся, состояние — только подписи и {@code iat/exp}). Два типа токенов
- * под одним секретом:
+ * Подпись и проверка токенов капчи (stateless: ответы и соль не хранятся, состояние — только подписи и
+ * {@code iat/exp}). Два типа токенов под одним секретом:
  *
  * <ul>
- * <li><b>challenge</b> — задание, выданное клиенту: {@code typ=challenge}, действие ({@code act}), id ({@code cid}) и уровень
- * ({@code lvl}): pow несёт соль ({@code salt}) и сложность ({@code dif}); emoji — текст задания ({@code pr}), девять глифов ({@code cl}) и
- * HMAC ответа ({@code ah});</li>
- * <li><b>captcha-токен</b> — доказательство решения, предъявляемое на бизнес-операции: {@code typ=captcha}, то же {@code act}, свой
- * одноразовый id ({@code jti}), уровень-источник ({@code src}) и время выдачи challenge ({@code ciat}) для проверки минимального времени
- * заполнения.</li>
+ * <li><b>challenge</b> — задание, выданное клиенту: {@code typ=challenge}, действие ({@code act}), id ({@code cid}) и
+ * уровень ({@code lvl}): pow несёт соль ({@code salt}) и сложность ({@code dif}); emoji — текст задания ({@code pr}),
+ * девять глифов ({@code cl}) и HMAC ответа ({@code ah});</li>
+ * <li><b>captcha-токен</b> — доказательство решения, предъявляемое на бизнес-операции: {@code typ=captcha}, то же
+ * {@code act}, свой одноразовый id ({@code jti}), уровень-источник ({@code src}) и время выдачи challenge
+ * ({@code ciat}) для проверки минимального времени заполнения.</li>
  * </ul>
  *
  * <p>
- * Тип в подписи не даёт подменить challenge токеном (и наоборот), привязка {@code act} — не пропустить токен чужого действия; просрочка и
- * подделка подписи ловятся разбором JWT. Ответ эмодзи-задания хранится только в виде HMAC — сервер не помнит правильные ячейки, сверяет
- * присланные индексы по подписанному хэшу.
+ * Тип в подписи не даёт подменить challenge токеном (и наоборот), привязка {@code act} — не пропустить токен чужого
+ * действия; просрочка и подделка подписи ловятся разбором JWT. Ответ эмодзи-задания хранится только в виде HMAC —
+ * сервер не помнит правильные ячейки, сверяет присланные индексы по подписанному хэшу.
  * </p>
  */
 @Service
@@ -63,6 +66,10 @@ public class CaptchaTokenService {
 
     /** Верхняя граница сложности PoW: число ведущих нулевых бит SHA-256. */
     public static final int MAX_POW_DIFFICULTY = 26;
+
+    private static final int MIN_TTL_SECONDS = 10;
+    private static final int MAX_TTL_SECONDS = 86_400;
+    private static final int MAX_MIN_FILL_SECONDS = 3_600;
 
     private static final Set<String> ACTIONS = Set.of(ACTION_REGISTER, ACTION_EMAIL_CODE);
     private static final Set<String> LEVELS = Set.of(LEVEL_POW, LEVEL_EMOJI);
@@ -97,19 +104,11 @@ public class CaptchaTokenService {
         Integer challengeTtl = properties.getChallengeTtlSeconds();
         Integer tokenTtl = properties.getTokenTtlSeconds();
         Integer minFill = properties.getMinFillSeconds();
-        if (difficulty == null || difficulty < 1 || difficulty > MAX_POW_DIFFICULTY) {
-            throw new IllegalStateException(
-                    "captcha.pow-difficulty должен быть в диапазоне 1.." + MAX_POW_DIFFICULTY + ", получено " + difficulty);
-        }
-        if (challengeTtl == null || challengeTtl < 10 || challengeTtl > 86_400) {
-            throw new IllegalStateException("captcha.challenge-ttl-seconds должен быть в диапазоне 10..86400, получено " + challengeTtl);
-        }
-        if (tokenTtl == null || tokenTtl < 10 || tokenTtl > 86_400) {
-            throw new IllegalStateException("captcha.token-ttl-seconds должен быть в диапазоне 10..86400, получено " + tokenTtl);
-        }
-        if (minFill == null || minFill < 0 || minFill > 3_600) {
-            throw new IllegalStateException("captcha.min-fill-seconds должен быть в диапазоне 0..3600, получено " + minFill);
-        }
+        ConfigValidator.requireInRange(difficulty, 1, MAX_POW_DIFFICULTY, "captcha.pow-difficulty");
+        ConfigValidator.requireInRange(challengeTtl, MIN_TTL_SECONDS, MAX_TTL_SECONDS,
+                "captcha.challenge-ttl-seconds");
+        ConfigValidator.requireInRange(tokenTtl, MIN_TTL_SECONDS, MAX_TTL_SECONDS, "captcha.token-ttl-seconds");
+        ConfigValidator.requireInRange(minFill, 0, MAX_MIN_FILL_SECONDS, "captcha.min-fill-seconds");
     }
 
     /** Случайный 128-битный идентификатор в hex: id challenge или id токена. */
@@ -132,35 +131,53 @@ public class CaptchaTokenService {
         requireAction(action);
         requirePowDifficulty(difficulty);
         Instant now = Instant.now();
-        return Jwts.builder().claim(CLAIM_TYPE, TYPE_CHALLENGE).claim(CLAIM_ACTION, action).claim(CLAIM_CHALLENGE_ID, challengeId)
-                .claim(CLAIM_LEVEL, LEVEL_POW).claim(CLAIM_SALT, salt).claim(CLAIM_DIFFICULTY, difficulty).issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(properties.getChallengeTtlSeconds()))).signWith(captchaSecretKey).compact();
+        return Jwts.builder()
+                .claim(CLAIM_TYPE, TYPE_CHALLENGE)
+                .claim(CLAIM_ACTION, action)
+                .claim(CLAIM_CHALLENGE_ID, challengeId)
+                .claim(CLAIM_LEVEL, LEVEL_POW)
+                .claim(CLAIM_SALT, salt)
+                .claim(CLAIM_DIFFICULTY, difficulty)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(properties.getChallengeTtlSeconds())))
+                .signWith(captchaSecretKey)
+                .compact();
     }
 
     /**
-     * Подписанный эмодзи-challenge на действие: задание, девять глифов и HMAC правильного ответа. Соль/сложность не участвуют — уровень
-     * выбирается сервером при выдаче.
+     * Подписанный эмодзи-challenge на действие: задание, девять глифов и HMAC правильного ответа. Соль/сложность не
+     * участвуют — уровень выбирается сервером при выдаче.
      */
-    public String issueEmojiChallenge(String action, String challengeId, String prompt, List<String> cells, String answerHash) {
+    public String issueEmojiChallenge(String action, String challengeId, String prompt, List<String> cells,
+            String answerHash) {
         requireAction(action);
-        if (cells == null || cells.size() < CELLS_MIN || cells.size() > CELLS_MAX || prompt == null || prompt.isBlank()
-                || answerHash == null || answerHash.isBlank()) {
+        if (cells == null || cells.size() < CELLS_MIN || cells.size() > CELLS_MAX) {
+            throw new IllegalArgumentException(
+                    "Эмодзи-challenge требует prompt, cells (" + CELLS_MIN + ".." + CELLS_MAX + ") и answerHash");
+        }
+        if (isBlank(prompt) || isBlank(answerHash)) {
             throw new IllegalArgumentException(
                     "Эмодзи-challenge требует prompt, cells (" + CELLS_MIN + ".." + CELLS_MAX + ") и answerHash");
         }
         Instant now = Instant.now();
-        return Jwts.builder().claim(CLAIM_TYPE, TYPE_CHALLENGE).claim(CLAIM_ACTION, action).claim(CLAIM_CHALLENGE_ID, challengeId)
-                .claim(CLAIM_LEVEL, LEVEL_EMOJI).claim(CLAIM_PROMPT, prompt).claim(CLAIM_CELLS, String.join(CELLS_SEPARATOR, cells))
-                .claim(CLAIM_ANSWER_HASH, answerHash).issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(properties.getChallengeTtlSeconds()))).signWith(captchaSecretKey).compact();
+        return Jwts.builder()
+                .claim(CLAIM_TYPE, TYPE_CHALLENGE)
+                .claim(CLAIM_ACTION, action)
+                .claim(CLAIM_CHALLENGE_ID, challengeId)
+                .claim(CLAIM_LEVEL, LEVEL_EMOJI)
+                .claim(CLAIM_PROMPT, prompt)
+                .claim(CLAIM_CELLS, String.join(CELLS_SEPARATOR, cells))
+                .claim(CLAIM_ANSWER_HASH, answerHash)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(properties.getChallengeTtlSeconds())))
+                .signWith(captchaSecretKey)
+                .compact();
     }
 
     /** Разбор challenge: подпись, срок, тип и уровень; клиентское действие проверяется при выдаче токена. */
     public ChallengeClaims parseChallenge(String token) throws CaptchaException {
         Claims claims = parse(token);
-        if (!TYPE_CHALLENGE.equals(claims.get(CLAIM_TYPE, String.class))) {
-            throw new CaptchaException("Провал прохождения капчи", CaptchaReason.WRONG_TYPE);
-        }
+        requireChallengeType(claims);
         String action = claims.get(CLAIM_ACTION, String.class);
         String challengeId = claims.get(CLAIM_CHALLENGE_ID, String.class);
         String level = claims.get(CLAIM_LEVEL, String.class);
@@ -169,19 +186,34 @@ public class CaptchaTokenService {
         }
         Instant issuedAt = claims.getIssuedAt() != null ? claims.getIssuedAt().toInstant() : Instant.EPOCH;
         if (LEVEL_EMOJI.equals(level)) {
-            String prompt = claims.get(CLAIM_PROMPT, String.class);
-            String cellsRaw = claims.get(CLAIM_CELLS, String.class);
-            String answerHash = claims.get(CLAIM_ANSWER_HASH, String.class);
-            if (prompt == null || prompt.isBlank() || cellsRaw == null || cellsRaw.isBlank() || answerHash == null
-                    || answerHash.isBlank()) {
-                throw new CaptchaException("Провал прохождения капчи", CaptchaReason.INVALID);
-            }
-            List<String> cells = List.of(cellsRaw.split("\\" + CELLS_SEPARATOR, -1));
-            if (cells.size() < CELLS_MIN || cells.size() > CELLS_MAX) {
-                throw new CaptchaException("Провал прохождения капчи", CaptchaReason.INVALID);
-            }
-            return new ChallengeClaims(challengeId, null, null, action, issuedAt, LEVEL_EMOJI, prompt, cells, answerHash);
+            return parseEmojiClaims(claims, action, challengeId, issuedAt);
         }
+        return parsePowClaims(claims, action, challengeId, issuedAt);
+    }
+
+    private static void requireChallengeType(Claims claims) throws CaptchaException {
+        if (!TYPE_CHALLENGE.equals(claims.get(CLAIM_TYPE, String.class))) {
+            throw new CaptchaException("Провал прохождения капчи", CaptchaReason.WRONG_TYPE);
+        }
+    }
+
+    private static ChallengeClaims parseEmojiClaims(Claims claims, String action, String challengeId, Instant issuedAt)
+            throws CaptchaException {
+        String prompt = claims.get(CLAIM_PROMPT, String.class);
+        String cellsRaw = claims.get(CLAIM_CELLS, String.class);
+        String answerHash = claims.get(CLAIM_ANSWER_HASH, String.class);
+        if (isBlank(prompt) || isBlank(cellsRaw) || isBlank(answerHash)) {
+            throw new CaptchaException("Провал прохождения капчи", CaptchaReason.INVALID);
+        }
+        List<String> cells = List.of(cellsRaw.split("\\" + CELLS_SEPARATOR, -1));
+        if (cells.size() < CELLS_MIN || cells.size() > CELLS_MAX) {
+            throw new CaptchaException("Провал прохождения капчи", CaptchaReason.INVALID);
+        }
+        return new ChallengeClaims(challengeId, null, null, action, issuedAt, LEVEL_EMOJI, prompt, cells, answerHash);
+    }
+
+    private static ChallengeClaims parsePowClaims(Claims claims, String action, String challengeId, Instant issuedAt)
+            throws CaptchaException {
         String salt = claims.get(CLAIM_SALT, String.class);
         Integer difficulty = claims.get(CLAIM_DIFFICULTY, Integer.class);
         if (salt == null || difficulty == null) {
@@ -191,8 +223,8 @@ public class CaptchaTokenService {
     }
 
     /**
-     * HMAC правильного ответа эмодзи-задания: {@code HMAC(id_challenge + ":" + индексы через запятую)}. Индексы канонизируются
-     * (сортируются) до подписи — порядок в списке клиента не важен.
+     * HMAC правильного ответа эмодзи-задания: {@code HMAC(id_challenge + ":" + индексы через запятую)}. Индексы
+     * канонизируются (сортируются) до подписи — порядок в списке клиента не важен.
      */
     public String answerHash(String challengeId, List<Integer> answer) {
         if (challengeId == null || answer == null) {
@@ -204,7 +236,7 @@ public class CaptchaTokenService {
             mac.init(new SecretKeySpec(captchaSecretKey.getEncoded(), HMAC_ALGORITHM));
             byte[] digest = mac.doFinal((challengeId + ":" + canonical).getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
-        } catch (Exception e) {
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new IllegalStateException("Не удалось вычислить HMAC ответа эмодзи-задания", e);
         }
     }
@@ -216,9 +248,16 @@ public class CaptchaTokenService {
             throw new IllegalArgumentException("Неизвестный источник токена капчи: " + source);
         }
         Instant now = Instant.now();
-        return Jwts.builder().claim(CLAIM_TYPE, TYPE_CAPTCHA).claim(CLAIM_ACTION, action).id(randomId()).claim(CLAIM_SOURCE, source)
-                .claim(CLAIM_CHALLENGE_ISSUED_AT, Date.from(challengeIssuedAt)).issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(properties.getTokenTtlSeconds()))).signWith(captchaSecretKey).compact();
+        return Jwts.builder()
+                .claim(CLAIM_TYPE, TYPE_CAPTCHA)
+                .claim(CLAIM_ACTION, action)
+                .id(randomId())
+                .claim(CLAIM_SOURCE, source)
+                .claim(CLAIM_CHALLENGE_ISSUED_AT, Date.from(challengeIssuedAt))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(properties.getTokenTtlSeconds())))
+                .signWith(captchaSecretKey)
+                .compact();
     }
 
     /** Разбор captcha-токена: подпись, срок, тип, привязка к действию и уровень-источник решения. */
@@ -271,11 +310,16 @@ public class CaptchaTokenService {
         }
     }
 
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     /**
-     * Разобранный challenge: id и действие всегда; для уровня pow — соль и сложность, для emoji — задание, глифы и HMAC ответа; level —
-     * уровень задания.
+     * Разобранный challenge: id и действие всегда; для уровня pow — соль и сложность, для emoji — задание, глифы и HMAC
+     * ответа; level — уровень задания.
      */
-    public record ChallengeClaims(String challengeId, String salt, Integer difficulty, String action, Instant issuedAt, String level,
+    public record ChallengeClaims(String challengeId, String salt, Integer difficulty, String action, Instant issuedAt,
+            String level,
             String prompt, List<String> cells, String answerHash) {
     }
 

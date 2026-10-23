@@ -9,13 +9,13 @@ import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoRequest;
 import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoResponse;
 
-/** Маппинг профиля пользователя: в ответ уходят только публичные поля, служебные (пароль, токены) не вытекают. */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserMapper {
 
     UserInfoResponse toResponse(UserModel userModel);
 
-    /** Обновление профиля трогает только ФИО и доп. инфо: почта, пароль и статусы меняются отдельными потоками. */
+    // ignoreByDefault: email, пароль и статусы меняются отдельными потоками (подтверждение, сброс), а не этим
+    // эндпоинтом
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "firstName", source = "request.firstName")
     @Mapping(target = "lastName", source = "request.lastName")

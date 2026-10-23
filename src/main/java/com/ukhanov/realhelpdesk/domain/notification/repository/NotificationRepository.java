@@ -25,15 +25,17 @@ public interface NotificationRepository extends JpaRepository<NotificationModel,
     Page<NotificationModel> findByRecipientIdAndReadFalse(Long recipientId, Pageable pageable);
 
     /** Новые для long polling: строго больше курсора, по возрастанию id — клиент догоняет пачками. */
-    List<NotificationModel> findByRecipientIdAndIdGreaterThanOrderByIdAsc(Long recipientId, Long afterId, Pageable pageable);
+    List<NotificationModel> findByRecipientIdAndIdGreaterThanOrderByIdAsc(Long recipientId, Long afterId,
+            Pageable pageable);
 
     Optional<NotificationModel> findByIdAndRecipientId(Long id, Long recipientId);
 
     long countByRecipientIdAndReadFalse(Long recipientId);
 
     /**
-     * Кандидаты на повтор: непрочитанные строки повторяемых событий, являющиеся последними в своей группе (более новые непрочитанные копии
-     * той же группы отсекаются, чтобы цепочка повторов не размножалась). Следующий фильтр — по настройкам получателя — в коде.
+     * Кандидаты на повтор: непрочитанные строки повторяемых событий, являющиеся последними в своей группе (более новые
+     * непрочитанные копии той же группы отсекаются, чтобы цепочка повторов не размножалась). Следующий фильтр — по
+     * настройкам получателя — в коде.
      */
     @Query("""
             select n from NotificationModel n

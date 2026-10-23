@@ -18,19 +18,20 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Полная документированность реагирования: каждому алерту Mimir соответствует runbook в {@code docs/runbooks/} и наоборот,
- * {@code overview.md} ссылается на все runbooks.
+ * Полная документированность реагирования: каждому алерту Mimir соответствует runbook в {@code docs/runbooks/} и
+ * наоборот, {@code overview.md} ссылается на все runbooks.
  *
  * <p>
- * Диагностические команды обязаны быть исполняемыми: raw query-string в curl ломается на глобах ({@code [5m]}, {@code {...}} → curl exit
- * 3), поэтому PromQL/LogQL/TraceQL — только через {@code -G --data-urlencode}; устаревший эндпоинт Tempo {@code /traceql/search} отвечает
- * 404.
+ * Диагностические команды обязаны быть исполняемыми: raw query-string в curl ломается на глобах ({@code [5m]},
+ * {@code {...}} → curl exit 3), поэтому PromQL/LogQL/TraceQL — только через {@code -G --data-urlencode}; устаревший
+ * эндпоинт Tempo {@code /traceql/search} отвечает 404.
  * </p>
  */
 @DisplayName("Алерты Mimir ↔ runbooks: полнота документации и рабочие команды")
 class ObservabilityRunbookGuardTest {
 
-    private static final Path RULES = Path.of("infrastructure", "observability", "mimir", "rules", "anonymous", "realhelpdesk.yml");
+    private static final Path RULES = Path.of("infrastructure", "observability", "mimir", "rules", "anonymous",
+            "realhelpdesk.yml");
 
     private static final Path RUNBOOKS_DIR = Path.of("docs", "runbooks");
 
@@ -45,8 +46,12 @@ class ObservabilityRunbookGuardTest {
 
     private static final Pattern RUNBOOK_HEADER = Pattern.compile("(?m)^# Runbook: (\\S+)");
 
-    /** Паттерны, ломающие диагностику в runbooks и overview: 404-эндпоинт Tempo, неверное имя счётчика, raw query-string в curl. */
-    private static final List<String> FORBIDDEN = List.of("traceql/search", "query=tickets_created_total", "rate(tickets_created_total",
+    /**
+     * Паттерны, ломающие диагностику в runbooks и overview: 404-эндпоинт Tempo, неверное имя счётчика, raw query-string
+     * в curl.
+     */
+    private static final List<String> FORBIDDEN = List.of("traceql/search", "query=tickets_created_total",
+            "rate(tickets_created_total",
             "api/v1/query?query=");
 
     @Test
@@ -70,7 +75,8 @@ class ObservabilityRunbookGuardTest {
         for (String file : files) {
             headers.addAll(matches(read(RUNBOOKS_DIR.resolve(file)), RUNBOOK_HEADER));
         }
-        assertThat(headers).as("заголовок '# Runbook: <Alert>' совпадает с именем алерта").containsExactlyInAnyOrderElementsOf(alerts);
+        assertThat(headers).as("заголовок '# Runbook: <Alert>' совпадает с именем алерта")
+                .containsExactlyInAnyOrderElementsOf(alerts);
     }
 
     @Test
@@ -101,7 +107,9 @@ class ObservabilityRunbookGuardTest {
                 assertThat(text).as("%s не должен содержать %s".formatted(file, forbidden)).doesNotContain(forbidden);
             }
             if (text.contains("3200/api/search")) {
-                assertThat(text).as("%s: поиск Tempo обязан задавать окно start/end — без него виден только живой ingester".formatted(file))
+                assertThat(text)
+                        .as("%s: поиск Tempo обязан задавать окно start/end — без него виден только живой ingester"
+                                .formatted(file))
                         .contains("start=");
             }
         }

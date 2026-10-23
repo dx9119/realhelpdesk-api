@@ -45,18 +45,23 @@ public interface JwtRefreshTokenRepository extends JpaRepository<RefreshTokenMod
     long countByStatusAndCreatedAtBefore(TokenStatus status, Instant cutoff);
 
     /**
-     * Идентификаторы отозванных строк старше порога, по одному батчу: {@link Pageable} ограничивает выборку, сортировка — старые первыми.
+     * Идентификаторы отозванных строк старше порога, по одному батчу: {@link Pageable} ограничивает выборку, сортировка
+     * — старые первыми.
      */
-    @Query("SELECT t.uuid FROM RefreshTokenModel t WHERE t.status <> :activeStatus AND t.createdAt < :cutoff ORDER BY t.createdAt ASC")
-    List<UUID> findInactiveIdsBefore(@Param("activeStatus") TokenStatus activeStatus, @Param("cutoff") Instant cutoff, Pageable pageable);
+    @Query("SELECT t.uuid FROM RefreshTokenModel t WHERE t.status <> :activeStatus AND t.createdAt < :cutoff "
+            + "ORDER BY t.createdAt ASC")
+    List<UUID> findInactiveIdsBefore(@Param("activeStatus") TokenStatus activeStatus, @Param("cutoff") Instant cutoff,
+            Pageable pageable);
 
     /** Идентификаторы активных строк старше срока жизни refresh-токена, по одному батчу. */
-    @Query("SELECT t.uuid FROM RefreshTokenModel t WHERE t.status = :activeStatus AND t.createdAt < :cutoff ORDER BY t.createdAt ASC")
-    List<UUID> findActiveIdsBefore(@Param("activeStatus") TokenStatus activeStatus, @Param("cutoff") Instant cutoff, Pageable pageable);
+    @Query("SELECT t.uuid FROM RefreshTokenModel t WHERE t.status = :activeStatus AND t.createdAt < :cutoff "
+            + "ORDER BY t.createdAt ASC")
+    List<UUID> findActiveIdsBefore(@Param("activeStatus") TokenStatus activeStatus, @Param("cutoff") Instant cutoff,
+            Pageable pageable);
 
     /**
-     * Удаление одного батча по идентификаторам: вместо монолитного {@code DELETE} таблицы — короткая транзакция на порцию, чтобы очистка не
-     * создавала пиковой нагрузки на БД.
+     * Удаление одного батча по идентификаторам: вместо монолитного {@code DELETE} таблицы — короткая транзакция на
+     * порцию, чтобы очистка не создавала пиковой нагрузки на БД.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM RefreshTokenModel t WHERE t.uuid IN :ids")

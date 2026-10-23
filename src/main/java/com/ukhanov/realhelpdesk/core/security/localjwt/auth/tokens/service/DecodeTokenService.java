@@ -36,7 +36,10 @@ public class DecodeTokenService {
             throw new MalformedJwtException("Токен отсутствует или пуст");
         }
 
-        Claims claims = Jwts.parser().verifyWith((SecretKey) jwtConfig.getJwtKey()).build().parseSignedClaims(token.getToken())
+        Claims claims = Jwts.parser()
+                .verifyWith((SecretKey) jwtConfig.getJwtKey())
+                .build()
+                .parseSignedClaims(token.getToken())
                 .getPayload();
 
         // Обязательные поля
@@ -44,7 +47,8 @@ public class DecodeTokenService {
             throw new JwtException("Отсутствует claim 'subject' в токене");
         }
 
-        logger.debug("Разобран {} токен, userId={}, jti={}", claims.get(JwtClaims.TYPE), claims.getSubject(), claims.getId());
+        logger.debug("Разобран {} токен, userId={}, jti={}", claims.get(JwtClaims.TYPE), claims.getSubject(),
+                claims.getId());
 
         return claims;
     }

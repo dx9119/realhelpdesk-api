@@ -15,9 +15,10 @@ import com.ukhanov.realhelpdesk.domain.ticket.model.TicketLiveStatus;
 public interface AttachmentRepository extends JpaRepository<AttachmentModel, Long> {
 
     /**
-     * Принадлежность цепочкой attachment → message → ticket → portal проверяется здесь же, в запросе: это даёт 404 вместо 403 и не
-     * подтверждает существование чужого файла. message и uploadedBy — fetch-join: метаданные ответа читаются одним select'ом и без
-     * пробуждения ленивых связей вне транзакции (OSIV выключен). Мёртвая заявка (ticketLiveStatus) файлов не отдаёт.
+     * Принадлежность цепочкой attachment → message → ticket → portal проверяется здесь же, в запросе: это даёт 404
+     * вместо 403 и не подтверждает существование чужого файла. message и uploadedBy — fetch-join: метаданные ответа
+     * читаются одним select'ом и без пробуждения ленивых связей вне транзакции (OSIV выключен). Мёртвая заявка
+     * (ticketLiveStatus) файлов не отдаёт.
      */
     @Query("""
                 SELECT a FROM AttachmentModel a

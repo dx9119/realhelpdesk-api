@@ -45,7 +45,8 @@ class CaptchaConfigTest {
     void captchaSecretKey_tooShort_fails() {
         // given / when / then
         assertThatThrownBy(() -> config.captchaSecretKey(properties("0123456789abcdef0123456789abcde")))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("минимум 32 байта");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("минимум 32 байта");
     }
 
     private CaptchaProperties properties(String secret) {

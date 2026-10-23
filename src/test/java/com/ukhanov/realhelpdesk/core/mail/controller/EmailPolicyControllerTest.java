@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import com.ukhanov.realhelpdesk.core.config.ClientIpProperties;
 import com.ukhanov.realhelpdesk.core.exception.GlobalExceptionHandler;
+import com.ukhanov.realhelpdesk.core.exception.InfrastructureExceptionHandler;
 import com.ukhanov.realhelpdesk.core.http.ClientIpResolver;
 import com.ukhanov.realhelpdesk.core.mail.dto.EmailInfoResponse;
 import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
@@ -57,7 +58,9 @@ class EmailPolicyControllerTest {
         mockMvc = MockMvcTester.of(
                 List.of(new EmailPolicyController(emailDeliveryService, emailPolicyService, captchaService,
                         new ClientIpResolver(new ClientIpProperties()))),
-                builder -> builder.setControllerAdvice(new GlobalExceptionHandler()).build());
+                builder -> builder
+                        .setControllerAdvice(new GlobalExceptionHandler(), new InfrastructureExceptionHandler())
+                        .build());
     }
 
     // ────────────────────────────────────────────────
@@ -77,7 +80,8 @@ class EmailPolicyControllerTest {
     @DisplayName("Неверный код подтверждения → 403 (problem+json)")
     void confirmEmail_wrongToken_returnsForbidden() throws Exception {
         // given
-        doThrow(new EmailAccessDeniedException("Код подтверждения права владения почтой не верный")).when(emailDeliveryService)
+        doThrow(new EmailAccessDeniedException("Код подтверждения права владения почтой не верный"))
+                .when(emailDeliveryService)
                 .confirmEmail(123456L);
 
         // when
@@ -86,7 +90,10 @@ class EmailPolicyControllerTest {
         // then
         assertThat(result).hasStatus(HttpStatus.FORBIDDEN).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
         assertThat(result).bodyJson().extractingPath("$.status").asNumber().isEqualTo(403);
-        assertThat(result).bodyJson().extractingPath("$.detail").asString().isEqualTo("Код подтверждения права владения почтой не верный");
+        assertThat(result).bodyJson()
+                .extractingPath("$.detail")
+                .asString()
+                .isEqualTo("Код подтверждения права владения почтой не верный");
     }
 
     @Test
@@ -155,7 +162,8 @@ class EmailPolicyControllerTest {
     @DisplayName("POST /email/codes c X-Captcha-Token → 202, токен проверен, письмо отправлено")
     void sendConfirmCode_validCaptcha_returnsAccepted() throws Exception {
         // given / when / then
-        assertThat(mockMvc.post().uri("/api/v1/email/codes").header("X-Captcha-Token", "jwt-token")).hasStatus(HttpStatus.ACCEPTED);
+        assertThat(mockMvc.post().uri("/api/v1/email/codes").header("X-Captcha-Token", "jwt-token"))
+                .hasStatus(HttpStatus.ACCEPTED);
 
         verify(captchaService).verify("jwt-token", CaptchaTokenService.ACTION_EMAIL_CODE, "127.0.0.1");
         verify(emailDeliveryService).sendConfirmCode();
@@ -165,8 +173,9 @@ class EmailPolicyControllerTest {
     @DisplayName("Капча не пройдена → 400 с code, письмо не отправляется")
     void sendConfirmCode_captchaFailed_returnsBadRequest() throws Exception {
         // given
-        doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.POW_FAILED)).when(captchaService).verify(any(),
-                eq(CaptchaTokenService.ACTION_EMAIL_CODE), any());
+        doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.POW_FAILED)).when(captchaService)
+                .verify(any(),
+                        eq(CaptchaTokenService.ACTION_EMAIL_CODE), any());
 
         // when
         MvcTestResult result = mockMvc.post().uri("/api/v1/email/codes").header("X-Captcha-Token", "bad").exchange();
@@ -186,7 +195,10 @@ class EmailPolicyControllerTest {
         doThrow(new MailSendException("Connection refused")).when(emailDeliveryService).sendConfirmCode();
 
         // when
-        MvcTestResult result = mockMvc.post().uri("/api/v1/email/codes").header("X-Captcha-Token", "jwt-token").exchange();
+        MvcTestResult result = mockMvc.post()
+                .uri("/api/v1/email/codes")
+                .header("X-Captcha-Token", "jwt-token")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
@@ -201,7 +213,10 @@ class EmailPolicyControllerTest {
         doThrow(new MessagingException("SMTP banner mismatch")).when(emailDeliveryService).sendConfirmCode();
 
         // when
-        MvcTestResult result = mockMvc.post().uri("/api/v1/email/codes").header("X-Captcha-Token", "jwt-token").exchange();
+        MvcTestResult result = mockMvc.post()
+                .uri("/api/v1/email/codes")
+                .header("X-Captcha-Token", "jwt-token")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
@@ -212,11 +227,15 @@ class EmailPolicyControllerTest {
     @DisplayName("Исчерпан лимит писем → 429 (EmailAccessDeniedException c TOO_MANY_REQUESTS)")
     void sendConfirmCode_rateLimited_returnsTooManyRequests() throws Exception {
         // given
-        doThrow(new EmailAccessDeniedException("Исчерпан лимит", HttpStatus.TOO_MANY_REQUESTS)).when(emailDeliveryService)
+        doThrow(new EmailAccessDeniedException("Исчерпан лимит", HttpStatus.TOO_MANY_REQUESTS))
+                .when(emailDeliveryService)
                 .sendConfirmCode();
 
         // when
-        MvcTestResult result = mockMvc.post().uri("/api/v1/email/codes").header("X-Captcha-Token", "jwt-token").exchange();
+        MvcTestResult result = mockMvc.post()
+                .uri("/api/v1/email/codes")
+                .header("X-Captcha-Token", "jwt-token")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.TOO_MANY_REQUESTS);

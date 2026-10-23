@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import com.ukhanov.realhelpdesk.core.config.ClientIpProperties;
 import com.ukhanov.realhelpdesk.core.http.ClientIpResolver;
+import com.ukhanov.realhelpdesk.core.security.localjwt.auth.controller.AuthController;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.login.service.LoginService;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.logout.service.LogoutService;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.refresh.service.RefreshService;
@@ -28,9 +29,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Max-Age auth-cookie берётся из {@code jwt.*-expiration-seconds} (секунды), а не из константы в коде: срок cookie обязан совпадать со
- * сроком жизни самого токена, иначе cookie переживёт токен либо исчезнет раньше него. Секунды в конфиге — чтобы разные сроки можно было
- * проверять, не меняя код.
+ * Max-Age auth-cookie берётся из {@code jwt.*-expiration-seconds} (секунды), а не из константы в коде: срок cookie
+ * обязан совпадать со сроком жизни самого токена, иначе cookie переживёт токен либо исчезнет раньше него. Секунды в
+ * конфиге — чтобы разные сроки можно было проверять, не меняя код.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Max-Age auth-cookie из jwt.*-expiration-seconds")
@@ -57,8 +58,9 @@ class AuthControllerCookieMaxAgeTest {
         jwtProperties = new JwtProperties();
         jwtProperties.setAccessTokenExpirationSeconds(90);
         jwtProperties.setRefreshTokenExpirationSeconds(7200);
-        mockMvc = MockMvcTester.of(new AuthController(registrationService, loginService, logoutService, getTokenService, refreshService,
-                jwtProperties, userManageService, new ClientIpResolver(new ClientIpProperties())));
+        mockMvc = MockMvcTester.of(
+                new AuthController(registrationService, loginService, logoutService, getTokenService, refreshService,
+                        jwtProperties, userManageService, new ClientIpResolver(new ClientIpProperties())));
     }
 
     @Test
@@ -92,8 +94,12 @@ class AuthControllerCookieMaxAgeTest {
     }
 
     private List<String> login() {
-        return mockMvc.post().uri("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"e2e@example.com\",\"password\":\"Passw0rd!123\"}").exchange().getResponse()
+        return mockMvc.post()
+                .uri("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"e2e@example.com\",\"password\":\"Passw0rd!123\"}")
+                .exchange()
+                .getResponse()
                 .getHeaders(HttpHeaders.SET_COOKIE);
     }
 

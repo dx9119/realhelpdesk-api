@@ -47,7 +47,8 @@ class CaptchaRiskServiceTest {
         }
 
         // then
-        assertThat(riskService.riskLevel("1.2.3.4")).as("один внешний адрес NAT не срабатывает как распределённая атака")
+        assertThat(riskService.riskLevel("1.2.3.4"))
+                .as("один внешний адрес NAT не срабатывает как распределённая атака")
                 .isEqualTo(Risk.ELEVATED);
     }
 
@@ -63,8 +64,10 @@ class CaptchaRiskServiceTest {
 
         riskService.recordFailure("1.2.3.5");
 
-        assertThat(riskService.riskLevel("1.2.3.4")).as("в подсети /24 уже два разных провалившихся IP").isEqualTo(Risk.EMOJI);
-        assertThat(riskService.riskLevel("1.2.3.99")).as("эскалация считается по подсети, не по конкретному IP").isEqualTo(Risk.EMOJI);
+        assertThat(riskService.riskLevel("1.2.3.4")).as("в подсети /24 уже два разных провалившихся IP")
+                .isEqualTo(Risk.EMOJI);
+        assertThat(riskService.riskLevel("1.2.3.99")).as("эскалация считается по подсети, не по конкретному IP")
+                .isEqualTo(Risk.EMOJI);
     }
 
     @Test
@@ -95,7 +98,8 @@ class CaptchaRiskServiceTest {
 
         riskService.reset("1.2.3.5");
 
-        assertThat(riskService.riskLevel("1.2.3.4")).as("в подсети остался один провалившийся IP").isNotEqualTo(Risk.EMOJI);
+        assertThat(riskService.riskLevel("1.2.3.4")).as("в подсети остался один провалившийся IP")
+                .isNotEqualTo(Risk.EMOJI);
     }
 
     @Test
@@ -121,17 +125,23 @@ class CaptchaRiskServiceTest {
 
         // given / when / then
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskFailureThreshold(0))))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("risk-failure-threshold");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("risk-failure-threshold");
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskFailureWindowSeconds(5))))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("risk-failure-window-seconds");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("risk-failure-window-seconds");
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskElevatedDifficultyBonus(0))))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("risk-elevated-difficulty-bonus");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("risk-elevated-difficulty-bonus");
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskSubnetOffenderThreshold(0))))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("risk-subnet-offender-threshold");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("risk-subnet-offender-threshold");
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskSubnetPrefixV4(40))))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("risk-subnet-prefix-v4");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("risk-subnet-prefix-v4");
         assertThatThrownBy(() -> new CaptchaRiskService(properties(builder -> builder.riskSubnetPrefixV6(200))))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("risk-subnet-prefix-v6");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("risk-subnet-prefix-v6");
     }
 
     private CaptchaProperties properties() {

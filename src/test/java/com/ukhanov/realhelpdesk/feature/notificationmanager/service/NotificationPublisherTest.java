@@ -115,7 +115,9 @@ class NotificationPublisherTest {
                 Set.of(NotificationEvent.NEW_MESSAGE));
         when(preferencesRepository.findByUserIdIn(anySet())).thenReturn(List.of(preferences));
 
-        publisher.publishToUsers(Set.of(SHOULD_NOT, ANYTHING_OK), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "Заголовок");
+        publisher.publishToUsers(new PublishNotificationCommand(Set.of(SHOULD_NOT, ANYTHING_OK),
+                NotificationEvent.NEW_TICKET, null, TICKET_ID, null,
+                "Заголовок"));
 
         ArgumentCaptor<NotificationModel> captor = ArgumentCaptor.forClass(NotificationModel.class);
         // then
@@ -131,7 +133,8 @@ class NotificationPublisherTest {
 
         // given
         // when
-        publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.RECOVERY_PASSWORD, null, null, null, null);
+        publisher.publishToUsers(new PublishNotificationCommand(Set.of(SHARED_ID), NotificationEvent.RECOVERY_PASSWORD,
+                null, null, null, null));
 
         // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));
@@ -145,10 +148,13 @@ class NotificationPublisherTest {
 
         // given
         // when
-        when(notificationRepository.save(any(NotificationModel.class))).thenThrow(new IllegalStateException("БД недоступна"));
+        when(notificationRepository.save(any(NotificationModel.class)))
+                .thenThrow(new IllegalStateException("БД недоступна"));
 
         // then
-        assertThatCode(() -> publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "Т"))
+        assertThatCode(() -> publisher.publishToUsers(
+                new PublishNotificationCommand(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null, TICKET_ID,
+                        null, "Т")))
                 .doesNotThrowAnyException();
         verify(waitRegistry, never()).wake(any(Long.class));
     }
@@ -161,12 +167,14 @@ class NotificationPublisherTest {
         // when
         TransactionSynchronizationManager.initSynchronization();
 
-        publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "Заявка");
+        publisher.publishToUsers(new PublishNotificationCommand(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null,
+                TICKET_ID, null, "Заявка"));
 
         // then
         verify(waitRegistry, never()).wake(any(Long.class));
 
-        List<TransactionSynchronization> synchronizations = new ArrayList<>(TransactionSynchronizationManager.getSynchronizations());
+        List<TransactionSynchronization> synchronizations = new ArrayList<>(
+                TransactionSynchronizationManager.getSynchronizations());
         assertThat(synchronizations).hasSize(1);
         synchronizations.forEach(TransactionSynchronization::afterCommit);
 
@@ -181,7 +189,8 @@ class NotificationPublisherTest {
         // when
         String longTitle = "ы".repeat(300);
 
-        publisher.publishToUsers(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, longTitle);
+        publisher.publishToUsers(new PublishNotificationCommand(Set.of(SHARED_ID), NotificationEvent.NEW_TICKET, null,
+                TICKET_ID, null, longTitle));
 
         ArgumentCaptor<NotificationModel> captor = ArgumentCaptor.forClass(NotificationModel.class);
         // then
@@ -195,7 +204,8 @@ class NotificationPublisherTest {
 
         // given
         // when
-        publisher.publishToUsers(Set.of(), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "З");
+        publisher.publishToUsers(
+                new PublishNotificationCommand(Set.of(), NotificationEvent.NEW_TICKET, null, TICKET_ID, null, "З"));
 
         // then
         verify(notificationRepository, never()).save(any(NotificationModel.class));

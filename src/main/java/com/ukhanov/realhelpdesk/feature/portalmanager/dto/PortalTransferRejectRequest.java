@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 
 import com.ukhanov.realhelpdesk.core.annotation.NoHtml;
 
-/** Отклонение передачи портала предлагаемым владельцем: причина уходит инициатору и пишется в историю. */
 public record PortalTransferRejectRequest(@NotBlank(message = "Причина обязательна")
-                                           @Size(max = 2000, message = "Причина не может превышать 2000 символов") @NoHtml String reason) {
+                                           @Size(max = 2000, message = "Причина не может превышать 2000 символов")
+                                           @NoHtml String reason) {
 }

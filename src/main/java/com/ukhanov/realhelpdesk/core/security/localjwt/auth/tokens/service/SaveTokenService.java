@@ -22,7 +22,8 @@ public class SaveTokenService {
         Objects.requireNonNull(token, "RefreshTokenModel не может быть null");
         RefreshTokenModel saved = jwtRefreshTokenRepository.save(token);
         // След сохранения — по id записи: значения токена и его хеша в лог не идут
-        logger.debug("Сохранён {} токен, userId={}, tokenId={}", JwtClaims.TYPE_REFRESH, saved.getUser().getId(), saved.getUuid());
+        logger.debug("Сохранён {} токен, userId={}, tokenId={}", JwtClaims.TYPE_REFRESH, saved.getUser().getId(),
+                saved.getUuid());
         return saved;
     }
 

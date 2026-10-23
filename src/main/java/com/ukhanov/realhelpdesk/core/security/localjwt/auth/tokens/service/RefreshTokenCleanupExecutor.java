@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,11 +15,11 @@ import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.repository.Jw
 import lombok.RequiredArgsConstructor;
 
 /**
- * Исполнитель одного батча очистки {@code jwt_tokens}: выборка порции идентификаторов и их удаление идут в отдельной короткой транзакции
- * ({@code REQUIRES_NEW}). Оркестратор {@link RefreshTokenCleanupService} вызывает батчи по одному и делает паузы между ними, поэтому
- * очистка не превращается в одну длинную транзакцию с всплеском I/O и блокировок.
+ * Исполнитель одного батча очистки {@code jwt_tokens}: выборка порции идентификаторов и их удаление идут в отдельной
+ * короткой транзакции ({@code REQUIRES_NEW}). Оркестратор {@link RefreshTokenCleanupService} вызывает батчи по одному и
+ * делает паузы между ними, поэтому очистка не превращается в одну длинную транзакцию с всплеском I/O и блокировок.
  */
-@Service
+@Component
 @RequiredArgsConstructor
 public class RefreshTokenCleanupExecutor {
 
@@ -39,8 +39,10 @@ public class RefreshTokenCleanupExecutor {
 
     private int deleteBatch(boolean inactive, Instant cutoff, int batchSize) {
         List<UUID> ids = inactive
-                ? jwtRefreshTokenRepository.findInactiveIdsBefore(TokenStatus.ACTIVE, cutoff, PageRequest.of(0, batchSize))
-                : jwtRefreshTokenRepository.findActiveIdsBefore(TokenStatus.ACTIVE, cutoff, PageRequest.of(0, batchSize));
+                ? jwtRefreshTokenRepository.findInactiveIdsBefore(TokenStatus.ACTIVE, cutoff,
+                        PageRequest.of(0, batchSize))
+                : jwtRefreshTokenRepository.findActiveIdsBefore(TokenStatus.ACTIVE, cutoff,
+                        PageRequest.of(0, batchSize));
         if (ids.isEmpty()) {
             return 0;
         }

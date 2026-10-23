@@ -23,11 +23,6 @@ import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * Настройки in-app оповещений пользователя: набор событий, о которых он хочет получать оповещения, и повтор непрочитанных
- * NEW_TICKET/NEW_MESSAGE. Строки нет — включены все события и повтор (opt-out, интервал {@value #DEFAULT_REPEAT_INTERVAL_MINUTES} минут);
- * email-мьют ({@code unsubscribed_emails}) от этих настроек не зависит.
- */
 @Entity
 @Table(name = "user_notification_preferences")
 @Getter
@@ -51,9 +46,10 @@ public class UserNotificationPreferencesModel {
     @Column(name = "user_id", nullable = false, unique = true)
     private Long userId;
 
-    // EAGER остаётся (настройки читаются в оповещалках), но с батчем:
-    // findByUserIdIn по N пользователей грузит события ⌈N/50⌉ запросами, а не N
-    @ElementCollection(fetch = FetchType.EAGER)
+    // LAZY + @BatchSize: настройки читаются в оповещалках пачкой (⌈N/50⌉ запросов вместо N),
+    // а там, где сущность отдаётся наружу без транзакции, события подгружаются EntityGraph'ом
+    // в UserNotificationPreferencesRepository.
+    @ElementCollection(fetch = FetchType.LAZY)
     @BatchSize(size = 50)
     @CollectionTable(name = "user_notification_preferences_events", joinColumns = @JoinColumn(name = "preferences_id"))
     @Column(name = "event", nullable = false)

@@ -6,7 +6,8 @@
 <!--
   Правила стиля RealHelpDesk.
   Форматирование (отступы, переносы, пробелы) контролирует Spotless — здесь только то,
-  что он не проверяет: нейминг, импорты, дизайн, структура, стандарты тестов.
+  что он не проверяет: нейминг, импорты, дизайн, структура, стандарты тестов,
+  ограничение сложности и гигиена исключений.
 
   Подавления — config/checkstyle/suppressions.xml (подключается через
   SuppressionFilter ниже, путь приходит из maven-checkstyle-plugin).
@@ -21,25 +22,26 @@
         <property name="optional" value="true"/>
     </module>
 
+    <!-- 120, а не 140: короткая строка принуждает выносить промежуточные
+         результаты в именованные переменные вместо вложенных вызовов-«простыней». -->
     <module name="LineLength">
-        <property name="max" value="140"/>
+        <property name="max" value="120"/>
         <property name="ignorePattern"
                   value="^package.*|^import.*|http://|https://|ftp://|^\s*\*"/>
     </module>
 
-    <!-- Фиксированные паузы в тестах делают прогон медленным и флаки: ожидание
-         условия — Awaitility. В src/main спящий поток легитимен (backoff очистки
-         refresh-токенов), поэтому файл в подавлениях. -->
+    <!-- God Object по размеру файла: 350 строк — граница, после которой
+         класс почти наверняка совмещает несколько ответственностей. -->
+    <module name="FileLength">
+        <property name="max" value="350"/>
+    </module>
+
+    <!-- Фиксированные паузы делают прогон медленным и флаки: ожидание
+         условия — Awaitility. Допущен единственный файл в main, где пауза —
+         часть backoff-механизма очистки refresh-токенов (см. suppressions.xml). -->
     <module name="RegexpSingleline">
         <property name="id" value="NoThreadSleepInTests"/>
         <property name="format" value="Thread\.sleep\("/>
-    </module>
-
-    <!-- Spring-классы (main-класс, @Configuration, @Component): должны иметь
-         публичный конструктор и не быть final — иначе CGLIB/контейнер не смогут их создать -->
-    <module name="SuppressionSingleFilter">
-        <property name="checks" value="HideUtilityClassConstructor"/>
-        <property name="files" value="(RealHelpDeskApplication|WhiteUrlConfig|UserMapper|PortalMapper)\.java"/>
     </module>
 
     <module name="TreeWalker">
@@ -84,6 +86,26 @@
             <property name="format" value="System\.(out|err)\.print|\.printStackTrace\("/>
         </module>
 
+        <!-- EAGER-связи и каскады ALL/REMOVE — типичный «быстрый фикс» после
+             LazyInitializationException. EAGER тянет лишние строки на каждый
+             запрос; каскад скрывает жизненный цикл и удаляет/обновляет лишнее.
+             Правильный путь: LAZY + EntityGraph / JOIN FETCH и явное управление
+             дочерними сущностями. -->
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="NoEagerFetch"/>
+            <property name="format" value="FetchType\.EAGER"/>
+            <property name="ignoreComments" value="true"/>
+            <message key="regexp.exceeded"
+                     value="FetchType.EAGER запрещен. Используй LAZY и EntityGraph / JOIN FETCH."/>
+        </module>
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="NoCascadeAll"/>
+            <property name="format" value="CascadeType\.(ALL|REMOVE)"/>
+            <property name="ignoreComments" value="true"/>
+            <message key="regexp.exceeded"
+                     value="CascadeType.ALL/REMOVE запрещен: каскадное удаление и обновление скрывают связи. Управляй жизненным циклом явно."/>
+        </module>
+
         <!-- Нейминг: PascalCase типы, camelCase методы/поля (с _ для методов тестов), CONST_CASE константы -->
         <module name="PackageName"/>
         <module name="TypeName"/>
@@ -106,40 +128,186 @@
         <module name="LocalFinalVariableName"/>
 
         <!-- Стандарты тестов. Аннотации разбираются по IDENT внутри ANNOTATION:
-             MatchXpath не умеет адресоваться к атрибутам через @text у узла-аннотации. -->
+             MatchXpath не умеет адресоваться к атрибутам через @text у узла-аннотации.
+             Каждое правило обязано нести message: без неё нарушитель видит
+             безликое «MatchXpath: XPath query matched» и не понимает требование. -->
         <module name="MatchXpath">
             <property name="id" value="TestMethodNamingConvention"/>
             <property name="query"
                       value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][IDENT[not(matches(@text, '^[a-z][a-zA-Z0-9]*_[a-zA-Z0-9]+_[a-zA-Z0-9]+$'))]]"/>
+            <message key="matchxpath.match"
+                     value="Тестовый метод должен называться method_condition_outcome: ровно три сегмента через _."/>
         </module>
         <module name="MatchXpath">
             <property name="id" value="RequireDisplayNameOnTests"/>
             <property name="query"
                       value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][not(MODIFIERS/ANNOTATION/IDENT[@text='DisplayName'])]"/>
+            <message key="matchxpath.match"
+                     value="Тестовому методу нужен @DisplayName, описывающий сценарий."/>
         </module>
         <module name="MatchXpath">
             <property name="id" value="GivenWhenThenStructure"/>
             <property name="query"
                       value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][not(.//COMMENT_CONTENT[contains(@text, 'given')]) or not(.//COMMENT_CONTENT[contains(@text, 'when')]) or not(.//COMMENT_CONTENT[contains(@text, 'then')])]"/>
+            <message key="matchxpath.match"
+                     value="Тестовый метод должен содержать комментарии // given, // when, // then."/>
         </module>
         <module name="MatchXpath">
             <property name="id" value="JUnit5PackagePrivate"/>
             <property name="query"
                       value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][MODIFIERS/LITERAL_PUBLIC]"/>
+            <message key="matchxpath.match"
+                     value="Тестовые методы — package-private: JUnit 5 не требует public, публичность скрывает API-назначение."/>
         </module>
         <module name="MatchXpath">
             <property name="id" value="NoSpringContextInUnitTests"/>
             <property name="query"
                       value="//CLASS_DEF[MODIFIERS/ANNOTATION/IDENT[@text='SpringBootTest']][IDENT[matches(@text, 'Test$')]]"/>
+            <message key="matchxpath.match"
+                     value="@SpringBootTest допустим только в классах *IT (failsafe); юнит-тесты (*Test) работают без контекста Spring."/>
         </module>
         <module name="MatchXpath">
             <property name="id" value="TestClassSuffix"/>
             <property name="query"
                       value="//CLASS_DEF[not(IDENT[matches(@text, '(Test|IT)$')])][.//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']]]"/>
+            <message key="matchxpath.match"
+                     value="Класс, содержащий @Test-методы, должен называться XxxTest (surefire) или XxxIT (failsafe)."/>
+        </module>
+
+        <!-- Архитектура Spring: поле-инъекция прячет зависимости и требует
+             контекста для unit-теста — только конструктор + final-поля.
+             Для src/test отключено в suppressions.xml (@Autowired на полях —
+             идиома Spring Test). -->
+        <module name="MatchXpath">
+            <property name="id" value="NoFieldInjection"/>
+            <property name="query"
+                      value="//VARIABLE_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Autowired' or @text='Inject']]"/>
+            <message key="matchxpath.match"
+                     value="Field injection запрещен: используй конструктор и final-поля."/>
+        </module>
+
+        <!-- Транзакция на весь сервис открывается и на методах чтения, и на
+             внешних вызовах. readOnly = true — исключение: это явный контракт
+             «только чтение», а не случайная широкая транзакция. -->
+        <module name="MatchXpath">
+            <property name="id" value="NoClassLevelTransactional"/>
+            <property name="query"
+                      value="//CLASS_DEF[MODIFIERS/ANNOTATION[IDENT[@text='Transactional'] and not(ANNOTATION_MEMBER_VALUE_PAIR[IDENT[@text='readOnly']]/EXPR/LITERAL_TRUE)]]"/>
+            <message key="matchxpath.match"
+                     value="@Transactional на классе запрещён: аннотируй метод. Для read-only сервиса допустимо @Transactional(readOnly = true)."/>
+        </module>
+
+        <!-- Ограничение сложности: разбивай ветвление на приватные методы
+             с говорящими именами, а не держи логику в одном «спагетти»-методе. -->
+        <module name="CyclomaticComplexity">
+            <property name="max" value="10"/>
+        </module>
+        <!-- Максимум 3 логических/сравнительных оператора в одном выражении:
+             сложное условие выносится в именованный предикат. -->
+        <module name="BooleanExpressionComplexity">
+            <property name="max" value="3"/>
+        </module>
+        <!-- Arrow anti-pattern: guard clauses вместо матрёшки if/for/try. -->
+        <module name="NestedIfDepth">
+            <property name="max" value="2"/>
+        </module>
+        <module name="NestedForDepth">
+            <property name="max" value="2"/>
+        </module>
+        <module name="NestedTryDepth">
+            <property name="max" value="1"/>
+        </module>
+        <module name="MethodLength">
+            <property name="max" value="50"/>
+            <property name="countEmpty" value="false"/>
+        </module>
+        <!-- Анонимный класс длиннее 25 строк — это почти всегда скрытый
+             отдельный класс, который нужно вынести. -->
+        <module name="AnonInnerLength">
+            <property name="max" value="25"/>
+        </module>
+        <!-- Больше 5 признаков — признак того, что пора ввести DTO/запрос-объект. -->
+        <module name="ParameterNumber">
+            <property name="max" value="5"/>
+            <property name="ignoreOverriddenMethods" value="true"/>
+        </module>
+        <module name="ExecutableStatementCount">
+            <property name="max" value="30"/>
+        </module>
+        <!-- Слишком много зависимостей от классов из других пакетов —
+             God Object. Constructor injection через Lombok не виден AST как
+             параметры метода, поэтому ограничиваем связность по типам. -->
+        <module name="ClassDataAbstractionCoupling">
+            <property name="max" value="10"/>
+        </module>
+        <!-- Метод-«решето» из return: максимум 4 выхода, включая void-методы. -->
+        <module name="ReturnCount">
+            <property name="max" value="4"/>
+            <property name="maxForVoid" value="4"/>
+        </module>
+
+        <!-- Гигиена исключений: catch (Exception/Throwable/RuntimeException)
+             маскирует реальную причину отказа. Лови конкретные типы; генеральный
+             перехват допустим только там, где политика — «любой сбой внешнего
+             клиента = доменный отказ» (маппинг исключений в исключения проекта). -->
+        <module name="IllegalCatch">
+            <property name="illegalClassNames"
+                      value="java.lang.Exception, java.lang.Throwable, java.lang.RuntimeException, java.lang.NullPointerException"/>
+        </module>
+        <!-- throws Exception/Throwable/RuntimeException/Error — признак ленивой
+             контрактной модели: checked-исключения нужно оборачивать в доменные.
+             Исключение — Security DSL (SecurityFilterChain/AuthenticationManager),
+             там throws Exception задан API Spring Security; см. suppressions.xml. -->
+        <module name="IllegalThrows">
+            <property name="illegalClassNames"
+                      value="java.lang.Throwable, java.lang.RuntimeException, java.lang.Error, java.lang.Exception"/>
+        </module>
+
+        <!-- Магическое число в теле метода: вынеси в private static final
+             с говорящим именем. Объявления полей и аннотации не считаются —
+             там числовые константы легитимны. -->
+        <module name="MagicNumber">
+            <property name="ignoreFieldDeclaration" value="true"/>
+            <property name="ignoreAnnotation" value="true"/>
+            <property name="ignoreHashCodeMethod" value="true"/>
+            <property name="ignoreNumbers" value="-1,0,1,2"/>
+        </module>
+
+        <!-- Чистота логики: параметры не мутируются (предсказуемость),
+             null-безопасные equals, стабильный контрол-переменный цикла,
+             имена локальных/полей не перекрываются без нужды. -->
+        <module name="ParameterAssignment"/>
+        <module name="EqualsAvoidNull"/>
+        <module name="ModifiedControlVariable"/>
+        <module name="HiddenField">
+            <property name="ignoreConstructorParameter" value="true"/>
+            <property name="ignoreSetter" value="true"/>
+            <property name="setterCanReturnItsClass" value="true"/>
+        </module>
+
+        <!-- Незакомментированный пустой catch — «черная дыра»: либо имя expected|ignore,
+             либо объяснение внутри тела. -->
+        <module name="EmptyCatchBlock">
+            <property name="exceptionVariableName" value="expected|ignore"/>
+        </module>
+
+        <!-- TODO/FIXME — это незакрытый долг: реализуй сейчас или заведи задачу
+             во внешнем трекере без пометки в коде. -->
+        <module name="TodoComment">
+            <property name="format" value="(?i)(TODO|FIXME)"/>
         </module>
 
         <!-- Дизайн и модификаторы -->
         <module name="FinalClass"/>
+        <!-- Utility-классу нужен приватный конструктор. Жёсткий список имён
+             хрупок (новый @Configuration/@Mapper валит сборку), поэтому
+             подавление — по аннотации через XPath: Spring-бины создаёт контейнер,
+             MapStruct-интерфейсы — генератор, приватный конструктор им не нужен. -->
+        <module name="SuppressionXpathSingleFilter">
+            <property name="checks" value="HideUtilityClassConstructor"/>
+            <property name="query"
+                      value="//CLASS_DEF[MODIFIERS/ANNOTATION/IDENT[@text='SpringBootApplication' or @text='Configuration' or @text='Component' or @text='Mapper']] | //INTERFACE_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Mapper']]"/>
+        </module>
         <module name="HideUtilityClassConstructor"/>
         <module name="ModifierOrder"/>
         <module name="RedundantModifier"/>

@@ -39,19 +39,23 @@ import io.micrometer.observation.ObservationHandler;
 import io.micrometer.observation.ObservationRegistry;
 
 /**
- * Интеграционный smoke-тест трейсинга: HTTP-запрос порождает дерево наблюдений с общим корнем — корневой спан http.server.requests и
- * дочерние спаны сервисного слоя (mail.send при регистрации). OTel SDK включён (management.opentelemetry.enabled=true, sampling 1.0): спаны
- * строятся реальным мостом micrometer-tracing, экспорта нет — поэтому тест не требует OTLP collector'а. Регистрация идёт через реальный
- * SMTP (GreenMail — только в интеграционных тестах, failsafe), капча отключена свойством.
+ * Интеграционный smoke-тест трейсинга: HTTP-запрос порождает дерево наблюдений с общим корнем — корневой спан
+ * http.server.requests и дочерние спаны сервисного слоя (mail.send при регистрации). OTel SDK включён
+ * (management.opentelemetry.enabled=true, sampling 1.0): спаны строятся реальным мостом micrometer-tracing, экспорта
+ * нет — поэтому тест не требует OTLP collector'а. Регистрация идёт через реальный SMTP (GreenMail — только в
+ * интеграционных тестах, failsafe), капча отключена свойством.
  *
  * <p>
- * Список наблюдений собирает ObservationHandler, добавленный в закэшированный контекст один раз на JVM: реестр наблюдений живёт дольше
- * теста, удаления handler'ов Micrometer не поддерживает, поэтому коллектор статический и очищается перед каждым тестом.
+ * Список наблюдений собирает ObservationHandler, добавленный в закэшированный контекст один раз на JVM: реестр
+ * наблюдений живёт дольше теста, удаления handler'ов Micrometer не поддерживает, поэтому коллектор статический и
+ * очищается перед каждым тестом.
  * </p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"spring.profiles.active=test", "management.opentelemetry.enabled=true", "management.tracing.sampling.probability=1.0",
-                "captcha.enabled=false", "email.notify=admin@example.com", "email.from=noreply@example.com", "email.domain=example.com"})
+        properties = {"spring.profiles.active=test", "management.opentelemetry.enabled=true",
+                "management.tracing.sampling.probability=1.0",
+                "captcha.enabled=false", "email.notify=admin@example.com", "email.from=noreply@example.com",
+                "email.domain=example.com"})
 @ExtendWith(OutputCaptureExtension.class)
 @DisplayName("Tracing smoke: общий traceId и дочерние спаны сервисного слоя")
 class TracingSmokeIT extends AbstractIntegrationTest {
@@ -122,14 +126,16 @@ class TracingSmokeIT extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("Регистрация создаёт корневой спан http.server.requests и дочерние mail.send с общим traceId в логах")
-    void registerRequest_serverAndMailSpans_shareTraceId(CapturedOutput output) throws IOException, InterruptedException {
+    void registerRequest_serverAndMailSpans_shareTraceId(CapturedOutput output)
+            throws IOException, InterruptedException {
 
         // given
         String email = "trace-smoke-" + UUID.randomUUID() + "@example.com";
 
         // when
         HttpResponse<String> response = post("/api/v1/auth/register",
-                "{\"firstName\":\"Trace\",\"lastName\":\"Smoke\",\"email\":\"" + email + "\",\"password\":\"Sup3rSecret123!\"}");
+                "{\"firstName\":\"Trace\",\"lastName\":\"Smoke\",\"email\":\"" + email
+                        + "\",\"password\":\"Sup3rSecret123!\"}");
 
         // then
         assertThat(response.statusCode()).as("регистрация с обходом капчи и живым SMTP").isEqualTo(201);
@@ -138,13 +144,18 @@ class TracingSmokeIT extends AbstractIntegrationTest {
         assertThat(root.getName()).as("корень дерева — серверное наблюдение").isEqualTo(SERVER_OBSERVATION);
 
         // Дерево наблюдений: mail.send — дочерние спаны (parent != null), а не отдельные корни.
-        List<Observation.Context> mailObservations = OBSERVED.stream().filter(context -> SERVICE_OBSERVATION.equals(context.getName()))
+        List<Observation.Context> mailObservations = OBSERVED.stream()
+                .filter(context -> SERVICE_OBSERVATION.equals(context.getName()))
                 .toList();
-        assertThat(mailObservations).as("регистрация отправляет два письма (админу и пользователю)").hasSizeGreaterThanOrEqualTo(2);
+        assertThat(mailObservations).as("регистрация отправляет два письма (админу и пользователю)")
+                .hasSizeGreaterThanOrEqualTo(2);
         assertThat(mailObservations)
-                .allSatisfy(context -> assertThat(context.getParentObservation()).as("mail.send — дочерний спан, а не корень").isNotNull());
+                .allSatisfy(context -> assertThat(context.getParentObservation())
+                        .as("mail.send — дочерний спан, а не корень")
+                        .isNotNull());
 
-        // Реальный traceId из OTel SDK: строки сервисного слоя и писем — один trace (MailObservation не открывает Scope,
+        // Реальный traceId из OTel SDK: строки сервисного слоя и писем — один trace (MailObservation не открывает
+        // Scope,
         // поэтому spanId в MDC остаётся серверным — дерево наблюдений проверено выше).
         String logs = output.getOut() + output.getErr();
         String[] registered = findCorrelation(logs, "Зарегистрирован пользователь");
@@ -154,16 +165,24 @@ class TracingSmokeIT extends AbstractIntegrationTest {
         assertThat(registered[0]).as("сервисный слой и письма — один traceId").isEqualTo(mailed[0]);
     }
 
-    /** Ждёт остановки корневого наблюдения: observation стопается на commit ответа — запись может чуть отставать от HTTP-клиента. */
+    /**
+     * Ждёт остановки корневого наблюдения: observation стопается на commit ответа — запись может чуть отставать от
+     * HTTP-клиента.
+     */
     private Observation.Context awaitRootServerObservation() {
-        await().atMost(Duration.ofSeconds(3)).pollInterval(Duration.ofMillis(50)).untilAsserted(() -> assertThat(rootObservation())
-                .as("корневое наблюдение http.server.requests, поймано: %s", OBSERVED.stream().map(Observation.Context::getName).toList())
-                .isPresent());
+        await().atMost(Duration.ofSeconds(3))
+                .pollInterval(Duration.ofMillis(50))
+                .untilAsserted(() -> assertThat(rootObservation())
+                        .as("корневое наблюдение http.server.requests, поймано: %s",
+                                OBSERVED.stream().map(Observation.Context::getName).toList())
+                        .isPresent());
         return rootObservation().orElseThrow();
     }
 
     private static Optional<Observation.Context> rootObservation() {
-        return OBSERVED.stream().filter(context -> SERVER_OBSERVATION.equals(context.getName()) && context.getParentObservation() == null)
+        return OBSERVED.stream()
+                .filter(context -> SERVER_OBSERVATION.equals(context.getName())
+                        && context.getParentObservation() == null)
                 .findFirst();
     }
 
@@ -182,9 +201,12 @@ class TracingSmokeIT extends AbstractIntegrationTest {
     }
 
     private HttpResponse<String> post(String path, String body) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + serverPort + path)).timeout(Duration.ofSeconds(15))
-                .header("Content-Type", "application/json").header("X-Requested-With", "XMLHttpRequest")
-                .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + serverPort + path))
+                .timeout(Duration.ofSeconds(15))
+                .header("Content-Type", "application/json")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
         try {
             return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException e) {

@@ -52,7 +52,8 @@ class CaptchaPropertiesTest {
 
         // given
         // when
-        BindResult<CaptchaProperties> result = Binder.get(new MockEnvironment()).bind("captcha", Bindable.of(CaptchaProperties.class));
+        BindResult<CaptchaProperties> result = Binder.get(new MockEnvironment())
+                .bind("captcha", Bindable.of(CaptchaProperties.class));
 
         // then
         assertThat(result.isBound()).isFalse();

@@ -20,14 +20,14 @@ import io.micrometer.core.instrument.MeterRegistry;
  * Gauge открытых заявок {@code tickets.open} по статусам.
  *
  * <p>
- * Значения обновляются расписанием раз в 30 секунд count-запросом на статус, а не по запросу scrape — сам скрейп в БД не ходит. Gauge в
- * Micrometer ссылается на значение слабой ссылкой, поэтому сильную ссылку на {@link AtomicLong} держит этот компонент; JPA-сущности в теги
- * и в значение не попадают.
+ * Значения обновляются расписанием раз в 30 секунд count-запросом на статус, а не по запросу scrape — сам скрейп в БД
+ * не ходит. Gauge в Micrometer ссылается на значение слабой ссылкой, поэтому сильную ссылку на {@link AtomicLong}
+ * держит этот компонент; JPA-сущности в теги и в значение не попадают.
  * </p>
  *
  * <p>
- * Считаются только незакрытые статусы (OPEN, IN_PROGRESS): закрытые заявки «открытыми» не являются, у заявки всегда один из двух статусов,
- * поэтому сумма series равна числу открытых заявок.
+ * Считаются только незакрытые статусы (OPEN, IN_PROGRESS): закрытые заявки «открытыми» не являются, у заявки всегда
+ * один из двух статусов, поэтому сумма series равна числу открытых заявок.
  * </p>
  */
 @Component
@@ -48,19 +48,22 @@ public class TicketsOpenGauge {
         for (TicketStatus status : OPEN_STATUSES) {
             AtomicLong count = new AtomicLong();
             counts.put(status, count);
-            Gauge.builder(METRIC_NAME, count, AtomicLong::get).description(DESCRIPTION).tag("status", status.name())
+            Gauge.builder(METRIC_NAME, count, AtomicLong::get)
+                    .description(DESCRIPTION)
+                    .tag("status", status.name())
                     .register(meterRegistry);
         }
     }
 
     /**
-     * Периодическое обновление: при недоступности БД исключение уходит в обработчик планировщика (лог ERROR, следующий запуск через 30
-     * секунд), значения gauge остаются прежними.
+     * Периодическое обновление: при недоступности БД исключение уходит в обработчик планировщика (лог ERROR, следующий
+     * запуск через 30 секунд), значения gauge остаются прежними.
      */
     @Scheduled(fixedDelay = REFRESH_INTERVAL_MS)
     void refresh() {
         for (TicketStatus status : OPEN_STATUSES) {
-            counts.get(status).set(ticketRepository.countByTicketStatusAndTicketLiveStatus(status, TicketLiveStatus.ACTIVE));
+            counts.get(status)
+                    .set(ticketRepository.countByTicketStatusAndTicketLiveStatus(status, TicketLiveStatus.ACTIVE));
         }
     }
 

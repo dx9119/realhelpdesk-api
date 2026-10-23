@@ -12,11 +12,10 @@ import com.ukhanov.realhelpdesk.domain.ticket.model.TicketModel;
 import com.ukhanov.realhelpdesk.feature.messagemanager.dto.CreateMessageRequest;
 import com.ukhanov.realhelpdesk.feature.messagemanager.dto.MessageResponse;
 
-/** Маппинг сообщений заявки; автор и заявка приходят отдельными параметрами — связь проставляет сервис. */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface MessageMapper {
 
-    /** Копируются только текст и связи: id, version и createdAt в новой entity проставит JPA, а не запрос. */
+    // author и ticket — отдельные параметры: их проставляет сервис после проверки доступа, из запроса они не берутся
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "messageText", source = "request.messageText")
     @Mapping(target = "author", source = "author")

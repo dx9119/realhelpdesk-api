@@ -13,10 +13,11 @@ import java.util.stream.Collectors;
 import jakarta.transaction.Transactional;
 
 import org.slf4j.MDC;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.ukhanov.realhelpdesk.core.exception.SafeSideEffectExecutor;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.domain.notification.model.NotificationModel;
 import com.ukhanov.realhelpdesk.domain.notification.model.UserNotificationPreferencesModel;
@@ -28,28 +29,31 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Фан-аут in-app оповещений: те же получатели, что у email-оповещений (владелец портала + доверенные), без автора действия и с учётом
- * настроек пользователя ({@link UserNotificationPreferencesModel}). Публикация не валит основную операцию: любая ошибка пишется в лог.
+ * Фан-аут in-app оповещений: те же получатели, что у email-оповещений (владелец портала + доверенные), без автора
+ * действия и с учётом настроек пользователя ({@link UserNotificationPreferencesModel}). Публикация не валит основную
+ * операцию: любая ошибка пишется в лог.
  *
  * <p>
- * Пробуждение ожидающих long-polling запросов происходит после коммита — иначе ожидающий мог бы перечитать БД раньше, чем запись станет
- * видимой.
+ * Пробуждение ожидающих long-polling запросов происходит после коммита — иначе ожидающий мог бы перечитать БД раньше,
+ * чем запись станет видимой.
  * </p>
  */
 @Slf4j
 @RequiredArgsConstructor
-@Service
+@Component
 public class NotificationPublisher {
 
     /** Каталог событий in-app оповещений: только то, что умеет порождать код; его же выдаёт API настроек. */
-    public static final Set<NotificationEvent> SUPPORTED_EVENTS = Set.of(NotificationEvent.NEW_TICKET, NotificationEvent.NEW_MESSAGE,
+    public static final Set<NotificationEvent> SUPPORTED_EVENTS = Set.of(NotificationEvent.NEW_TICKET,
+            NotificationEvent.NEW_MESSAGE,
             NotificationEvent.NEW_SYSTEM_MESSAGE, NotificationEvent.CHANGE_TICKET, NotificationEvent.TICKET_DELETED,
             NotificationEvent.NEW_PORTAL, NotificationEvent.PORTAL_DELETED, NotificationEvent.PORTAL_TRANSFER_REQUESTED,
             NotificationEvent.PORTAL_TRANSFER_ACCEPTED, NotificationEvent.PORTAL_TRANSFER_REJECTED,
             NotificationEvent.PORTAL_TRANSFER_CANCELLED, NotificationEvent.PORTAL_TRANSFER_EXPIRED);
 
     /** События, которые повторяются, пока не прочитаны (см. NotificationRepeatService). */
-    public static final Set<NotificationEvent> REPEATABLE_EVENTS = Set.of(NotificationEvent.NEW_TICKET, NotificationEvent.NEW_MESSAGE);
+    public static final Set<NotificationEvent> REPEATABLE_EVENTS = Set.of(NotificationEvent.NEW_TICKET,
+            NotificationEvent.NEW_MESSAGE);
 
     private static final int TITLE_MAX_LENGTH = 255;
 
@@ -58,7 +62,8 @@ public class NotificationPublisher {
     private final NotificationWaitRegistry waitRegistry;
     /** Получатели как у email: владелец портала + allowedUserIds, без автора действия (actorId). */
     @Transactional
-    public void publishToPortalUsers(PortalModel portal, NotificationEvent event, Long actorId, Long ticketId, String title) {
+    public void publishToPortalUsers(PortalModel portal, NotificationEvent event, Long actorId, Long ticketId,
+            String title) {
         Objects.requireNonNull(portal, "portal не должен быть null");
 
         Set<Long> recipients = new HashSet<>();
@@ -69,49 +74,63 @@ public class NotificationPublisher {
             recipients.addAll(portal.getAllowedUserIds());
         }
 
-        publishToUsers(recipients, event, actorId, ticketId, portal.getId(), title);
+        publishToUsers(new PublishNotificationCommand(recipients, event, actorId, ticketId, portal.getId(), title));
     }
 
     // @Transactional: публикация возможна и вне транзакции вызывающего (после коммита удаления портала) —
     // записи оповещений должны открывать собственную, а внутри транзакции заявки — присоединяться к ней
     @Transactional
-    public void publishToUsers(Collection<Long> recipients, NotificationEvent event, Long actorId, Long ticketId, Long portalId,
-            String title) {
-        if (recipients == null || recipients.isEmpty() || event == null) {
+    public void publishToUsers(PublishNotificationCommand command) {
+        if (command.recipients() == null || command.recipients().isEmpty() || command.event() == null) {
             return;
         }
-        try {
-            if (!SUPPORTED_EVENTS.contains(event)) {
-                logger.debug("Событие {} не входит в каталог in-app оповещений, публикация пропущена", event);
-                return;
-            }
+        SafeSideEffectExecutor.runSafely(() -> {
+            publishSafely(command);
+            return null;
+        }, e -> logger.warn("Не удалось опубликовать in-app оповещение {}, заявка {}, портал {}", command.event(),
+                command.ticketId(), command.portalId(), e));
+    }
 
-            Set<Long> targets = recipients.stream().filter(Objects::nonNull).filter(userId -> !userId.equals(actorId))
-                    .collect(Collectors.toSet());
-            if (targets.isEmpty()) {
-                return;
-            }
-
-            Map<Long, Set<NotificationEvent>> disabledByUser = disabledEvents(targets);
-            String snapshotTitle = truncate(title);
-
-            List<Long> woken = new ArrayList<>();
-            for (Long userId : targets) {
-                Set<NotificationEvent> disabled = disabledByUser.get(userId);
-                if (disabled != null && disabled.contains(event)) {
-                    continue;
-                }
-                notificationRepository.save(new NotificationModel(userId, event, ticketId, portalId, snapshotTitle));
-                woken.add(userId);
-            }
-
-            if (!woken.isEmpty()) {
-                wakeAfterCommit(woken);
-            }
-        } catch (Exception e) {
-            // оповещение — не критичная операция: падение публикации не должно ломать создание заявки или письмо
-            logger.warn("Не удалось опубликовать in-app оповещение {}, заявка {}, портал {}", event, ticketId, portalId, e);
+    private void publishSafely(PublishNotificationCommand command) {
+        if (!SUPPORTED_EVENTS.contains(command.event())) {
+            logger.debug("Событие {} не входит в каталог in-app оповещений, публикация пропущена", command.event());
+            return;
         }
+
+        Set<Long> targets = resolveActiveTargets(command);
+        if (targets.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Set<NotificationEvent>> disabledByUser = disabledEvents(targets);
+        String snapshotTitle = truncate(command.title());
+        List<Long> woken = persistNotifications(command, targets, disabledByUser, snapshotTitle);
+        if (!woken.isEmpty()) {
+            wakeAfterCommit(woken);
+        }
+    }
+
+    private static Set<Long> resolveActiveTargets(PublishNotificationCommand command) {
+        return command.recipients()
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(userId -> !userId.equals(command.actorId()))
+                .collect(Collectors.toSet());
+    }
+
+    private List<Long> persistNotifications(PublishNotificationCommand command, Set<Long> targets,
+            Map<Long, Set<NotificationEvent>> disabledByUser, String snapshotTitle) {
+        List<Long> woken = new ArrayList<>();
+        for (Long userId : targets) {
+            Set<NotificationEvent> disabled = disabledByUser.get(userId);
+            if (disabled != null && disabled.contains(command.event())) {
+                continue;
+            }
+            notificationRepository.save(new NotificationModel(userId, command.event(), command.ticketId(),
+                    command.portalId(), snapshotTitle));
+            woken.add(userId);
+        }
+        return woken;
     }
 
     /** События, отключённые пользователем; отсутствие настроек — ничего не отключено (все события включены). */
@@ -126,8 +145,8 @@ public class NotificationPublisher {
     }
 
     /**
-     * Будит ожидающих long polling после коммита текущей транзакции — иначе ожидающий мог бы перечитать БД раньше, чем запись станет
-     * видимой. Используется публикацией и повторами ({@link NotificationRepeatService}).
+     * Будит ожидающих long polling после коммита текущей транзакции — иначе ожидающий мог бы перечитать БД раньше, чем
+     * запись станет видимой. Используется публикацией и повторами ({@link NotificationRepeatService}).
      */
     public void wakeAfterCommit(Collection<Long> userIds) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

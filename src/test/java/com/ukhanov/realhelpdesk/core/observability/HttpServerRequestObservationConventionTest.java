@@ -18,7 +18,8 @@ import io.micrometer.common.KeyValue;
 @DisplayName("Тег role в http.server.requests")
 class HttpServerRequestObservationConventionTest {
 
-    private final HttpServerRequestObservationConvention convention = new HttpServerRequestObservationConvention("http.server.requests");
+    private final HttpServerRequestObservationConvention convention = new HttpServerRequestObservationConvention(
+            "http.server.requests");
 
     @Test
     @DisplayName("Без атрибута роли — ANONYMOUS")
@@ -61,7 +62,9 @@ class HttpServerRequestObservationConventionTest {
     }
 
     private KeyValue keyValue(MockHttpServletRequest request, String key) {
-        return keysAndValues(request).stream().filter(value -> value.getKey().equals(key)).findFirst()
+        return keysAndValues(request).stream()
+                .filter(value -> value.getKey().equals(key))
+                .findFirst()
                 .orElseThrow(() -> new AssertionError("Нет тега " + key));
     }
 
@@ -70,7 +73,8 @@ class HttpServerRequestObservationConventionTest {
     }
 
     private List<KeyValue> keysAndValues(MockHttpServletRequest request) {
-        ServerRequestObservationContext context = new ServerRequestObservationContext(request, new MockHttpServletResponse());
+        ServerRequestObservationContext context = new ServerRequestObservationContext(request,
+                new MockHttpServletResponse());
         return convention.getLowCardinalityKeyValues(context).stream().toList();
     }
 }

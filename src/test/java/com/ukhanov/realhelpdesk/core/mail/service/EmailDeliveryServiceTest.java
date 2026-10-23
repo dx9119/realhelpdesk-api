@@ -1,6 +1,7 @@
 package com.ukhanov.realhelpdesk.core.mail.service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
@@ -86,8 +88,10 @@ class EmailDeliveryServiceTest {
         rateLimitProperties = new RateLimitProperties();
         rateLimitProperties.setLimits(Map.of("email-recovery", new RateLimitProperties.Limit(3, 86400)));
 
-        service = new EmailDeliveryService(mailSender, userDomainService, emailProperties, emailPolicyService, currentUserProvider,
-                emailLogService, rateLimitProperties, emailTemplates, ObservationRegistry.NOOP, new BusinessMetrics(meterRegistry));
+        service = new EmailDeliveryService(mailSender, userDomainService, emailProperties, emailPolicyService,
+                currentUserProvider,
+                emailLogService, rateLimitProperties, emailTemplates, ObservationRegistry.NOOP,
+                new BusinessMetrics(meterRegistry));
 
         when(mailSender.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         // рассылка грузит получателей батчем: возвращаем только запрошенных из stubbedUsers
@@ -132,9 +136,7 @@ class EmailDeliveryServiceTest {
         assertThat(message.getHeader("Content-Type", null)).contains("text/plain").contains("charset=UTF-8");
         assertThat(message.getHeader("Content-Transfer-Encoding", null)).isEqualTo("7bit");
 
-        verify(emailLogService).add(argThat((EmailLog log) -> "Тема письма".equals(log.getTitle()) && FROM.equals(log.getSender())
-                && RECIPIENT.equals(log.getRecipient()) && log.getNotificationEvent() == NotificationEvent.NEW_TICKET
-                && log.getSentAt() != null));
+        verify(emailLogService).add(argThat(EmailDeliveryServiceTest::matchesExpectedEmailLog));
 
         Counter success = meterRegistry.find("mail.sent").tags("type", "NEW_TICKET", "result", "success").counter();
         assertThat(success).isNotNull();
@@ -201,7 +203,8 @@ class EmailDeliveryServiceTest {
         when(emailLogService.countEmailsSentToByEventInWindow(eq(RECIPIENT), eq(NotificationEvent.RECOVERY_PASSWORD),
                 eq(Duration.ofSeconds(86400)))).thenReturn(2L);
 
-        service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст", NotificationEvent.RECOVERY_PASSWORD);
+        service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст",
+                NotificationEvent.RECOVERY_PASSWORD);
 
         // then
         assertThat(sentMessages()).hasSize(1);
@@ -217,7 +220,8 @@ class EmailDeliveryServiceTest {
                 eq(Duration.ofSeconds(86400)))).thenReturn(3L);
 
         EmailAccessDeniedException exception = catchThrowableOfType(EmailAccessDeniedException.class,
-                () -> service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст", NotificationEvent.RECOVERY_PASSWORD));
+                () -> service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст",
+                        NotificationEvent.RECOVERY_PASSWORD));
 
         // then
         assertThat(exception).isNotNull();
@@ -286,7 +290,8 @@ class EmailDeliveryServiceTest {
         service.initNotifyPortalUsers(portal, "Тема", "Текст", NotificationEvent.NEW_TICKET);
 
         // then
-        assertThat(recipientsOfSentMessages()).containsExactlyInAnyOrder("owner@example.com", "second@example.com", "third@example.com");
+        assertThat(recipientsOfSentMessages()).containsExactlyInAnyOrder("owner@example.com", "second@example.com",
+                "third@example.com");
         verify(mailSender, times(3)).send(any(MimeMessage.class));
     }
 
@@ -317,7 +322,8 @@ class EmailDeliveryServiceTest {
         // when
         UserModel user = currentUserWithToken(111L);
 
-        EmailAccessDeniedException exception = catchThrowableOfType(EmailAccessDeniedException.class, () -> service.confirmEmail(222L));
+        EmailAccessDeniedException exception = catchThrowableOfType(EmailAccessDeniedException.class,
+                () -> service.confirmEmail(222L));
 
         // then
         assertThat(exception).isNotNull();
@@ -389,18 +395,14 @@ class EmailDeliveryServiceTest {
         return recipients;
     }
 
-    private static String contentOf(MimeMessage message) {
-        try {
-            Object content = message.getContent();
-            if (content instanceof String text) {
-                return text;
-            }
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            message.writeTo(buffer);
-            return buffer.toString(StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
+    private static String contentOf(MimeMessage message) throws IOException, MessagingException {
+        Object content = message.getContent();
+        if (content instanceof String text) {
+            return text;
         }
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        message.writeTo(buffer);
+        return buffer.toString(StandardCharsets.UTF_8);
     }
 
     private final Map<Long, UserModel> stubbedUsers = new java.util.HashMap<>();
@@ -429,5 +431,12 @@ class EmailDeliveryServiceTest {
         portal.setOwner(owner);
         portal.setAllowedUserIds(allowedUserIds == null ? null : new HashSet<>(allowedUserIds));
         return portal;
+    }
+
+    private static boolean matchesExpectedEmailLog(EmailLog log) {
+        boolean subjectAndSender = "Тема письма".equals(log.getTitle()) && FROM.equals(log.getSender());
+        boolean recipientAndEvent = RECIPIENT.equals(log.getRecipient())
+                && log.getNotificationEvent() == NotificationEvent.NEW_TICKET;
+        return subjectAndSender && recipientAndEvent && log.getSentAt() != null;
     }
 }

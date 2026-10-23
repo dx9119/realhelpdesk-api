@@ -201,7 +201,7 @@ check-image-vuln: ci-image ## trivy: уязвимости образа CRITICAL/
 	  -v trivy-cache:/root/.cache/trivy \
 	  aquasec/trivy:0.58.2 image --timeout 15m --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $(CI_IMAGE)
 
-check-c	i: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
+check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
 
 ## --- Нагрузочное тестирование (k6, scripts/load/) ---
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это

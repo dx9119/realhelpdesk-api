@@ -13,7 +13,8 @@ class LogSanitizerTest {
     void uri_emailConfirmationToken_isMasked() {
 
         // given / when / then
-        assertThat(LogSanitizer.uri("/api/v1/email/confirmations/1234567890")).isEqualTo("/api/v1/email/confirmations/***");
+        assertThat(LogSanitizer.uri("/api/v1/email/confirmations/1234567890"))
+                .isEqualTo("/api/v1/email/confirmations/***");
     }
 
     @Test
@@ -21,7 +22,8 @@ class LogSanitizerTest {
     void uri_passwordResetCode_isMasked() {
 
         // given / when / then
-        assertThat(LogSanitizer.uri("/api/v1/users/password-resets/-987654321012345")).isEqualTo("/api/v1/users/password-resets/***");
+        assertThat(LogSanitizer.uri("/api/v1/users/password-resets/-987654321012345"))
+                .isEqualTo("/api/v1/users/password-resets/***");
     }
 
     @Test
@@ -46,7 +48,8 @@ class LogSanitizerTest {
     void value_controlCharacters_areReplaced() {
 
         // given / when / then
-        assertThat(LogSanitizer.value("image/png\r\nFAKE | ERROR | injected")).isEqualTo("image/png__FAKE | ERROR | injected");
+        assertThat(LogSanitizer.value("image/png\r\nFAKE | ERROR | injected"))
+                .isEqualTo("image/png__FAKE | ERROR | injected");
         assertThat(LogSanitizer.value("a\tb")).isEqualTo("a_b");
     }
 

@@ -64,7 +64,8 @@ class EmailLogServiceTest {
 
         LocalDateTime before = LocalDateTime.now();
 
-        long count = service.countEmailsSentToByEventInWindow("user@example.com", NotificationEvent.RECOVERY_PASSWORD, Duration.ofHours(1));
+        long count = service.countEmailsSentToByEventInWindow("user@example.com", NotificationEvent.RECOVERY_PASSWORD,
+                Duration.ofHours(1));
         LocalDateTime after = LocalDateTime.now();
 
         // then
@@ -72,7 +73,8 @@ class EmailLogServiceTest {
 
         ArgumentCaptor<LocalDateTime> startCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<LocalDateTime> endCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(repository).countEmailsByToAndEventBetween(eq("user@example.com"), eq(NotificationEvent.RECOVERY_PASSWORD),
+        verify(repository).countEmailsByToAndEventBetween(eq("user@example.com"),
+                eq(NotificationEvent.RECOVERY_PASSWORD),
                 startCaptor.capture(), endCaptor.capture());
 
         assertThat(startCaptor.getValue()).isBetween(before.minusHours(1), after.minusHours(1));

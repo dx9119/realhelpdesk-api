@@ -9,8 +9,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Список email для назначения {@code ROLE_OPERATOR} при старте (bootstrap). Значение приходит из {@code APP_OPERATOR_EMAILS} — через
- * запятую. Пусто — повышений нет. Список только повышает роль; чтобы снять права, роль нужно менять отдельно.
+ * Список email для назначения {@code ROLE_OPERATOR} при старте (bootstrap). Значение приходит из
+ * {@code APP_OPERATOR_EMAILS} — через запятую. Пусто — повышений нет. Список только повышает роль; чтобы снять права,
+ * роль нужно менять отдельно.
  */
 @Component
 @ConfigurationProperties(prefix = "operator.bootstrap")

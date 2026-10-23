@@ -118,8 +118,10 @@ class ClientIpResolverTest {
         assertThat(resolveWithHeader(resolver, "X-Forwarded-For", "\"203.0.113.9\"")).isEqualTo("203.0.113.9");
         assertThat(resolveWithHeader(resolver, "X-Forwarded-For", "2001:db8::1")).isEqualTo("2001:db8::1");
         assertThat(resolveWithHeader(resolver, "X-Forwarded-For", "\"[2001:db8::1]:443\"")).isEqualTo("2001:db8::1");
-        assertThat(resolveWithHeader(resolver, "Forwarded", "for=203.0.113.9;proto=https;by=10.0.0.1")).isEqualTo("203.0.113.9");
-        assertThat(resolveWithHeader(resolver, "Forwarded", "for=\"[2001:db8::1]:443\", for=10.0.0.1")).isEqualTo("2001:db8::1");
+        assertThat(resolveWithHeader(resolver, "Forwarded", "for=203.0.113.9;proto=https;by=10.0.0.1"))
+                .isEqualTo("203.0.113.9");
+        assertThat(resolveWithHeader(resolver, "Forwarded", "for=\"[2001:db8::1]:443\", for=10.0.0.1"))
+                .isEqualTo("2001:db8::1");
     }
 
     @Test

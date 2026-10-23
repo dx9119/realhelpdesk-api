@@ -19,15 +19,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Bootstrap операторов: на старте повышает до {@code ROLE_OPERATOR} пользователей из {@code operator.bootstrap.emails}. Роль читается
- * приложением из БД на каждом запросе, поэтому повышение действует сразу.
+ * Bootstrap операторов: на старте повышает до {@code ROLE_OPERATOR} пользователей из {@code operator.bootstrap.emails}.
+ * Роль читается приложением из БД на каждом запросе, поэтому повышение действует сразу.
  *
  * <p>
  * Безопасность механизма:
  * </p>
  * <ul>
- * <li>пользователь должен уже существовать и иметь подтверждённый email — список не создаёт аккаунты и не даёт прав по email, который
- * кто-то может зарегистрировать позже;</li>
+ * <li>пользователь должен уже существовать и иметь подтверждённый email — список не создаёт аккаунты и не даёт прав по
+ * email, который кто-то может зарегистрировать позже;</li>
  * <li>идемпотентно: уже оператор пропускается, повторный старт ничего не меняет;</li>
  * <li>только повышение: вывод адреса из списка роль не снимает — исключён риск лок-аута из-за опечатки в конфиге;</li>
  * <li>в лог идёт id пользователя и замаскированный email, а не адрес целиком.</li>
@@ -76,7 +76,12 @@ public class OperatorBootstrapRunner implements ApplicationRunner {
         if (emails == null) {
             return List.of();
         }
-        return emails.stream().filter(Objects::nonNull).map(String::trim).filter(value -> !value.isEmpty())
-                .map(value -> value.toLowerCase(Locale.ROOT)).distinct().toList();
+        return emails.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
     }
 }

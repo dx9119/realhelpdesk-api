@@ -13,6 +13,7 @@ import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketLiveStatus;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketModel;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketPriority;
+import com.ukhanov.realhelpdesk.domain.ticket.model.TicketSearchCriteria;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketStatus;
 
 public final class TicketSpecification {
@@ -45,7 +46,8 @@ public final class TicketSpecification {
             String pattern = "%" + text.toLowerCase() + "%";
             Join<TicketModel, UserModel> author = root.join("author", JoinType.LEFT);
             return cb.or(cb.like(cb.lower(root.get("title")), pattern), cb.like(cb.lower(root.get("body")), pattern),
-                    cb.like(cb.lower(author.get("firstName")), pattern), cb.like(cb.lower(author.get("lastName")), pattern),
+                    cb.like(cb.lower(author.get("firstName")), pattern),
+                    cb.like(cb.lower(author.get("lastName")), pattern),
                     cb.like(cb.lower(author.get("middleName")), pattern));
         };
     }
@@ -71,8 +73,8 @@ public final class TicketSpecification {
     }
 
     // Основной билдер спецификаций: собирает все фильтры в одну спецификацию
-    public static Specification<TicketModel> build(String search, Instant startDate, Instant endDate, TicketStatus ticketStatus,
-            TicketPriority ticketPriority, Boolean isMyTickets, Long currentUserId, Set<Long> accessiblePortalIds) {
+    public static Specification<TicketModel> build(TicketSearchCriteria criteria, Long currentUserId,
+            Set<Long> accessiblePortalIds) {
 
         // Если нет доступных порталов — возвращаем пустой результат
         if (accessiblePortalIds == null || accessiblePortalIds.isEmpty()) {
@@ -81,28 +83,28 @@ public final class TicketSpecification {
 
         Specification<TicketModel> spec = Specification.where(active()).and(inPortals(accessiblePortalIds));
 
-        if (Boolean.TRUE.equals(isMyTickets)) {
+        if (criteria.mine()) {
             spec = spec.and(onlyMy(currentUserId));
         }
 
-        if (StringUtils.hasText(search)) {
-            spec = spec.and(search(search));
+        if (StringUtils.hasText(criteria.search())) {
+            spec = spec.and(search(criteria.search()));
         }
 
-        if (startDate != null) {
-            spec = spec.and(createdAfter(startDate));
+        if (criteria.startDate() != null) {
+            spec = spec.and(createdAfter(criteria.startDate()));
         }
 
-        if (endDate != null) {
-            spec = spec.and(createdBefore(endDate));
+        if (criteria.endDate() != null) {
+            spec = spec.and(createdBefore(criteria.endDate()));
         }
 
-        if (ticketStatus != null) {
-            spec = spec.and(withStatus(ticketStatus));
+        if (criteria.status() != null) {
+            spec = spec.and(withStatus(criteria.status()));
         }
 
-        if (ticketPriority != null) {
-            spec = spec.and(withPriority(ticketPriority));
+        if (criteria.priority() != null) {
+            spec = spec.and(withPriority(criteria.priority()));
         }
 
         return spec;

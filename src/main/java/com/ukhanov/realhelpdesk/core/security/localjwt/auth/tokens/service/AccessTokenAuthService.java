@@ -28,7 +28,8 @@ public class AccessTokenAuthService {
 
         Long userId = parseUserId(claims.getSubject());
 
-        UserModel user = userRepository.findById(userId).orElseThrow(() -> new TokenException("Пользователь из токена не найден", null));
+        UserModel user = userRepository.findById(userId)
+                .orElseThrow(() -> new TokenException("Пользователь из токена не найден", null));
 
         if (user.getUserStatus() != UserStatus.ACTIVE) {
             logger.debug("Токен отклонён: пользователь {} не активен", userId);

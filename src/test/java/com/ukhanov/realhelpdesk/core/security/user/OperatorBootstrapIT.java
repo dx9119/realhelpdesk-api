@@ -20,8 +20,9 @@ import com.ukhanov.realhelpdesk.core.security.user.repository.UserRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Проверяет, что при старте контекста {@link OperatorBootstrapRunner} повышает пользователей из {@code operator.bootstrap.emails}.
- * Пользователи создаются отдельным раннером с более высоким приоритетом — до бутстрапа.
+ * Проверяет, что при старте контекста {@link OperatorBootstrapRunner} повышает пользователей из
+ * {@code operator.bootstrap.emails}. Пользователи создаются отдельным раннером с более высоким приоритетом — до
+ * бутстрапа.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
 @DisplayName("Оператор-бутстрап на старте контекста")
@@ -29,24 +30,30 @@ class OperatorBootstrapIT extends AbstractIntegrationTest {
 
     @DynamicPropertySource
     static void operatorBootstrapEmails(DynamicPropertyRegistry registry) {
-        registry.add("operator.bootstrap.emails", () -> "verified-operator@example.com, VERIFIED-Operator2@example.com, "
-                + "missing-operator@example.com, unverified-operator@example.com, verified-operator@example.com");
+        registry.add("operator.bootstrap.emails",
+                () -> "verified-operator@example.com, VERIFIED-Operator2@example.com, "
+                        + "missing-operator@example.com, unverified-operator@example.com, "
+                        + "verified-operator@example.com");
     }
 
     @Autowired
     private UserRepository userRepository;
 
     @Test
-    @DisplayName("Подтверждённые из списка становятся ROLE_OPERATOR (независимо от регистра), отсутствующие и неподтверждённые — нет")
+    @DisplayName("Подтверждённые из списка становятся ROLE_OPERATOR (независимо от регистра), "
+            + "отсутствующие и неподтверждённые — нет")
     void operatorBootstrap_mixedUserStates_promotesOnlyVerified() {
         // given / when / then
         assertThat(userRepository.findByEmailIgnoreCase("verified-operator@example.com"))
                 .hasValueSatisfying(user -> assertThat(user.getUserRole()).isEqualTo(UserRole.ROLE_OPERATOR));
-        assertThat(userRepository.findByEmailIgnoreCase("VERIFIED-Operator2@example.com")).as("регистр email в списке не важен")
+        assertThat(userRepository.findByEmailIgnoreCase("VERIFIED-Operator2@example.com"))
+                .as("регистр email в списке не важен")
                 .hasValueSatisfying(user -> assertThat(user.getUserRole()).isEqualTo(UserRole.ROLE_OPERATOR));
-        assertThat(userRepository.findByEmailIgnoreCase("unverified-operator@example.com")).as("без подтверждённого email роль не меняется")
+        assertThat(userRepository.findByEmailIgnoreCase("unverified-operator@example.com"))
+                .as("без подтверждённого email роль не меняется")
                 .hasValueSatisfying(user -> assertThat(user.getUserRole()).isEqualTo(UserRole.ROLE_USER));
-        assertThat(userRepository.findByEmailIgnoreCase("missing-operator@example.com")).as("несуществующий аккаунт не создаётся")
+        assertThat(userRepository.findByEmailIgnoreCase("missing-operator@example.com"))
+                .as("несуществующий аккаунт не создаётся")
                 .isEmpty();
     }
 

@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import com.ukhanov.realhelpdesk.core.exception.GlobalExceptionHandler;
+import com.ukhanov.realhelpdesk.core.exception.InfrastructureExceptionHandler;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.service.RefreshTokenCleanupService;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.service.RefreshTokenCleanupService.CleanupResult;
 
@@ -31,7 +32,9 @@ class TokenOperatorControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcTester.of(List.of(new TokenOperatorController(refreshTokenCleanupService)),
-                builder -> builder.setControllerAdvice(new GlobalExceptionHandler()).build());
+                builder -> builder
+                        .setControllerAdvice(new GlobalExceptionHandler(), new InfrastructureExceptionHandler())
+                        .build());
     }
 
     @Test

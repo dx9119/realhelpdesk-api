@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.accesscontrol;
+package com.ukhanov.realhelpdesk.core.security.accesscontrol.service;
 
 import org.springframework.stereotype.Service;
 
@@ -53,10 +53,12 @@ public class AccessValidationService {
         Long currentUserId = currentUserProvider.getCurrentUserModel().getId();
 
         boolean isOwner = portal.getOwner().getId().equals(currentUserId);
-        boolean isAllowedUser = portal.getAllowedUserIds() != null && portal.getAllowedUserIds().contains(currentUserId);
+        boolean isAllowedUser = portal.getAllowedUserIds() != null
+                && portal.getAllowedUserIds().contains(currentUserId);
 
         if (!isOwner && !isAllowedUser) {
-            logger.warn("Доступ запрещён: пользователь {} не имеет прав управления порталом {}", currentUserId, portalId);
+            logger.warn("Доступ запрещён: пользователь {} не имеет прав управления порталом {}", currentUserId,
+                    portalId);
             return false;
         }
 

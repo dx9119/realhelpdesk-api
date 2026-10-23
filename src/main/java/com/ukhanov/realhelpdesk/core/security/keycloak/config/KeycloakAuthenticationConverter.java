@@ -30,30 +30,33 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Превращает проверенный JWT Keycloak в аутентификацию приложения: {@code principal} — id пользователя из БД, роли — из БД, где они
- * синхронизированы с realm-ролями токена.
+ * Превращает проверенный JWT Keycloak в аутентификацию приложения: {@code principal} — id пользователя из БД, роли — из
+ * БД, где они синхронизированы с realm-ролями токена.
  *
  * <p>
- * Конвертер — единственное место keycloak-контура, которое читает пользователя и пишет в БД, поэтому здесь же решается весь жизненный цикл
- * учётной записи:
+ * Конвертер — единственное место keycloak-контура, которое читает пользователя и пишет в БД, поэтому здесь же решается
+ * весь жизненный цикл учётной записи:
  * </p>
  * <ol>
- * <li>email берётся из claim {@code email} — без него токен бесполезен: приложение связывает вход с учётной записью по адресу;</li>
- * <li>пользователь ищется по email без учёта регистра; отсутствующего создаёт, если {@code keycloak.auto-create-users=true}, иначе
- * отклоняет токен (401) — так «случайный» пользователь Keycloak не получает доступ к данным;</li>
+ * <li>email берётся из claim {@code email} — без него токен бесполезен: приложение связывает вход с учётной записью по
+ * адресу;</li>
+ * <li>пользователь ищется по email без учёта регистра; отсутствующего создаёт, если
+ * {@code keycloak.auto-create-users=true}, иначе отклоняет токен (401) — так «случайный» пользователь Keycloak не
+ * получает доступ к данным;</li>
  * <li>realm-роли ({@code realm_access.roles}) повышают роль в БД, если {@code keycloak.sync-roles=true};</li>
  * <li>неактивная учётная запись (BLOCKED/DISABLED) отклоняется, даже если токен валиден.</li>
  * </ol>
  *
  * <p>
- * Роли в authority берутся из БД, а не из токена — так же, как в локальном контуре ({@code JwtAuthFilter}): блокировка пользователя и
- * понижение роли действуют сразу, без ожидания истечения токена. Имена realm-ролей в Keycloak должны совпадать с именами {@link UserRole}
- * ({@code ROLE_USER}, {@code ROLE_OPERATOR}, {@code ROLE_NONE}) — тогда синхронизация не требует таблицы соответствия.
+ * Роли в authority берутся из БД, а не из токена — так же, как в локальном контуре ({@code JwtAuthFilter}): блокировка
+ * пользователя и понижение роли действуют сразу, без ожидания истечения токена. Имена realm-ролей в Keycloak должны
+ * совпадать с именами {@link UserRole} ({@code ROLE_USER}, {@code ROLE_OPERATOR}, {@code ROLE_NONE}) — тогда
+ * синхронизация не требует таблицы соответствия.
  * </p>
  *
  * <p>
- * Синхронизация только повышает роль: адрес из {@code APP_OPERATOR_EMAILS} (оператор-бутстрап) и роль, назначенная вручную в БД, не
- * снимаются — та же логика, что и у бутстрапа операторов. Понижение роли делается в БД осознанно.
+ * Синхронизация только повышает роль: адрес из {@code APP_OPERATOR_EMAILS} (оператор-бутстрап) и роль, назначенная
+ * вручную в БД, не снимаются — та же логика, что и у бутстрапа операторов. Понижение роли делается в БД осознанно.
  * </p>
  */
 @Slf4j
@@ -78,15 +81,17 @@ public class KeycloakAuthenticationConverter implements Converter<Jwt, AbstractA
     static final String ROLES_KEY = "roles";
 
     /**
-     * Приоритет ролей при синхронизации: набор realm-ролей сводится к одной — самой полной. Порядок задан явно, а не порядком объявления
-     * enum: {@code ROLE_USER} объявлен после {@code ROLE_OPERATOR}, и по ordinal «пользователь» оказался бы старше «оператора».
+     * Приоритет ролей при синхронизации: набор realm-ролей сводится к одной — самой полной. Порядок задан явно, а не
+     * порядком объявления enum: {@code ROLE_USER} объявлен после {@code ROLE_OPERATOR}, и по ordinal «пользователь»
+     * оказался бы старше «оператора».
      */
-    private static final List<UserRole> ROLE_PRIORITY = List.of(UserRole.ROLE_OPERATOR, UserRole.ROLE_USER, UserRole.ROLE_NONE);
+    private static final List<UserRole> ROLE_PRIORITY = List.of(UserRole.ROLE_OPERATOR, UserRole.ROLE_USER,
+            UserRole.ROLE_NONE);
 
     /**
-     * Признак пароля, заведённого Keycloak'ом: вход по паролю в keycloak-профиле отключён (AuthController не создаётся), а
-     * {@code password_hash} объявлен {@code NOT NULL} — значение не должно быть валидным хешем BCrypt, чтобы случайно не совпасть с
-     * введённым паролем.
+     * Признак пароля, заведённого Keycloak'ом: вход по паролю в keycloak-профиле отключён (AuthController не
+     * создаётся), а {@code password_hash} объявлен {@code NOT NULL} — значение не должно быть валидным хешем BCrypt,
+     * чтобы случайно не совпасть с введённым паролем.
      */
     private static final String NO_LOCAL_PASSWORD_PREFIX = "keycloak-no-local-password:";
 
@@ -118,7 +123,8 @@ public class KeycloakAuthenticationConverter implements Converter<Jwt, AbstractA
 
         UserModel user = new UserModel();
         user.setEmail(email);
-        // Имя/фамилия обязательны в схеме: без claim'ов берём локальную часть адреса, чтобы создание не упало на NOT NULL.
+        // Имя/фамилия обязательны в схеме: без claim'ов берём локальную часть адреса, чтобы создание не упало на NOT
+        // NULL.
         String fallback = localPart(email);
         user.setFirstName(orDefault(jwt.getClaimAsString(GIVEN_NAME_CLAIM), fallback));
         user.setLastName(orDefault(jwt.getClaimAsString(FAMILY_NAME_CLAIM), fallback));
@@ -142,17 +148,21 @@ public class KeycloakAuthenticationConverter implements Converter<Jwt, AbstractA
     }
 
     /**
-     * Повышение роли по realm-ролям токена. Роль в токене, которой нет среди {@link UserRole}, игнорируется: в realm живут и служебные роли
-     * Keycloak ({@code offline_access}, {@code uma_authorization}), и они не должны влиять на права в приложении.
+     * Повышение роли по realm-ролям токена. Роль в токене, которой нет среди {@link UserRole}, игнорируется: в realm
+     * живут и служебные роли Keycloak ({@code offline_access}, {@code uma_authorization}), и они не должны влиять на
+     * права в приложении.
      */
     private void syncRole(UserModel user, List<String> realmRoles) {
         if (!keycloakProperties.isSyncRoles() || realmRoles.isEmpty()) {
             return;
         }
 
-        Optional<UserRole> tokenRole = ROLE_PRIORITY.stream().filter(role -> realmRoles.contains(role.name())).findFirst();
+        Optional<UserRole> tokenRole = ROLE_PRIORITY.stream()
+                .filter(role -> realmRoles.contains(role.name()))
+                .findFirst();
         if (tokenRole.isEmpty()) {
-            logger.debug("Keycloak: в realm-ролях нет ролей приложения, роль пользователя id={} не меняется", user.getId());
+            logger.debug("Keycloak: в realm-ролях нет ролей приложения, роль пользователя id={} не меняется",
+                    user.getId());
             return;
         }
 
@@ -172,7 +182,10 @@ public class KeycloakAuthenticationConverter implements Converter<Jwt, AbstractA
         return index < 0 ? -1 : ROLE_PRIORITY.size() - index;
     }
 
-    /** Realm-роли из {@code realm_access.roles}: вложенный объект, поэтому читается из карты claim'ов, а не как список строк. */
+    /**
+     * Realm-роли из {@code realm_access.roles}: вложенный объект, поэтому читается из карты claim'ов, а не как список
+     * строк.
+     */
     static List<String> realmRoles(Jwt jwt) {
         Object realmAccess = jwt.getClaim(REALM_ACCESS_CLAIM);
         if (!(realmAccess instanceof Map<?, ?> access)) {

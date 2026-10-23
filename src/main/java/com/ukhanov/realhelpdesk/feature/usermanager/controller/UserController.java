@@ -28,6 +28,7 @@ import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoResponse;
 import com.ukhanov.realhelpdesk.feature.usermanager.exception.UserManageException;
 import com.ukhanov.realhelpdesk.feature.usermanager.service.UserManageService;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +39,8 @@ public class UserController {
 
     private final UserManageService userManageService;
 
+    @Operation(summary = "Профиль пользователя",
+            description = "Возвращает профиль текущего пользователя с ETag для последующего If-Match.")
     @GetMapping("/profile")
     public ResponseEntity<UserInfoResponse> getUserInfo() {
 
@@ -46,7 +49,8 @@ public class UserController {
         return ResponseEntity.ok().eTag(EntityTag.of("user", response.version())).body(response);
     }
 
-    /** Полная замена профиля: If-Match с версией из GET не даёт затереть чужое изменение. */
+    @Operation(summary = "Полная замена профиля",
+            description = "Заменяет профиль целиком. If-Match с версией из GET не даёт затереть чужое изменение.")
     @PutMapping("/profile")
     public ResponseEntity<UserInfoResponse> updateUserInfo(@Valid @RequestBody UserInfoRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch) throws UserManageException {
@@ -56,7 +60,9 @@ public class UserController {
         return ResponseEntity.ok().eTag(EntityTag.of("user", response.version())).body(response);
     }
 
-    /** Частичное обновление: меняются только переданные поля. */
+    @Operation(summary = "Частичное обновление профиля",
+            description = "Меняет только переданные поля (null — не трогать). "
+                    + "If-Match с версией из GET обязателен для защиты от потери чужого изменения.")
     @PatchMapping("/profile")
     public ResponseEntity<UserInfoResponse> patchUserInfo(@Valid @RequestBody PatchUserInfoRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch) throws UserManageException {
@@ -66,10 +72,7 @@ public class UserController {
         return ResponseEntity.ok().eTag(EntityTag.of("user", response.version())).body(response);
     }
 
-    /**
-     * Запрос восстановления пароля: письмо отправляется синхронно, поэтому 202 был бы обещанием «сделаем потом» — клиент не показал бы
-     * ошибку SMTP. Отвечаем 204, как остальные команды.
-     */
+    @Operation(summary = "Запрос сброса пароля", description = "Отправляет письмо с кодом восстановления.")
     @PostMapping("/password-resets")
     @RateLimit(key = "password-reset-request")
     @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
@@ -80,10 +83,13 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Установка нового пароля",
+            description = "Устанавливает пароль по коду из письма восстановления.")
     @PutMapping("/password-resets/{code}")
     @RateLimit(key = "password-reset-confirm")
     @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
-    public ResponseEntity<Void> resetPassword(@PathVariable Long code, @Valid @RequestBody NewPasswdRequest request) throws TokenException {
+    public ResponseEntity<Void> resetPassword(@PathVariable Long code, @Valid @RequestBody NewPasswdRequest request)
+            throws TokenException {
         userManageService.setNewPasswd(code, request);
 
         return ResponseEntity.noContent().build();

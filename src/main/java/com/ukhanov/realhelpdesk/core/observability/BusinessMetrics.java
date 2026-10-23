@@ -21,19 +21,21 @@ import io.micrometer.core.instrument.Timer;
  * Бизнес-метрики заявок, вложений и писем.
  *
  * <p>
- * Инкремент идёт сразу после успешного коммита доменной операции: {@code saveTicket}/{@code saveMessage}/{@code saveAttachment}
- * возвращаются уже после коммита своей транзакции, письмо считается после приёма SMTP. Откат или исключение до этой точки не доходит,
- * поэтому счётчики не завышаются; сам инкремент на транзакцию не влияет — MeterRegistry работает в памяти.
+ * Инкремент идёт сразу после успешного коммита доменной операции:
+ * {@code saveTicket}/{@code saveMessage}/{@code saveAttachment} возвращаются уже после коммита своей транзакции, письмо
+ * считается после приёма SMTP. Откат или исключение до этой точки не доходит, поэтому счётчики не завышаются; сам
+ * инкремент на транзакцию не влияет — MeterRegistry работает в памяти.
  * </p>
  *
  * <p>
- * Теги — только значения конечных enum'ов (priority, access, from, to, status, type), конечный список result (как в {@code auth.attempts})
- * и конечный список групп content_type. Email, userId, ticketId и имена файлов в теги не попадают — они высококардинальные и содержат ПДн.
+ * Теги — только значения конечных enum'ов (priority, access, from, to, status, type), конечный список result (как в
+ * {@code auth.attempts}) и конечный список групп content_type. Email, userId, ticketId и имена файлов в теги не
+ * попадают — они высококардинальные и содержат ПДн.
  * </p>
  *
  * <p>
- * Вызов метрики не должен ронять успешный бизнес-сценарий: запись пропускается при null-параметрах и отрицательных/неизвестных
- * длительностях.
+ * Вызов метрики не должен ронять успешный бизнес-сценарий: запись пропускается при null-параметрах и
+ * отрицательных/неизвестных длительностях.
  * </p>
  *
  * @see TicketsOpenGauge gauge открытых заявок tickets.open
@@ -58,11 +60,13 @@ public class BusinessMetrics {
     private static final String DESCRIPTION_MAIL_SENT = "Отправленные письма по событию и результату";
 
     /** SLO-бакеты первого ответа: от минуты до суток — видно, где очередь отвечает быстрее часа. */
-    private static final Duration[] FIRST_RESPONSE_SLOS = {Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(30),
+    private static final Duration[] FIRST_RESPONSE_SLOS = {Duration.ofMinutes(1), Duration.ofMinutes(5),
+            Duration.ofMinutes(30),
             Duration.ofHours(2), Duration.ofHours(8), Duration.ofHours(24)};
 
     /** SLO-бакеты решения заявки: от часа до недели. */
-    private static final Duration[] RESOLUTION_SLOS = {Duration.ofHours(1), Duration.ofHours(6), Duration.ofHours(24), Duration.ofHours(72),
+    private static final Duration[] RESOLUTION_SLOS = {Duration.ofHours(1), Duration.ofHours(6), Duration.ofHours(24),
+            Duration.ofHours(72),
             Duration.ofHours(168)};
 
     private static final Set<String> CONTENT_TYPE_GROUPS = Set.of("image", "text", "application", "video", "audio");
@@ -73,13 +77,20 @@ public class BusinessMetrics {
         this.meterRegistry = meterRegistry;
     }
 
-    /** tickets.created: считается после коммита saveTicket; теги priority и access берутся из enum'ов сохранённой заявки. */
+    /**
+     * tickets.created: считается после коммита saveTicket; теги priority и access берутся из enum'ов сохранённой
+     * заявки.
+     */
     public void ticketCreated(TicketPriority priority, TicketAccessStatus accessStatus) {
         if (priority == null || accessStatus == null) {
             return;
         }
-        Counter.builder(TICKETS_CREATED).description(DESCRIPTION_TICKETS_CREATED).tag("priority", priority.name())
-                .tag("access", accessStatus.name()).register(meterRegistry).increment();
+        Counter.builder(TICKETS_CREATED)
+                .description(DESCRIPTION_TICKETS_CREATED)
+                .tag("priority", priority.name())
+                .tag("access", accessStatus.name())
+                .register(meterRegistry)
+                .increment();
     }
 
     /** tickets.status.transitions: переходы с одинаковым статусом не считаются. */
@@ -87,8 +98,12 @@ public class BusinessMetrics {
         if (from == null || to == null || from == to) {
             return;
         }
-        Counter.builder(TICKETS_STATUS_TRANSITIONS).description(DESCRIPTION_TRANSITIONS).tag("from", from.name()).tag("to", to.name())
-                .register(meterRegistry).increment();
+        Counter.builder(TICKETS_STATUS_TRANSITIONS)
+                .description(DESCRIPTION_TRANSITIONS)
+                .tag("from", from.name())
+                .tag("to", to.name())
+                .register(meterRegistry)
+                .increment();
     }
 
     /** tickets.time.to.first.response: сколько прошло от создания заявки до первого в ней сообщения. */
@@ -102,27 +117,38 @@ public class BusinessMetrics {
     }
 
     /**
-     * attachments.uploaded и attachments.size: группа contentType — часть до «/» из конечного списка (image, text, application, video,
-     * audio), всё остальное — other; имя файла в теги не попадает.
+     * attachments.uploaded и attachments.size: группа contentType — часть до «/» из конечного списка (image, text,
+     * application, video, audio), всё остальное — other; имя файла в теги не попадает.
      */
     public void attachmentUploaded(String contentType, long sizeBytes) {
         String group = contentTypeGroup(contentType);
-        Counter.builder(ATTACHMENTS_UPLOADED).description(DESCRIPTION_ATTACHMENTS_UPLOADED).tag("content_type", group)
-                .register(meterRegistry).increment();
-        DistributionSummary.builder(ATTACHMENTS_SIZE).description(DESCRIPTION_ATTACHMENTS_SIZE).baseUnit("bytes").tag("content_type", group)
-                .register(meterRegistry).record(sizeBytes);
+        Counter.builder(ATTACHMENTS_UPLOADED)
+                .description(DESCRIPTION_ATTACHMENTS_UPLOADED)
+                .tag("content_type", group)
+                .register(meterRegistry)
+                .increment();
+        DistributionSummary.builder(ATTACHMENTS_SIZE)
+                .description(DESCRIPTION_ATTACHMENTS_SIZE)
+                .baseUnit("bytes")
+                .tag("content_type", group)
+                .register(meterRegistry)
+                .record(sizeBytes);
     }
 
     /**
-     * mail.sent: считаются фактические попытки отправки внутри deliver (сборка MIME или SMTP); стоп-лист и лимиты письмо не отправляют и
-     * счётчик не трогают.
+     * mail.sent: считаются фактические попытки отправки внутри deliver (сборка MIME или SMTP); стоп-лист и лимиты
+     * письмо не отправляют и счётчик не трогают.
      */
     public void mailSent(NotificationEvent type, boolean success) {
         if (type == null) {
             return;
         }
-        Counter.builder(MAIL_SENT).description(DESCRIPTION_MAIL_SENT).tag("type", type.name())
-                .tag("result", success ? AuthMetrics.RESULT_SUCCESS : AuthMetrics.RESULT_FAILURE).register(meterRegistry).increment();
+        Counter.builder(MAIL_SENT)
+                .description(DESCRIPTION_MAIL_SENT)
+                .tag("type", type.name())
+                .tag("result", success ? AuthMetrics.RESULT_SUCCESS : AuthMetrics.RESULT_FAILURE)
+                .register(meterRegistry)
+                .increment();
     }
 
     private void recordElapsed(String name, String description, Duration[] serviceLevelObjectives, Instant createdAt) {
@@ -133,7 +159,11 @@ public class BusinessMetrics {
         if (elapsed.isNegative()) {
             return;
         }
-        Timer.builder(name).description(description).serviceLevelObjectives(serviceLevelObjectives).register(meterRegistry).record(elapsed);
+        Timer.builder(name)
+                .description(description)
+                .serviceLevelObjectives(serviceLevelObjectives)
+                .register(meterRegistry)
+                .record(elapsed);
     }
 
     private static String contentTypeGroup(String contentType) {

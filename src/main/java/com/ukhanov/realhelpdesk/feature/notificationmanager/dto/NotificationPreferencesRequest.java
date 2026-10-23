@@ -15,7 +15,8 @@ public record NotificationPreferencesRequest(
          @NotEmpty(message = "Список событий не может быть пустым") Set<NotificationEvent> events,
         Boolean repeatEnabled,
         @Min(value = MIN_REPEAT_MINUTES, message = "Интервал повтора от 1 минуты")
-         @Max(value = MAX_REPEAT_MINUTES, message = "Интервал повтора не больше недели") Integer repeatIntervalMinutes) {
+         @Max(value = MAX_REPEAT_MINUTES,
+                 message = "Интервал повтора не больше недели") Integer repeatIntervalMinutes) {
 
     private static final int MIN_REPEAT_MINUTES = UserNotificationPreferencesModel.MIN_REPEAT_INTERVAL_MINUTES;
     private static final int MAX_REPEAT_MINUTES = UserNotificationPreferencesModel.MAX_REPEAT_INTERVAL_MINUTES;

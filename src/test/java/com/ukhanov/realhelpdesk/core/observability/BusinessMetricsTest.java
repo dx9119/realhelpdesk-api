@@ -54,7 +54,9 @@ class BusinessMetricsTest {
         assertThat(high.count()).isEqualTo(2);
         assertThat(high.getId().getDescription()).isNotBlank();
 
-        Counter low = meterRegistry.find("tickets.created").tags("priority", "LOW", "access", "CREATOR_AND_PORTAL_USERS").counter();
+        Counter low = meterRegistry.find("tickets.created")
+                .tags("priority", "LOW", "access", "CREATOR_AND_PORTAL_USERS")
+                .counter();
         assertThat(low).isNotNull();
         assertThat(low.count()).isEqualTo(1);
     }
@@ -86,9 +88,15 @@ class BusinessMetricsTest {
         businessMetrics.statusTransition(TicketStatus.IN_PROGRESS, TicketStatus.CLOSED);
 
         // then
-        assertThat(meterRegistry.find("tickets.status.transitions").tags("from", "OPEN", "to", "IN_PROGRESS").counter().count())
+        assertThat(meterRegistry.find("tickets.status.transitions")
+                .tags("from", "OPEN", "to", "IN_PROGRESS")
+                .counter()
+                .count())
                 .isEqualTo(1);
-        assertThat(meterRegistry.find("tickets.status.transitions").tags("from", "IN_PROGRESS", "to", "CLOSED").counter().count())
+        assertThat(meterRegistry.find("tickets.status.transitions")
+                .tags("from", "IN_PROGRESS", "to", "CLOSED")
+                .counter()
+                .count())
                 .isEqualTo(1);
     }
 
@@ -126,7 +134,9 @@ class BusinessMetricsTest {
         assertThat(timer.getId().getDescription()).isNotBlank();
 
         // границы бакетов в снапшоте — наносекунды: 1m, 5m и 24h из FIRST_RESPONSE_SLOS
-        double[] bucketBoundaries = Arrays.stream(timer.takeSnapshot().histogramCounts()).mapToDouble(CountAtBucket::bucket).toArray();
+        double[] bucketBoundaries = Arrays.stream(timer.takeSnapshot().histogramCounts())
+                .mapToDouble(CountAtBucket::bucket)
+                .toArray();
         assertThat(bucketBoundaries).contains(Duration.ofMinutes(1).toNanos(), Duration.ofMinutes(5).toNanos(),
                 Duration.ofHours(24).toNanos());
     }
@@ -197,9 +207,12 @@ class BusinessMetricsTest {
         businessMetrics.attachmentUploaded(null, 5);
 
         // then
-        assertThat(meterRegistry.find("attachments.uploaded").tags("content_type", "application").counter().count()).isEqualTo(1);
-        assertThat(meterRegistry.find("attachments.uploaded").tags("content_type", "other").counter().count()).isEqualTo(2);
-        assertThat(meterRegistry.find("attachments.size").tags("content_type", "other").summary().totalAmount()).isEqualTo(15);
+        assertThat(meterRegistry.find("attachments.uploaded").tags("content_type", "application").counter().count())
+                .isEqualTo(1);
+        assertThat(meterRegistry.find("attachments.uploaded").tags("content_type", "other").counter().count())
+                .isEqualTo(2);
+        assertThat(meterRegistry.find("attachments.size").tags("content_type", "other").summary().totalAmount())
+                .isEqualTo(15);
     }
 
     // ────────────────────────────────────────────────
@@ -222,7 +235,9 @@ class BusinessMetricsTest {
         assertThat(success.count()).isEqualTo(2);
         assertThat(success.getId().getDescription()).isNotBlank();
 
-        Counter failure = meterRegistry.find("mail.sent").tags("type", "RECOVERY_PASSWORD", "result", "failure").counter();
+        Counter failure = meterRegistry.find("mail.sent")
+                .tags("type", "RECOVERY_PASSWORD", "result", "failure")
+                .counter();
         assertThat(failure).isNotNull();
         assertThat(failure.count()).isEqualTo(1);
     }

@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 
 import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
+import com.ukhanov.realhelpdesk.domain.notification.model.NotificationCreateCommand;
 import com.ukhanov.realhelpdesk.domain.notification.model.NotificationModel;
 import com.ukhanov.realhelpdesk.domain.notification.model.UserNotificationPreferencesModel;
 
@@ -53,12 +54,15 @@ class NotificationRepositoryIT extends AbstractIntegrationTest {
         save(OTHER_USER_ID, NotificationEvent.NEW_TICKET, "Чужая");
 
         // when
-        List<NotificationModel> all = notificationRepository.findByRecipientId(USER_ID, PageRequest.of(0, 10)).getContent();
+        List<NotificationModel> all = notificationRepository.findByRecipientId(USER_ID, PageRequest.of(0, 10))
+                .getContent();
         long unreadBefore = notificationRepository.countByRecipientIdAndReadFalse(USER_ID);
 
         first.setRead(true);
         notificationRepository.save(first);
-        List<NotificationModel> unread = notificationRepository.findByRecipientIdAndReadFalse(USER_ID, PageRequest.of(0, 10)).getContent();
+        List<NotificationModel> unread = notificationRepository
+                .findByRecipientIdAndReadFalse(USER_ID, PageRequest.of(0, 10))
+                .getContent();
         long unreadAfter = notificationRepository.countByRecipientIdAndReadFalse(USER_ID);
 
         // then
@@ -78,9 +82,11 @@ class NotificationRepositoryIT extends AbstractIntegrationTest {
         save(OTHER_USER_ID, NotificationEvent.NEW_TICKET, "чужая");
 
         // when
-        List<NotificationModel> afterFirst = notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(USER_ID, first.getId(),
+        List<NotificationModel> afterFirst = notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(
+                USER_ID, first.getId(),
                 PageRequest.of(0, 10));
-        List<NotificationModel> limited = notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(USER_ID, first.getId(),
+        List<NotificationModel> limited = notificationRepository.findByRecipientIdAndIdGreaterThanOrderByIdAsc(USER_ID,
+                first.getId(),
                 PageRequest.of(0, 1));
 
         // then
@@ -119,7 +125,8 @@ class NotificationRepositoryIT extends AbstractIntegrationTest {
 
         // when
         Optional<NotificationModel> own = notificationRepository.findByIdAndRecipientId(mine.getId(), USER_ID);
-        Optional<NotificationModel> foreign = notificationRepository.findByIdAndRecipientId(mine.getId(), OTHER_USER_ID);
+        Optional<NotificationModel> foreign = notificationRepository.findByIdAndRecipientId(mine.getId(),
+                OTHER_USER_ID);
 
         // then
         assertThat(own).isPresent();
@@ -135,7 +142,8 @@ class NotificationRepositoryIT extends AbstractIntegrationTest {
         // when
         Optional<UserNotificationPreferencesModel> found = preferencesRepository.findByUserId(USER_ID);
         Optional<UserNotificationPreferencesModel> absent = preferencesRepository.findByUserId(OTHER_USER_ID);
-        List<UserNotificationPreferencesModel> both = preferencesRepository.findByUserIdIn(Set.of(USER_ID, OTHER_USER_ID));
+        List<UserNotificationPreferencesModel> both = preferencesRepository
+                .findByUserIdIn(Set.of(USER_ID, OTHER_USER_ID));
 
         // then
         assertThat(found).isPresent();
@@ -158,10 +166,12 @@ class NotificationRepositoryIT extends AbstractIntegrationTest {
 
         // when
         List<NotificationModel> candidates = notificationRepository
-                .findRepeatCandidates(Set.of(NotificationEvent.NEW_TICKET, NotificationEvent.NEW_MESSAGE), PageRequest.of(0, 10));
+                .findRepeatCandidates(Set.of(NotificationEvent.NEW_TICKET, NotificationEvent.NEW_MESSAGE),
+                        PageRequest.of(0, 10));
 
         // then — оригинал теснится более новой копией той же группы, прочитанное и неповторяемое событие не кандидаты
-        assertThat(candidates).extracting(NotificationModel::getId).containsExactlyInAnyOrder(reminder.getId(), otherUser.getId());
+        assertThat(candidates).extracting(NotificationModel::getId)
+                .containsExactlyInAnyOrder(reminder.getId(), otherUser.getId());
     }
 
     @Test
@@ -179,15 +189,19 @@ class NotificationRepositoryIT extends AbstractIntegrationTest {
 
         // then
         assertThat(updated).isEqualTo(2);
-        assertThat(notificationRepository.findById(original.getId())).hasValueSatisfying(row -> assertThat(row.isRead()).isTrue());
-        assertThat(notificationRepository.findById(reminder.getId())).hasValueSatisfying(row -> assertThat(row.isRead()).isTrue());
+        assertThat(notificationRepository.findById(original.getId()))
+                .hasValueSatisfying(row -> assertThat(row.isRead()).isTrue());
+        assertThat(notificationRepository.findById(reminder.getId()))
+                .hasValueSatisfying(row -> assertThat(row.isRead()).isTrue());
         assertThat(notificationRepository.findById(sameEventOtherGroup.getId()))
                 .hasValueSatisfying(row -> assertThat(row.isRead()).isFalse());
         assertThat(notificationRepository.countByRecipientIdAndReadFalse(OTHER_USER_ID)).isEqualTo(1);
     }
 
     private NotificationModel reminderOf(Long recipientId, NotificationModel source, String title) {
-        return notificationRepository.save(new NotificationModel(recipientId, source.getEvent(), 11L, 2L, title, source.getId()));
+        return notificationRepository
+                .save(NotificationModel.create(new NotificationCreateCommand(recipientId, source.getEvent(), 11L, 2L,
+                        title, source.getId())));
     }
 
     private NotificationModel save(Long recipientId, NotificationEvent event, String title) {

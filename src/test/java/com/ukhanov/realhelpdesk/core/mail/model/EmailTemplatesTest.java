@@ -36,7 +36,8 @@ class EmailTemplatesTest {
 
         // then
         assertThat(subject).isEqualTo("Подтверждение регистрации");
-        assertThat(body).contains(code).contains("https://" + EmailTemplatesFixture.DOMAIN + "/notify-settings")
+        assertThat(body).contains(code)
+                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/notify-settings")
                 .contains(EmailTemplatesFixture.PROJECT_NAME);
     }
 
@@ -136,7 +137,8 @@ class EmailTemplatesTest {
 
         // then
         assertThat(subject).isEqualTo("Создан новый портал #5");
-        assertThat(body).contains("Создан портал #5").contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
+        assertThat(body).contains("Создан портал #5")
+                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
     }
 
     @Test
@@ -150,7 +152,8 @@ class EmailTemplatesTest {
 
         // then
         assertThat(subject).isEqualTo("Вас добавили к порталу #5");
-        assertThat(body).contains("Общие порталы").contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
+        assertThat(body).contains("Общие порталы")
+                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-manager");
     }
 
     @Test
@@ -241,8 +244,10 @@ class EmailTemplatesTest {
 
         // then
         assertThat(subject).isEqualTo("Вам передают портал #5");
-        assertThat(body).contains(ownerName + " предлагает передать вам владение порталом #5").contains(reason)
-                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-transfer/5").contains("72 часа");
+        assertThat(body).contains(ownerName + " предлагает передать вам владение порталом #5")
+                .contains(reason)
+                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/portal-transfer/5")
+                .contains("72 часа");
     }
 
     @Test

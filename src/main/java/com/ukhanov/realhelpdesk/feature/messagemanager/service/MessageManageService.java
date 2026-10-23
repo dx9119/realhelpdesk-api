@@ -26,6 +26,7 @@ import com.ukhanov.realhelpdesk.feature.messagemanager.dto.MessageResponse;
 import com.ukhanov.realhelpdesk.feature.messagemanager.exception.MessageException;
 import com.ukhanov.realhelpdesk.feature.messagemanager.mapper.MessageMapper;
 import com.ukhanov.realhelpdesk.feature.notificationmanager.service.NotificationPublisher;
+import com.ukhanov.realhelpdesk.feature.notificationmanager.service.PublishNotificationCommand;
 import com.ukhanov.realhelpdesk.feature.portalmanager.exception.PortalException;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 
@@ -61,19 +62,23 @@ public class MessageManageService {
         ticketDomainService.saveTicket(ticket);
         MessageModel message = messageDomainService.saveMessage(messageMapper.toEntity(request, user, ticket));
 
-        // инкременты после коммита saveMessage: откат или исключение раньше счётчики не завышают
+        // инкременты после коммита saveMessage: при откате транзакции метрика не завышается
         businessMetrics.statusTransition(previousStatus, TicketStatus.IN_PROGRESS);
         if (firstResponse) {
             businessMetrics.timeToFirstResponse(ticket.getCreatedAt());
         }
 
         // In-app оповещение автору заявки о новом сообщении (ответившего автора publisher исключает)
-        notificationPublisher.publishToUsers(Set.of(ticket.getAuthor().getId()), NotificationEvent.NEW_MESSAGE, user.getId(),
-                ticket.getId(), portalId, ticket.getTitle());
+        notificationPublisher.publishToUsers(
+                new PublishNotificationCommand(Set.of(ticket.getAuthor().getId()), NotificationEvent.NEW_MESSAGE,
+                        user.getId(),
+                        ticket.getId(), portalId, ticket.getTitle()));
 
         // Отправляем письмо с оповещением о новом сообщении в тикете
-        emailDeliveryService.sendUserNotification(ticket.getAuthor().getEmail(), emailTemplates.ticketReplySubject(ticket.getId()),
-                emailTemplates.ticketReplyBody(ticket.getId(), portalId), NotificationEvent.NEW_MESSAGE, ticket.getAuthor().getId());
+        emailDeliveryService.sendUserNotification(ticket.getAuthor().getEmail(),
+                emailTemplates.ticketReplySubject(ticket.getId()),
+                emailTemplates.ticketReplyBody(ticket.getId(), portalId), NotificationEvent.NEW_MESSAGE,
+                ticket.getAuthor().getId());
 
         logger.info("Сообщение сохранено для заявки с ID: {}", ticketId);
         return new CreateMessageResponse(message.getId());
@@ -89,8 +94,8 @@ public class MessageManageService {
     }
 
     /**
-     * Одно сообщение заявки: нужно, чтобы Location после создания указывал на существующий маршрут. Сообщение другой заявки не отдаём —
-     * иначе id из чужой ленты обходил бы проверку доступа к заявке.
+     * Одно сообщение заявки: нужно, чтобы Location после создания указывал на существующий маршрут. Сообщение другой
+     * заявки не отдаём — иначе id из чужой ленты обходил бы проверку доступа к заявке.
      */
     public MessageResponse getMessage(Long ticketId, Long messageId) throws MessageException {
         Objects.requireNonNull(ticketId, "ID заявки не должен быть null");

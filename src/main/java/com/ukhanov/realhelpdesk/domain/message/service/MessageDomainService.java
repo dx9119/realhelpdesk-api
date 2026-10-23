@@ -33,7 +33,8 @@ public class MessageDomainService {
     public MessageModel getMessageById(Long messageId) throws MessageException {
         Objects.requireNonNull(messageId, "ID сообщения не должен быть null");
 
-        return messageRepository.findById(messageId).orElseThrow(() -> MessageException.notFound("Сообщение не найдено"));
+        return messageRepository.findById(messageId)
+                .orElseThrow(() -> MessageException.notFound("Сообщение не найдено"));
     }
 
     public List<MessageModel> getMessagesByTicketId(Long ticketId) {
@@ -43,7 +44,8 @@ public class MessageDomainService {
         Long firstId = messages.isEmpty() ? null : messages.get(0).getId();
         Long lastId = messages.isEmpty() ? null : messages.get(messages.size() - 1).getId();
 
-        logger.debug("Сообщения заявки {}: найдено={}, первый={}, последний={}", ticketId, messages.size(), firstId, lastId);
+        logger.debug("Сообщения заявки {}: найдено={}, первый={}, последний={}", ticketId, messages.size(), firstId,
+                lastId);
 
         return messages;
     }

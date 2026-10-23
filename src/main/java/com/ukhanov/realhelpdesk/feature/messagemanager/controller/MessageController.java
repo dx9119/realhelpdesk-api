@@ -25,6 +25,7 @@ import com.ukhanov.realhelpdesk.feature.messagemanager.service.MessageManageServ
 import com.ukhanov.realhelpdesk.feature.portalmanager.exception.PortalException;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.exception.TicketException;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +36,9 @@ public class MessageController {
 
     private final MessageManageService messageManageService;
 
+    @Operation(summary = "Создать сообщение в заявке",
+            description = "Добавляет сообщение в ленту заявки. Location ведёт "
+                    + "на существующий маршрут GET .../messages/{id}.")
     @PostMapping
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
     @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
@@ -42,19 +46,24 @@ public class MessageController {
             @PathVariable Long portalId, @PathVariable Long ticketId)
             throws MessageException, MessagingException, TicketException, UnsupportedEncodingException {
         CreateMessageResponse response = messageManageService.createMessage(request, ticketId, portalId);
-        // Location ведёт на существующий маршрут GET .../messages/{id}: раньше он возвращал 404
-        return ResponseEntity.created(URI.create("/api/v1/portals/" + portalId + "/tickets/" + ticketId + "/messages/" + response.id()))
+        return ResponseEntity
+                .created(URI
+                        .create("/api/v1/portals/" + portalId + "/tickets/" + ticketId + "/messages/" + response.id()))
                 .body(response);
     }
 
+    @Operation(summary = "Сообщения заявки", description = "Возвращает все сообщения заявки по возрастанию id.")
     @GetMapping
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
-    public ResponseEntity<ItemsResponse<MessageResponse>> getAllMessages(@PathVariable Long portalId, @PathVariable Long ticketId)
+    public ResponseEntity<ItemsResponse<MessageResponse>> getAllMessages(@PathVariable Long portalId,
+            @PathVariable Long ticketId)
             throws MessageException, PortalException {
         List<MessageResponse> response = messageManageService.getAllMessage(ticketId);
         return ResponseEntity.ok(ItemsResponse.of(response));
     }
 
+    @Operation(summary = "Сообщение по ID",
+            description = "Возвращает одно сообщение заявки. Сообщение чужой заявки — 404.")
     @GetMapping("/{messageId}")
     @PreAuthorize("@ticketAccessValidationService.hasTicketAccess(#portalId, #ticketId)")
     public ResponseEntity<MessageResponse> getMessage(@PathVariable Long portalId, @PathVariable Long ticketId,

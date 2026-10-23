@@ -57,7 +57,8 @@ class JwtConfigTest {
         properties.setSecretForGenJwt("не-base64!");
 
         // then
-        assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Base64");
+        assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Base64");
     }
 
     @Test
@@ -70,7 +71,8 @@ class JwtConfigTest {
         properties.setIssuer("");
 
         // then
-        assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("jwt.issuer");
+        assertThatThrownBy(() -> new JwtConfig(properties)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("jwt.issuer");
     }
 
     @Test

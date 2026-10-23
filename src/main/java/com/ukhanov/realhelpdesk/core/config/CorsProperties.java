@@ -12,8 +12,9 @@ import lombok.Getter;
  * CORS-политика из конфигурации: origin'ы фронта, которым разрешён доступ к API.
  *
  * <p>
- * Значение — список через запятую ({@code CORS_ALLOWED_ORIGINS}), каждый элемент — полный origin вида {@code scheme://host[:port]}: браузер
- * сравнивает origin запроса со списком буквально, поэтому {@code example.com} и {@code https://example.com} — разные значения.
+ * Значение — список через запятую ({@code CORS_ALLOWED_ORIGINS}), каждый элемент — полный origin вида
+ * {@code scheme://host[:port]}: браузер сравнивает origin запроса со списком буквально, поэтому {@code example.com} и
+ * {@code https://example.com} — разные значения.
  * </p>
  */
 @Component

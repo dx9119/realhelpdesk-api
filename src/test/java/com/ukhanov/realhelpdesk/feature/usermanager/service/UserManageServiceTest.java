@@ -115,8 +115,9 @@ class UserManageServiceTest {
         // then
         assertThat(response.firstName()).isEqualTo("NewFirst");
         assertThat(response.lastName()).isEqualTo("NewLast");
-        verify(userDomainService).saveUser(argThat(user -> "NewFirst".equals(user.getFirstName()) && "NewLast".equals(user.getLastName())
-                && "NewMiddle".equals(user.getMiddleName()) && "NewInfo".equals(user.getAdditionalInfo())));
+        verify(userDomainService)
+                .saveUser(argThat(user -> "NewFirst".equals(user.getFirstName()) && "NewLast".equals(user.getLastName())
+                        && "NewMiddle".equals(user.getMiddleName()) && "NewInfo".equals(user.getAdditionalInfo())));
     }
 
     @Test
@@ -134,7 +135,8 @@ class UserManageServiceTest {
     @DisplayName("sendResetLink → неизвестный email → EntityNotFoundException, письмо не отправляется")
     void sendResetLink_unknownEmail_throwsEntityNotFound() {
         // given
-        when(userDomainService.getUserByEmail("unknown@example.com")).thenThrow(new EntityNotFoundException("User not found"));
+        when(userDomainService.getUserByEmail("unknown@example.com"))
+                .thenThrow(new EntityNotFoundException("User not found"));
         RecoveryRequest request = new RecoveryRequest("unknown@example.com");
 
         // when / then
@@ -164,7 +166,8 @@ class UserManageServiceTest {
         assertThat(user.getRecoveryPasswdToken()).isNotEqualTo(88L);
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailDeliveryService).sendEmail(eq("email@example.com"), eq(emailTemplates.passwordResetSubject()), bodyCaptor.capture(),
+        verify(emailDeliveryService).sendEmail(eq("email@example.com"), eq(emailTemplates.passwordResetSubject()),
+                bodyCaptor.capture(),
                 eq(NotificationEvent.RECOVERY_PASSWORD), eq(user.getId()));
         verifyNoMoreInteractions(emailDeliveryService);
         assertThat(bodyCaptor.getValue()).contains("/pass-reset?code=" + user.getRecoveryPasswdToken())
@@ -209,10 +212,12 @@ class UserManageServiceTest {
     void setNewPasswd_unknownCode_throwsEntityNotFound() {
         // given
         Long wrongCode = 66L;
-        when(userDomainService.getUserByRecoveryPasswdToken(wrongCode)).thenThrow(new EntityNotFoundException("Token not found"));
+        when(userDomainService.getUserByRecoveryPasswdToken(wrongCode))
+                .thenThrow(new EntityNotFoundException("Token not found"));
 
         // when / then
-        assertThatThrownBy(() -> service.setNewPasswd(wrongCode, new NewPasswdRequest("pass"))).isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> service.setNewPasswd(wrongCode, new NewPasswdRequest("pass")))
+                .isInstanceOf(EntityNotFoundException.class);
         verifyNoInteractions(passwordEncoder);
     }
 
@@ -227,7 +232,8 @@ class UserManageServiceTest {
     @DisplayName("setNewPasswd → null-код → NPE")
     void setNewPasswd_nullCode_throwsNpe() {
         // given / when / then
-        assertThatThrownBy(() -> service.setNewPasswd(null, new NewPasswdRequest("pass"))).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.setNewPasswd(null, new NewPasswdRequest("pass")))
+                .isInstanceOf(NullPointerException.class);
     }
 
     // ────────────────────────────────────────────────────────────────

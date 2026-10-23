@@ -62,7 +62,8 @@ class RegistrationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RegistrationService(passwordEncoder, userDomainService, getTokenService, emailDeliveryService, captchaService,
+        service = new RegistrationService(passwordEncoder, userDomainService, getTokenService, emailDeliveryService,
+                captchaService,
                 emailTemplates, Mappers.getMapper(AuthMapper.class));
     }
 
@@ -87,7 +88,8 @@ class RegistrationServiceTest {
                 eq(NotificationEvent.NEW_SYSTEM_MESSAGE));
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailDeliveryService).sendUserNotification(eq(EMAIL), eq(emailTemplates.registrationLinkSubject()), bodyCaptor.capture(),
+        verify(emailDeliveryService).sendUserNotification(eq(EMAIL), eq(emailTemplates.registrationLinkSubject()),
+                bodyCaptor.capture(),
                 eq(NotificationEvent.NEW_SYSTEM_MESSAGE), eq(user.getId()));
 
         assertThat(user.getVerifyEmailToken()).isNotNull();
@@ -119,8 +121,10 @@ class RegistrationServiceTest {
         when(userDomainService.isUserExistsByEmail(EMAIL)).thenReturn(false);
 
         // then
-        assertThatThrownBy(() -> service.addUser(new RegisterRequest("Имя", "Фамилия", null, null, EMAIL, "short", null, null)))
-                .isInstanceOf(RegistrationException.class).hasMessageContaining("Минимальная длина пароля");
+        assertThatThrownBy(
+                () -> service.addUser(new RegisterRequest("Имя", "Фамилия", null, null, EMAIL, "short", null, null)))
+                .isInstanceOf(RegistrationException.class)
+                .hasMessageContaining("Минимальная длина пароля");
 
         verifyNoInteractions(emailDeliveryService, passwordEncoder, getTokenService);
     }
@@ -139,11 +143,13 @@ class RegistrationServiceTest {
 
         // given
         // when
-        doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.POW_FAILED)).when(captchaService).verifyRegistration(any(),
-                any(), any());
+        doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.POW_FAILED)).when(captchaService)
+                .verifyRegistration(any(),
+                        any(), any());
 
         // then
-        assertThatThrownBy(() -> service.processRegistration(request(), "127.0.0.1")).isInstanceOf(CaptchaException.class);
+        assertThatThrownBy(() -> service.processRegistration(request(), "127.0.0.1"))
+                .isInstanceOf(CaptchaException.class);
 
         verify(captchaService).verifyRegistration(null, null, "127.0.0.1");
         verifyNoInteractions(userDomainService, emailDeliveryService, getTokenService);
@@ -155,12 +161,15 @@ class RegistrationServiceTest {
 
         // given
         // when
-        doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.HONEYPOT)).when(captchaService).verifyRegistration(any(),
-                eq("bot-filled"), any());
+        doThrow(new CaptchaException("Провал прохождения капчи", CaptchaReason.HONEYPOT)).when(captchaService)
+                .verifyRegistration(any(),
+                        eq("bot-filled"), any());
 
-        RegisterRequest withHoneypot = new RegisterRequest("Имя", "Фамилия", "token-123", "bot-filled", EMAIL, PASSWORD, null, null);
+        RegisterRequest withHoneypot = new RegisterRequest("Имя", "Фамилия", "token-123", "bot-filled", EMAIL, PASSWORD,
+                null, null);
         // then
-        assertThatThrownBy(() -> service.processRegistration(withHoneypot, "127.0.0.1")).isInstanceOf(CaptchaException.class);
+        assertThatThrownBy(() -> service.processRegistration(withHoneypot, "127.0.0.1"))
+                .isInstanceOf(CaptchaException.class);
 
         verify(captchaService).verifyRegistration("token-123", "bot-filled", "127.0.0.1");
         verifyNoInteractions(userDomainService, emailDeliveryService, getTokenService);

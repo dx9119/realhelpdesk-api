@@ -63,7 +63,7 @@ public class RefreshTokenModel implements TokenBearer {
         return tokenRefresh;
     }
 
-    public void setToken(String tokenRefresh) {
-        this.tokenRefresh = tokenRefresh;
+    public void setToken(String token) {
+        this.tokenRefresh = token;
     }
 }

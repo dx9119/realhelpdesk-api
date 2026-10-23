@@ -39,7 +39,8 @@ class AttachmentMapperTest {
         properties.setBaseUrl("https://cdn.example.com");
 
         // then
-        assertThat(mapper.downloadUrl(properties, PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).isEqualTo("https://cdn.example.com" + PATH);
+        assertThat(mapper.downloadUrl(properties, PORTAL_ID, TICKET_ID, ATTACHMENT_ID))
+                .isEqualTo("https://cdn.example.com" + PATH);
     }
 
     @Test
@@ -52,7 +53,8 @@ class AttachmentMapperTest {
         properties.setBaseUrl("http://10.0.0.5:9100/");
 
         // then
-        assertThat(mapper.downloadUrl(properties, PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).isEqualTo("http://10.0.0.5:9100" + PATH);
+        assertThat(mapper.downloadUrl(properties, PORTAL_ID, TICKET_ID, ATTACHMENT_ID))
+                .isEqualTo("http://10.0.0.5:9100" + PATH);
     }
 
     @Test
@@ -60,7 +62,8 @@ class AttachmentMapperTest {
     void downloadUrl_nullProperties_throwsNullPointerException() {
 
         // given / when / then
-        assertThatThrownBy(() -> mapper.downloadUrl(null, PORTAL_ID, TICKET_ID, ATTACHMENT_ID)).isInstanceOf(NullPointerException.class)
+        assertThatThrownBy(() -> mapper.downloadUrl(null, PORTAL_ID, TICKET_ID, ATTACHMENT_ID))
+                .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("staticProperties");
     }
 

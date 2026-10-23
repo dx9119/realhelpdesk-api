@@ -1,8 +1,8 @@
 package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception;
 
 /**
- * Причина провала капчи: код в problem+json ({@code code}) и тег {@code reason} метрики {@code captcha.verification}. Список конечный — без
- * пользовательских данных, чтобы не раздувать кардинальность метрик.
+ * Причина провала капчи: код в problem+json ({@code code}) и тег {@code reason} метрики {@code captcha.verification}.
+ * Список конечный — без пользовательских данных, чтобы не раздувать кардинальность метрик.
  */
 public enum CaptchaReason {
 

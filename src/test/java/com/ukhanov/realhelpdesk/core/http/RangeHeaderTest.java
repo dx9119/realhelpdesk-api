@@ -18,8 +18,9 @@ class RangeHeaderTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"  ", "items=0-4", "bytes=", "bytes=abc", "bytes=1-2-3", "bytes=5-3", "bytes=0-1,5-6", "bytes=-",
-            "bytes=99999999999999999999-"})
+    @ValueSource(
+            strings = {"  ", "items=0-4", "bytes=", "bytes=abc", "bytes=1-2-3", "bytes=5-3", "bytes=0-1,5-6", "bytes=-",
+                    "bytes=99999999999999999999-"})
     @DisplayName("Нет/пустой/неподдерживаемый заголовок → FULL: отдаём весь файл (200)")
     void parse_unusableHeader_returnsFull(String header) {
 

@@ -18,12 +18,9 @@ import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.Captcha
 import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaService;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.annotation.RateLimit;
 
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Публичные эндпоинты капчи: выдать challenge (PoW или эмодзи-задание) и принять решение в обмен на подписанный captcha-токен. Оба белые в
- * {@code WhiteUrlConfig} — вызываются анонимным клиентом до регистрации. IP клиента уходит в сервис — по нему считается риск эскалации.
- */
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/v1/captcha")
@@ -32,18 +29,27 @@ public class CaptchaController {
     private final CaptchaService captchaService;
     private final ClientIpResolver clientIpResolver;
 
+    @Operation(summary = "Получить задание капчи",
+            description = "Возвращает challenge выбранного действия (pow либо emoji) с параметрами "
+                    + "решения и сроком жизни. Уровень сложности выбирает сервер; провалы одного IP повышают "
+                    + "difficulty, оставаясь в pow.")
     @PostMapping("/challenge")
     @RateLimit(key = "captcha-challenge")
-    public ResponseEntity<ChallengeResponse> challenge(@Valid @RequestBody ChallengeRequest request, HttpServletRequest httpRequest)
+    public ResponseEntity<ChallengeResponse> challenge(@Valid @RequestBody ChallengeRequest request,
+            HttpServletRequest httpRequest)
             throws CaptchaException {
         return ResponseEntity.ok(captchaService.challenge(request.action(), clientIpResolver.resolve(httpRequest)));
     }
 
+    @Operation(summary = "Решить задание капчи",
+            description = "Проверяет nonce (pow) либо индексы ячеек (emoji) и выдаёт captchaToken "
+                    + "для последующего действия. Провал — 400 problem+json с машинным полем code.")
     @PostMapping("/solve")
     @RateLimit(key = "captcha-solve")
     public ResponseEntity<SolveResponse> solve(@Valid @RequestBody SolveRequest request, HttpServletRequest httpRequest)
             throws CaptchaException {
         return ResponseEntity
-                .ok(captchaService.solve(request.challengeId(), request.nonce(), request.answer(), clientIpResolver.resolve(httpRequest)));
+                .ok(captchaService.solve(request.challengeId(), request.nonce(), request.answer(),
+                        clientIpResolver.resolve(httpRequest)));
     }
 }

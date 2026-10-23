@@ -18,10 +18,6 @@ import com.ukhanov.realhelpdesk.domain.message.model.MessageModel;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * Файл, прикреплённый к сообщению заявки. Содержимое живёт в MinIO, здесь — только метаданные и ключ объекта: строка тяжелее файла в БД не
- * хранится. Таблица append-only: вложения не редактируются (поэтому нет @Version — конфликт версий здесь бессмыслен).
- */
 @Entity
 @Getter
 @Setter
@@ -35,7 +31,10 @@ public class AttachmentModel {
     @JoinColumn(name = "message_id", nullable = false)
     private MessageModel message;
 
-    /** Исходное имя файла, как его прислал пользователь (для Content-Disposition); путь из браузера вырезается при сохранении. */
+    /**
+     * Исходное имя файла, как его прислал пользователь (для Content-Disposition); путь из браузера вырезается при
+     * сохранении.
+     */
     @Column(name = "file_name", nullable = false, length = 255)
     private String fileName;
 

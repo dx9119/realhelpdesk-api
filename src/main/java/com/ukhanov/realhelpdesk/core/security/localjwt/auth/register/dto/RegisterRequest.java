@@ -13,7 +13,8 @@ public record RegisterRequest(
          @Size(min = 2, max = 50, message = "Фамилия должна быть не менее 2 символов и не более 50") String lastName,
         @Size(max = 4_000, message = "Captcha-токен не длиннее 4000 символов") String captchaToken,
         @Size(max = 100, message = "Поле не длиннее 100 символов") String website,
-        @NotBlank(message = "Поле Email обязательно для заполнения") @Email(message = "Некорректный формат Email") String email,
+        @NotBlank(message = "Поле Email обязательно для заполнения")
+         @Email(message = "Некорректный формат Email") String email,
         @NotBlank(message = "Поле Пароль обязательно для заполнения")
          @Size(min = 8, message = "Пароль должен быть не менее 8 символов") String password,
         Long externalId, UserPlatformSource userPlatformSource) {

@@ -28,6 +28,10 @@ public class LoggingFilter extends OncePerRequestFilter {
 
     private static final Pattern SAFE_REQUEST_ID = Pattern.compile("[A-Za-z0-9._:-]{1,64}");
 
+    private static final int SERVER_ERROR_STATUS = 500;
+    private static final int CLIENT_ERROR_STATUS = 400;
+    private static final long NANOS_PER_MILLI = 1_000_000L;
+
     public static final String REQUEST_ID = "requestId";
     public static final String CLIENT_IP = "clientIp";
     public static final String URI_REQUEST = "uriRequest";
@@ -60,9 +64,10 @@ public class LoggingFilter extends OncePerRequestFilter {
         boolean failed = false;
         try {
             filterChain.doFilter(request, response);
-        } catch (ServletException | IOException | RuntimeException ex) {
+        } catch (ServletException | IOException ex) {
             failed = true;
-            logger.error("HTTP {} {} завершился исключением за {} мс", request.getMethod(), uri, elapsedMs(startedNs), ex);
+            logger.error("HTTP {} {} завершился исключением за {} мс", request.getMethod(), uri, elapsedMs(startedNs),
+                    ex);
             throw ex;
         } finally {
             if (!failed) {
@@ -76,9 +81,9 @@ public class LoggingFilter extends OncePerRequestFilter {
     private void logExchange(HttpServletRequest request, String uri, HttpServletResponse response, long startedNs) {
         int status = response.getStatus();
         long tookMs = elapsedMs(startedNs);
-        if (status >= 500) {
+        if (status >= SERVER_ERROR_STATUS) {
             logger.error("HTTP {} {} -> {} за {} мс", request.getMethod(), uri, status, tookMs);
-        } else if (status >= 400) {
+        } else if (status >= CLIENT_ERROR_STATUS) {
             logger.info("HTTP {} {} -> {} за {} мс", request.getMethod(), uri, status, tookMs);
         } else {
             logger.debug("HTTP {} {} -> {} за {} мс", request.getMethod(), uri, status, tookMs);
@@ -86,7 +91,7 @@ public class LoggingFilter extends OncePerRequestFilter {
     }
 
     private static long elapsedMs(long startedNs) {
-        return (System.nanoTime() - startedNs) / 1_000_000L;
+        return (System.nanoTime() - startedNs) / NANOS_PER_MILLI;
     }
 
     // Чужой X-Request-ID принимаем только как безопасный идентификатор, иначе подменяем своим.
@@ -97,7 +102,9 @@ public class LoggingFilter extends OncePerRequestFilter {
             return id;
         }
         String header = request.getHeader("X-Request-ID");
-        String resolved = header != null && SAFE_REQUEST_ID.matcher(header).matches() ? header : Long.toUnsignedString(RANDOM.nextLong());
+        String resolved = header != null && SAFE_REQUEST_ID.matcher(header).matches()
+                ? header
+                : Long.toUnsignedString(RANDOM.nextLong());
         request.setAttribute(REQUEST_ID, resolved);
         return resolved;
     }

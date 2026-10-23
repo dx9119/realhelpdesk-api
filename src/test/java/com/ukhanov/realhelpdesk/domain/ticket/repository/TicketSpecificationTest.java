@@ -26,6 +26,7 @@ import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketLiveStatus;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketModel;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketPriority;
+import com.ukhanov.realhelpdesk.domain.ticket.model.TicketSearchCriteria;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,16 +66,16 @@ class TicketSpecificationTest {
         portalB = portal("Портал Б", bob, true, Set.of());
         portalA.setAllowedUserIds(Set.of(bob.getId()));
 
-        t1 = ticket("Ошибка входа", "Не работает пароль", alice, portalA, TicketStatus.OPEN, TicketPriority.HIGH, TicketLiveStatus.ACTIVE,
-                D1);
-        t2 = ticket("Проблема с оплатой", "Карта не проходит, ошибка 402", bob, portalA, TicketStatus.CLOSED, TicketPriority.CRITICAL,
-                TicketLiveStatus.ACTIVE, D2);
-        t3 = ticket("Вопрос по отчётам", "Как выгрузить статистику", alice, portalA, TicketStatus.IN_PROGRESS, TicketPriority.LOW,
-                TicketLiveStatus.ACTIVE, D3);
-        t4 = ticket("Ошибка входа", "Не пускает в систему", bob, portalB, TicketStatus.OPEN, TicketPriority.HIGH, TicketLiveStatus.ACTIVE,
-                D4);
-        t5 = ticket("Ошибка входа (архив)", "Старая заявка", alice, portalA, TicketStatus.OPEN, TicketPriority.MEDIUM,
-                TicketLiveStatus.DELETE, D5);
+        t1 = ticket(new TicketFixture("Ошибка входа", "Не работает пароль", alice, portalA, TicketStatus.OPEN,
+                TicketPriority.HIGH, TicketLiveStatus.ACTIVE, D1));
+        t2 = ticket(new TicketFixture("Проблема с оплатой", "Карта не проходит, ошибка 402", bob, portalA,
+                TicketStatus.CLOSED, TicketPriority.CRITICAL, TicketLiveStatus.ACTIVE, D2));
+        t3 = ticket(new TicketFixture("Вопрос по отчётам", "Как выгрузить статистику", alice, portalA,
+                TicketStatus.IN_PROGRESS, TicketPriority.LOW, TicketLiveStatus.ACTIVE, D3));
+        t4 = ticket(new TicketFixture("Ошибка входа", "Не пускает в систему", bob, portalB, TicketStatus.OPEN,
+                TicketPriority.HIGH, TicketLiveStatus.ACTIVE, D4));
+        t5 = ticket(new TicketFixture("Ошибка входа (архив)", "Старая заявка", alice, portalA, TicketStatus.OPEN,
+                TicketPriority.MEDIUM, TicketLiveStatus.DELETE, D5));
     }
 
     // ────────────────────────────────────────────────
@@ -266,7 +267,8 @@ class TicketSpecificationTest {
 
         // given
         // when
-        Set<Long> result = run(build(null, null, null, null, null, false, Set.of(portalA.getId())));
+        Set<Long> result = run(
+                build(new TicketSearchCriteria(null, null, null, null, null, false), Set.of(portalA.getId())));
 
         // then
         assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t3.getId());
@@ -278,7 +280,8 @@ class TicketSpecificationTest {
 
         // given
         // when
-        Set<Long> result = run(build(null, null, null, null, null, false, Set.of(portalA.getId())));
+        Set<Long> result = run(
+                build(new TicketSearchCriteria(null, null, null, null, null, false), Set.of(portalA.getId())));
 
         // then
         assertThat(result).contains(t2.getId());
@@ -290,8 +293,10 @@ class TicketSpecificationTest {
 
         // given
         // when
-        Set<Long> aliceResult = run(build(null, null, null, null, null, true, Set.of(portalA.getId())));
-        Set<Long> bobResult = run(build(null, null, null, null, null, true, Set.of(portalA.getId()), bob.getId()));
+        Set<Long> aliceResult = run(
+                build(new TicketSearchCriteria(null, null, null, null, null, true), Set.of(portalA.getId())));
+        Set<Long> bobResult = run(build(new TicketSearchCriteria(null, null, null, null, null, true),
+                Set.of(portalA.getId()), bob.getId()));
 
         // then
         assertThat(aliceResult).containsExactlyInAnyOrder(t1.getId(), t3.getId());
@@ -305,8 +310,11 @@ class TicketSpecificationTest {
         // given — OPEN + CRITICAL одновременно ни у одной заявки нет
 
         // when
-        Set<Long> result = run(build(null, null, null, TicketStatus.OPEN, TicketPriority.CRITICAL, false, Set.of(portalA.getId())));
-        Set<Long> openOnly = run(build(null, null, null, TicketStatus.OPEN, null, false, Set.of(portalA.getId())));
+        Set<Long> result = run(
+                build(new TicketSearchCriteria(null, null, null, TicketStatus.OPEN, TicketPriority.CRITICAL, false),
+                        Set.of(portalA.getId())));
+        Set<Long> openOnly = run(build(new TicketSearchCriteria(null, null, null, TicketStatus.OPEN, null, false),
+                Set.of(portalA.getId())));
 
         // then
         assertThat(result).isEmpty();
@@ -322,7 +330,8 @@ class TicketSpecificationTest {
         Instant start = Instant.parse("2025-01-01T00:00:00Z");
         Instant end = Instant.parse("2025-12-31T23:59:59Z");
 
-        Set<Long> result = run(build(null, start, end, null, null, false, Set.of(portalA.getId())));
+        Set<Long> result = run(
+                build(new TicketSearchCriteria(null, start, end, null, null, false), Set.of(portalA.getId())));
 
         // then
         assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId());
@@ -334,7 +343,8 @@ class TicketSpecificationTest {
 
         // given
         // when
-        Set<Long> result = run(build("   ", null, null, null, null, false, Set.of(portalA.getId())));
+        Set<Long> result = run(
+                build(new TicketSearchCriteria("   ", null, null, null, null, false), Set.of(portalA.getId())));
 
         // then
         assertThat(result).containsExactlyInAnyOrder(t1.getId(), t2.getId(), t3.getId());
@@ -349,33 +359,36 @@ class TicketSpecificationTest {
         Instant start = Instant.parse("2025-01-01T00:00:00Z");
         Instant end = Instant.parse("2025-12-31T23:59:59Z");
 
-        Set<Long> result = run(build("ошибка", start, end, TicketStatus.OPEN, TicketPriority.HIGH, true, Set.of(portalA.getId())));
+        Set<Long> result = run(
+                build(new TicketSearchCriteria("ошибка", start, end, TicketStatus.OPEN, TicketPriority.HIGH, true),
+                        Set.of(portalA.getId())));
 
         // then
         assertThat(result).containsExactly(t1.getId());
     }
 
     @Test
-    @DisplayName("build → пустой или null набор порталов → IllegalArgumentException (сервис не вызывает build без порталов)")
+    @DisplayName("build → пустой или null набор порталов → IllegalArgumentException "
+            + "(сервис не вызывает build без порталов)")
     void build_withoutPortals_throws() {
 
         // given / when / then
-        assertThatThrownBy(() -> build(null, null, null, null, null, false, Set.of())).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> build(null, null, null, null, null, false, null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> build(new TicketSearchCriteria(null, null, null, null, null, false), Set.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> build(new TicketSearchCriteria(null, null, null, null, null, false), null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ────────────────────────────────────────────────
     // Вспомогательные методы
     // ────────────────────────────────────────────────
 
-    private Specification<TicketModel> build(String search, Instant start, Instant end, TicketStatus status, TicketPriority priority,
-            Boolean isMy, Set<Long> portalIds) {
-        return build(search, start, end, status, priority, isMy, portalIds, alice.getId());
+    private Specification<TicketModel> build(TicketSearchCriteria criteria, Set<Long> portalIds) {
+        return build(criteria, portalIds, alice.getId());
     }
 
-    private Specification<TicketModel> build(String search, Instant start, Instant end, TicketStatus status, TicketPriority priority,
-            Boolean isMy, Set<Long> portalIds, Long userId) {
-        return TicketSpecification.build(search, start, end, status, priority, isMy, userId, portalIds);
+    private Specification<TicketModel> build(TicketSearchCriteria criteria, Set<Long> portalIds, Long userId) {
+        return TicketSpecification.build(criteria, userId, portalIds);
     }
 
     private Set<Long> run(Specification<TicketModel> specification) {
@@ -412,18 +425,21 @@ class TicketSpecificationTest {
         return portal;
     }
 
-    private TicketModel ticket(String title, String body, UserModel author, PortalModel portal, TicketStatus status,
-            TicketPriority priority, TicketLiveStatus liveStatus, Instant createdAt) {
+    private TicketModel ticket(TicketFixture fixture) {
         TicketModel ticket = new TicketModel();
-        ticket.setCreatedAt(createdAt);
-        ticket.setTitle(title);
-        ticket.setBody(body);
-        ticket.setAuthor(author);
-        ticket.setPortal(portal);
-        ticket.setTicketStatus(status);
-        ticket.setTicketPriority(priority);
-        ticket.setTicketLiveStatus(liveStatus);
+        ticket.setCreatedAt(fixture.createdAt());
+        ticket.setTitle(fixture.title());
+        ticket.setBody(fixture.body());
+        ticket.setAuthor(fixture.author());
+        ticket.setPortal(fixture.portal());
+        ticket.setTicketStatus(fixture.status());
+        ticket.setTicketPriority(fixture.priority());
+        ticket.setTicketLiveStatus(fixture.liveStatus());
         em.persist(ticket);
         return ticket;
+    }
+
+    private record TicketFixture(String title, String body, UserModel author, PortalModel portal, TicketStatus status,
+            TicketPriority priority, TicketLiveStatus liveStatus, Instant createdAt) {
     }
 }

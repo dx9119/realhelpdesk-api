@@ -17,8 +17,8 @@ public class CaptchaConfig {
     static final int MIN_SECRET_BYTES = 32;
 
     /**
-     * Ключ подписи challenge и токенов капчи. Падает на старте с понятной ошибкой, если секрет не задан или короче 32 байт — как
-     * {@code JwtConfig} для JWT-секрета.
+     * Ключ подписи challenge и токенов капчи. Падает на старте с понятной ошибкой, если секрет не задан или короче 32
+     * байт — как {@code JwtConfig} для JWT-секрета.
      */
     @Bean
     public SecretKey captchaSecretKey(CaptchaProperties captchaProperties) {
@@ -29,7 +29,8 @@ public class CaptchaConfig {
         byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
         if (bytes.length < MIN_SECRET_BYTES) {
             throw new IllegalStateException(
-                    "captcha.hmac-secret: минимум " + MIN_SECRET_BYTES + " байта для HMAC-SHA256, получено " + bytes.length);
+                    "captcha.hmac-secret: минимум " + MIN_SECRET_BYTES + " байта для HMAC-SHA256, получено "
+                            + bytes.length);
         }
         return new SecretKeySpec(bytes, "HmacSHA256");
     }

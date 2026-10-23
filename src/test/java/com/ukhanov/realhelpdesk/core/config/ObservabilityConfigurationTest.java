@@ -23,10 +23,11 @@ import io.micrometer.observation.ObservationPredicate;
 import io.micrometer.observation.ObservationRegistry;
 
 /**
- * Защитный слой наблюдаемости: MeterFilter'ы (deny, ignoreTags, потолок uri) и ObservationPredicate (шумные uri, security-наблюдения без
- * родителя). MeterFilter'ы проверяются на SimpleMeterRegistry без контекста Spring — фильтры применяются в том же порядке, что и бинами в
- * реестре приложения; предикат вызывается напрямую, как его вызывает ObservationRegistry при старте наблюдения (parent уже проставлен в
- * контексте — тот же порядок, что в Observation.createNotStarted).
+ * Защитный слой наблюдаемости: MeterFilter'ы (deny, ignoreTags, потолок uri) и ObservationPredicate (шумные uri,
+ * security-наблюдения без родителя). MeterFilter'ы проверяются на SimpleMeterRegistry без контекста Spring — фильтры
+ * применяются в том же порядке, что и бинами в реестре приложения; предикат вызывается напрямую, как его вызывает
+ * ObservationRegistry при старте наблюдения (parent уже проставлен в контексте — тот же порядок, что в
+ * Observation.createNotStarted).
  */
 @DisplayName("Наблюдаемость: MeterFilter'ы (deny, ignoreTags, uri) и предикат шумных/security-наблюдений")
 class ObservabilityConfigurationTest {
@@ -38,8 +39,10 @@ class ObservabilityConfigurationTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        meterRegistry.config().meterFilter(configuration.uriCardinalityMeterFilter())
-                .meterFilter(configuration.ignoreDangerousTagsMeterFilter()).meterFilter(configuration.denyUnusedMetricsMeterFilter());
+        meterRegistry.config()
+                .meterFilter(configuration.uriCardinalityMeterFilter())
+                .meterFilter(configuration.ignoreDangerousTagsMeterFilter())
+                .meterFilter(configuration.denyUnusedMetricsMeterFilter());
     }
 
     @Test
@@ -65,7 +68,8 @@ class ObservabilityConfigurationTest {
         // Ключевые метрики из согласованного списка «сохраняем» не задеты
         meterRegistry.counter("hibernate.query.executions").increment();
         meterRegistry.counter("http.server.requests").increment();
-        assertThat(meterRegistry.find("hibernate.query.executions").meter()).as("hibernate.query.executions остаётся").isNotNull();
+        assertThat(meterRegistry.find("hibernate.query.executions").meter()).as("hibernate.query.executions остаётся")
+                .isNotNull();
         assertThat(meterRegistry.find("http.server.requests").meter()).as("http.server.requests остаётся").isNotNull();
     }
 
@@ -75,7 +79,9 @@ class ObservabilityConfigurationTest {
 
         // given
         // when
-        meterRegistry.counter("auth.attempts", "type", "login", "email", "user@example.com", "userId", "42", "ticketId", "7").increment();
+        meterRegistry
+                .counter("auth.attempts", "type", "login", "email", "user@example.com", "userId", "42", "ticketId", "7")
+                .increment();
 
         Meter meter = meterRegistry.find("auth.attempts").meter();
 
@@ -98,16 +104,22 @@ class ObservabilityConfigurationTest {
 
         AtomicInteger uniqueUris = new AtomicInteger();
         meterRegistry.find("http.server.requests").meters().forEach(meter -> {
-            meter.getId().getTags().stream().filter(tag -> tag.getKey().equals("uri")).findFirst()
+            meter.getId()
+                    .getTags()
+                    .stream()
+                    .filter(tag -> tag.getKey().equals("uri"))
+                    .findFirst()
                     .ifPresent(tag -> uniqueUris.incrementAndGet());
         });
 
         // then
         assertThat(uniqueUris).as("101-й uri отклонён, ровно 100 уникальных значений").hasValue(100);
         assertThat(meterRegistry.find("http.server.requests").tags("uri", "/api/v1/generated-100").meter())
-                .as("uri за пределами лимита не зарегистрирован").isNull();
+                .as("uri за пределами лимита не зарегистрирован")
+                .isNull();
         assertThat(meterRegistry.find("http.server.requests").tags("uri", "/api/v1/generated-99").meter())
-                .as("uri в пределах лимита сохраняется").isNotNull();
+                .as("uri в пределах лимита сохраняется")
+                .isNotNull();
     }
 
     @Test
@@ -135,11 +147,16 @@ class ObservabilityConfigurationTest {
         ObservationPredicate predicate = configuration.ignoreNoiseObservationPredicate();
 
         // then
-        assertThat(predicate.test("http.server.requests", serverContext("/actuator/health"))).as("health-пробы").isFalse();
-        assertThat(predicate.test("http.server.requests", serverContext("/actuator/prometheus"))).as("скрейп").isFalse();
+        assertThat(predicate.test("http.server.requests", serverContext("/actuator/health"))).as("health-пробы")
+                .isFalse();
+        assertThat(predicate.test("http.server.requests", serverContext("/actuator/prometheus"))).as("скрейп")
+                .isFalse();
         assertThat(predicate.test("http.server.requests", serverContext("/swagger-ui.html"))).as("swagger").isFalse();
-        assertThat(predicate.test("http.server.requests", serverContext("/api/v1/tickets"))).as("API-запрос остаётся").isTrue();
-        assertThat(predicate.test("http.client.requests", serverContext("/actuator/health"))).as("шум только для server-цепочки").isTrue();
+        assertThat(predicate.test("http.server.requests", serverContext("/api/v1/tickets"))).as("API-запрос остаётся")
+                .isTrue();
+        assertThat(predicate.test("http.client.requests", serverContext("/actuator/health")))
+                .as("шум только для server-цепочки")
+                .isTrue();
     }
 
     @Test
@@ -157,14 +174,16 @@ class ObservabilityConfigurationTest {
         assertThat(predicate.test("spring.security.http.secured.requests", orphan)).isFalse();
         assertThat(predicate.test("spring.security.http.unsecured.requests", orphan)).isFalse();
         assertThat(predicate.test("spring.security.authentications", orphan)).isFalse();
-        assertThat(predicate.test("http.server.requests", orphan)).as("не-security корни (сам HTTP, задачи) не трогаем").isTrue();
+        assertThat(predicate.test("http.server.requests", orphan)).as("не-security корни (сам HTTP, задачи) не трогаем")
+                .isTrue();
 
         ObservationRegistry registry = ObservationRegistry.create();
         Observation http = Observation.start("http.server.requests", registry);
         try {
             Observation.Context child = new Observation.Context();
             child.setParentObservation(http);
-            assertThat(predicate.test("spring.security.filterchains", child)).as("security-спаны под HTTP-наблюдением запроса сохраняются")
+            assertThat(predicate.test("spring.security.filterchains", child))
+                    .as("security-спаны под HTTP-наблюдением запроса сохраняются")
                     .isTrue();
         } finally {
             http.stop();

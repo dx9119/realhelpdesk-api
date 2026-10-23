@@ -5,24 +5,26 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Маскирование ПДн и секретных сегментов пути перед записью в лог. Код восстановления пароля и токен подтверждения email передаются в пути
- * запроса — в логах они должны заменяться на ***.
+ * Маскирование ПДн и секретных сегментов пути перед записью в лог. Код восстановления пароля и токен подтверждения
+ * email передаются в пути запроса — в логах они должны заменяться на ***.
  *
  * <p>
- * {@link #value(String)} готовит к логу значение из внешних данных (заголовок, метаданные вложения): перевод строки в логе ломает разбор по
- * колонкам, а неограниченная длина раздувает строку.
+ * {@link #value(String)} готовит к логу значение из внешних данных (заголовок, метаданные вложения): перевод строки в
+ * логе ломает разбор по колонкам, а неограниченная длина раздувает строку.
  * </p>
  *
  * <p>
- * {@link #email(String)} и {@link #emails(String)} маскируют адреса (первый символ локальной части + *** + домен): полный email в логах —
- * ПДн.
+ * {@link #email(String)} и {@link #emails(String)} маскируют адреса (первый символ локальной части + *** + домен):
+ * полный email в логах — ПДн.
  * </p>
  */
 public final class LogSanitizer {
 
     private static final Pattern SECRET_SEGMENT = Pattern.compile("(/password-resets/|/email/confirmations/)[^/]+");
-    private static final Pattern EMAIL = Pattern.compile("[\\p{L}\\p{N}.!#$%&'*+/=?^_`{|}~-]+@[\\p{L}\\p{N}.-]+\\.[\\p{L}]{2,}");
+    private static final Pattern EMAIL = Pattern
+            .compile("[\\p{L}\\p{N}.!#$%&'*+/=?^_`{|}~-]+@[\\p{L}\\p{N}.-]+\\.[\\p{L}]{2,}");
     private static final int MAX_VALUE_LENGTH = 120;
+    private static final int PHONE_VISIBLE_PREFIX = 4;
 
     private LogSanitizer() {
     }
@@ -43,7 +45,10 @@ public final class LogSanitizer {
         return flat.length() <= MAX_VALUE_LENGTH ? flat : flat.substring(0, MAX_VALUE_LENGTH) + "…";
     }
 
-    /** Email для лога: {@code john.doe@example.com} → {@code j***@example.com}; не разобранный адрес маскируется целиком. */
+    /**
+     * Email для лога: {@code john.doe@example.com} → {@code j***@example.com}; не разобранный адрес маскируется
+     * целиком.
+     */
     public static String email(String email) {
         if (email == null || email.isBlank()) {
             return "";
@@ -77,7 +82,9 @@ public final class LogSanitizer {
             return "";
         }
         String flat = value(phone);
-        return flat.length() <= 4 ? "***" : flat.substring(0, 4) + "***";
+        return flat.length() <= PHONE_VISIBLE_PREFIX
+                ? "***"
+                : flat.substring(0, PHONE_VISIBLE_PREFIX) + "***";
     }
 
     private static String maskEmail(MatchResult match) {

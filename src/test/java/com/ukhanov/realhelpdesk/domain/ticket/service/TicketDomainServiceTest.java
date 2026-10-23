@@ -16,6 +16,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -95,11 +96,12 @@ class TicketDomainServiceTest {
         // given
         // when
         TicketModel ticket = createTicket(null, "Тест", "Описание");
-        when(mockTicketRepository.save(any())).thenThrow(new RuntimeException("DB error"));
+        when(mockTicketRepository.save(any())).thenThrow(new DataAccessResourceFailureException("DB error"));
 
         // then
         assertThatThrownBy(() -> service.saveTicket(ticket)).isInstanceOf(PersistenceException.class)
-                .hasMessageContaining("Не удалось сохранить заявку").hasCauseInstanceOf(RuntimeException.class);
+                .hasMessageContaining("Не удалось сохранить заявку")
+                .hasCauseInstanceOf(RuntimeException.class);
     }
 
     // ────────────────────────────────────────────────
@@ -113,7 +115,8 @@ class TicketDomainServiceTest {
         // given
         // when
         TicketModel expected = createTicket(TICKET_ID, "Тестовая заявка", "Описание");
-        when(mockTicketRepository.findByIdAndTicketLiveStatus(TICKET_ID, TicketLiveStatus.ACTIVE)).thenReturn(Optional.of(expected));
+        when(mockTicketRepository.findByIdAndTicketLiveStatus(TICKET_ID, TicketLiveStatus.ACTIVE))
+                .thenReturn(Optional.of(expected));
 
         TicketModel result = service.findTicketById(TICKET_ID);
 
@@ -127,7 +130,8 @@ class TicketDomainServiceTest {
 
         // given
         // when
-        when(mockTicketRepository.findByIdAndTicketLiveStatus(TICKET_ID, TicketLiveStatus.ACTIVE)).thenReturn(Optional.empty());
+        when(mockTicketRepository.findByIdAndTicketLiveStatus(TICKET_ID, TicketLiveStatus.ACTIVE))
+                .thenReturn(Optional.empty());
 
         // then
         assertThatThrownBy(() -> service.findTicketById(TICKET_ID)).isInstanceOf(TicketException.class)
@@ -161,7 +165,9 @@ class TicketDomainServiceTest {
         List<TicketModel> result = service.getTicketsByPortalId(PORTAL_ID);
 
         // then
-        assertThat(result).hasSize(2).usingRecursiveFieldByFieldElementComparator().containsExactlyInAnyOrder(first, second);
+        assertThat(result).hasSize(2)
+                .usingRecursiveFieldByFieldElementComparator()
+                .containsExactlyInAnyOrder(first, second);
     }
 
     @Test
@@ -185,7 +191,8 @@ class TicketDomainServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         TicketModel ticket = createTicket(TICKET_ID, "Тест", "Описание");
         Page<TicketModel> page = new PageImpl<>(List.of(ticket), pageable, 1);
-        when(mockTicketRepository.findAllByPortalIdAndTicketLiveStatus(eq(PORTAL_ID), eq(pageable), eq(TicketLiveStatus.ACTIVE)))
+        when(mockTicketRepository.findAllByPortalIdAndTicketLiveStatus(eq(PORTAL_ID), eq(pageable),
+                eq(TicketLiveStatus.ACTIVE)))
                 .thenReturn(page);
 
         Page<TicketModel> result = service.getTicketsPageByPortalId(PORTAL_ID, pageable);
@@ -203,7 +210,8 @@ class TicketDomainServiceTest {
         // when
         Pageable pageable = PageRequest.of(0, 20);
         Page<TicketModel> page = new PageImpl<>(Collections.emptyList(), pageable, 0);
-        when(mockTicketRepository.findAllByAuthorIdAndTicketLiveStatus(eq(USER_ID), eq(TicketLiveStatus.ACTIVE), eq(pageable)))
+        when(mockTicketRepository.findAllByAuthorIdAndTicketLiveStatus(eq(USER_ID), eq(TicketLiveStatus.ACTIVE),
+                eq(pageable)))
                 .thenReturn(page);
 
         Page<TicketModel> result = service.getTicketsPageByUserId(USER_ID, pageable);
@@ -241,7 +249,8 @@ class TicketDomainServiceTest {
         // given
         // when
         Set<Long> expectedIds = Set.of(100L, 200L);
-        when(mockTicketRepository.findTicketIdsByPortalIdAndStatusAndLiveStatus(PORTAL_ID, status, TicketLiveStatus.ACTIVE))
+        when(mockTicketRepository.findTicketIdsByPortalIdAndStatusAndLiveStatus(PORTAL_ID, status,
+                TicketLiveStatus.ACTIVE))
                 .thenReturn(expectedIds);
 
         Set<Long> result = service.getIdTicketWithStatus(PORTAL_ID, status);
@@ -257,7 +266,8 @@ class TicketDomainServiceTest {
         // given
         // when
         Set<Long> expected = Set.of(500L, 501L);
-        when(mockTicketRepository.findOpenTicketIdsWithoutMessagesByPortalIdAndLiveStatus(PORTAL_ID, TicketLiveStatus.ACTIVE))
+        when(mockTicketRepository.findOpenTicketIdsWithoutMessagesByPortalIdAndLiveStatus(PORTAL_ID,
+                TicketLiveStatus.ACTIVE))
                 .thenReturn(expected);
 
         Set<Long> result = service.getIdTicketWithNoAnswer(PORTAL_ID);

@@ -60,7 +60,8 @@ class RefreshTokenCleanupServiceTest {
         ArgumentCaptor<Integer> batches = ArgumentCaptor.forClass(Integer.class);
         // then
         verify(executor, org.mockito.Mockito.times(2)).deleteInactiveBatch(any(), batches.capture());
-        assertThat(batches.getAllValues()).as("быстрый полный батч удваивает размер следующего").containsExactly(100, 200);
+        assertThat(batches.getAllValues()).as("быстрый полный батч удваивает размер следующего")
+                .containsExactly(100, 200);
     }
 
     @Test
@@ -129,7 +130,7 @@ class RefreshTokenCleanupServiceTest {
         });
         when(executor.deleteActiveBatch(any(), anyInt())).thenReturn(0);
         RefreshTokenCleanupService service = new RefreshTokenCleanupService(repository, executor,
-                properties(604800, 2592000, "0 30 3 * * *", 100, 5000, 200, 50));
+                properties(new PropertiesInput(604800, 2592000, "0 30 3 * * *", 100, 5000, 200, 50)));
 
         try {
             service.deleteExpiredTokens();
@@ -146,11 +147,17 @@ class RefreshTokenCleanupServiceTest {
     void adaptBatchSize_variousDurations_staysWithinBounds() {
 
         // given / when / then
-        assertThat(RefreshTokenCleanupService.adaptBatchSize(100, 10, 200, 100, 5_000)).as("быстро — вдвое").isEqualTo(200);
-        assertThat(RefreshTokenCleanupService.adaptBatchSize(4_000, 10, 200, 100, 5_000)).as("рост упирается в максимум").isEqualTo(5_000);
-        assertThat(RefreshTokenCleanupService.adaptBatchSize(200, 300, 200, 100, 5_000)).as("медленно — вдвое меньше").isEqualTo(100);
-        assertThat(RefreshTokenCleanupService.adaptBatchSize(100, 300, 200, 100, 5_000)).as("ниже минимума не уходит").isEqualTo(100);
-        assertThat(RefreshTokenCleanupService.adaptBatchSize(200, 150, 200, 100, 5_000)).as("в пределах цели — без изменений")
+        assertThat(RefreshTokenCleanupService.adaptBatchSize(100, 10, 200, 100, 5_000)).as("быстро — вдвое")
+                .isEqualTo(200);
+        assertThat(RefreshTokenCleanupService.adaptBatchSize(4_000, 10, 200, 100, 5_000))
+                .as("рост упирается в максимум")
+                .isEqualTo(5_000);
+        assertThat(RefreshTokenCleanupService.adaptBatchSize(200, 300, 200, 100, 5_000)).as("медленно — вдвое меньше")
+                .isEqualTo(100);
+        assertThat(RefreshTokenCleanupService.adaptBatchSize(100, 300, 200, 100, 5_000)).as("ниже минимума не уходит")
+                .isEqualTo(100);
+        assertThat(RefreshTokenCleanupService.adaptBatchSize(200, 150, 200, 100, 5_000))
+                .as("в пределах цели — без изменений")
                 .isEqualTo(200);
     }
 
@@ -160,41 +167,58 @@ class RefreshTokenCleanupServiceTest {
 
         // given / when / then
         assertThatThrownBy(
-                () -> new RefreshTokenCleanupService(repository, executor, properties(0, 2592000, "0 30 3 * * *", 100, 5000, 200, 50)))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("revoked-token-retention-seconds");
+                () -> new RefreshTokenCleanupService(repository, executor,
+                        properties(new PropertiesInput(0, 2592000, "0 30 3 * * *", 100, 5000, 200, 50))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("revoked-token-retention-seconds");
         assertThatThrownBy(
-                () -> new RefreshTokenCleanupService(repository, executor, properties(604800, 0, "0 30 3 * * *", 100, 5000, 200, 50)))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("refresh-token-expiration-seconds");
-        assertThatThrownBy(() -> new RefreshTokenCleanupService(repository, executor, properties(604800, 2592000, " ", 100, 5000, 200, 50)))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("token-cleanup-cron");
+                () -> new RefreshTokenCleanupService(repository, executor,
+                        properties(new PropertiesInput(604800, 0, "0 30 3 * * *", 100, 5000, 200, 50))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("refresh-token-expiration-seconds");
+        assertThatThrownBy(() -> new RefreshTokenCleanupService(repository, executor,
+                properties(new PropertiesInput(604800, 2592000, " ", 100, 5000, 200, 50))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("token-cleanup-cron");
         assertThatThrownBy(
-                () -> new RefreshTokenCleanupService(repository, executor, properties(604800, 2592000, "0 30 3 * * *", 0, 5000, 200, 50)))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("batch-min-size");
+                () -> new RefreshTokenCleanupService(repository, executor,
+                        properties(new PropertiesInput(604800, 2592000, "0 30 3 * * *", 0, 5000, 200, 50))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("batch-min-size");
         assertThatThrownBy(
-                () -> new RefreshTokenCleanupService(repository, executor, properties(604800, 2592000, "0 30 3 * * *", 100, 50, 200, 50)))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("batch-max-size");
+                () -> new RefreshTokenCleanupService(repository, executor,
+                        properties(new PropertiesInput(604800, 2592000, "0 30 3 * * *", 100, 50, 200, 50))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("batch-max-size");
         assertThatThrownBy(
-                () -> new RefreshTokenCleanupService(repository, executor, properties(604800, 2592000, "0 30 3 * * *", 100, 5000, 0, 50)))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("target-batch-ms");
+                () -> new RefreshTokenCleanupService(repository, executor,
+                        properties(new PropertiesInput(604800, 2592000, "0 30 3 * * *", 100, 5000, 0, 50))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("target-batch-ms");
         assertThatThrownBy(
-                () -> new RefreshTokenCleanupService(repository, executor, properties(604800, 2592000, "0 30 3 * * *", 100, 5000, 200, -1)))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("batch-pause-ms");
+                () -> new RefreshTokenCleanupService(repository, executor,
+                        properties(new PropertiesInput(604800, 2592000, "0 30 3 * * *", 100, 5000, 200, -1))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("batch-pause-ms");
     }
 
     private JwtProperties properties() {
-        return properties(604800, 2592000, "0 30 3 * * *", 100, 5000, 200, 0);
+        return properties(new PropertiesInput(604800, 2592000, "0 30 3 * * *", 100, 5000, 200, 0));
     }
 
-    private JwtProperties properties(Integer retentionSeconds, Integer refreshSeconds, String cron, Integer batchMin, Integer batchMax,
-            Integer targetMs, Integer pauseMs) {
+    private JwtProperties properties(PropertiesInput input) {
         JwtProperties properties = new JwtProperties();
-        properties.setRevokedTokenRetentionSeconds(retentionSeconds);
-        properties.setRefreshTokenExpirationSeconds(refreshSeconds);
-        properties.setTokenCleanupCron(cron);
-        properties.setTokenCleanupBatchMinSize(batchMin);
-        properties.setTokenCleanupBatchMaxSize(batchMax);
-        properties.setTokenCleanupTargetBatchMs(targetMs);
-        properties.setTokenCleanupBatchPauseMs(pauseMs);
+        properties.setRevokedTokenRetentionSeconds(input.retentionSeconds());
+        properties.setRefreshTokenExpirationSeconds(input.refreshSeconds());
+        properties.setTokenCleanupCron(input.cron());
+        properties.setTokenCleanupBatchMinSize(input.batchMin());
+        properties.setTokenCleanupBatchMaxSize(input.batchMax());
+        properties.setTokenCleanupTargetBatchMs(input.targetMs());
+        properties.setTokenCleanupBatchPauseMs(input.pauseMs());
         return properties;
+    }
+
+    private record PropertiesInput(Integer retentionSeconds, Integer refreshSeconds, String cron, Integer batchMin,
+            Integer batchMax, Integer targetMs, Integer pauseMs) {
     }
 }

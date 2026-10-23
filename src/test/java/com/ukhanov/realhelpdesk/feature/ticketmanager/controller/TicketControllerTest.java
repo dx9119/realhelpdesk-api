@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import com.ukhanov.realhelpdesk.core.exception.GlobalExceptionHandler;
+import com.ukhanov.realhelpdesk.core.exception.InfrastructureExceptionHandler;
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketStatus;
 import com.ukhanov.realhelpdesk.feature.ticketmanager.dto.CreateTicketRequest;
@@ -45,7 +46,9 @@ class TicketControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         mockMvc = MockMvcTester.of(List.of(new TicketController(mockTicketManageService)),
-                builder -> builder.setControllerAdvice(new GlobalExceptionHandler()).build());
+                builder -> builder
+                        .setControllerAdvice(new GlobalExceptionHandler(), new InfrastructureExceptionHandler())
+                        .build());
     }
 
     // ────────────────────────────────────────────────
@@ -60,8 +63,11 @@ class TicketControllerTest {
                 .thenReturn(new CreateTicketResponse(TICKET_ID));
 
         // when
-        MvcTestResult result = mockMvc.post().uri("/api/v1/portals/{portalId}/tickets", PORTAL_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"Ошибка входа\"}").exchange();
+        MvcTestResult result = mockMvc.post()
+                .uri("/api/v1/portals/{portalId}/tickets", PORTAL_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Ошибка входа\"}")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.CREATED).hasHeader("Location", "/api/v1/portals/5/tickets/77");
@@ -72,8 +78,11 @@ class TicketControllerTest {
     @DisplayName("POST /portals/{id}/tickets без темы → 400 (problem+json), сервис не вызывается")
     void createTicket_withoutTitle_returnsBadRequestProblem() throws Exception {
         // given / when
-        MvcTestResult result = mockMvc.post().uri("/api/v1/portals/{portalId}/tickets", PORTAL_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"\"}").exchange();
+        MvcTestResult result = mockMvc.post()
+                .uri("/api/v1/portals/{portalId}/tickets", PORTAL_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"\"}")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
@@ -92,8 +101,11 @@ class TicketControllerTest {
     @DisplayName("PUT /portals/{id}/tickets/{id}/status → 204")
     void setStatus_validStatus_returnsNoContent() throws Exception {
         // given / when
-        MvcTestResult result = mockMvc.put().uri("/api/v1/portals/{portalId}/tickets/{ticketId}/status", PORTAL_ID, TICKET_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CLOSED\"}").exchange();
+        MvcTestResult result = mockMvc.put()
+                .uri("/api/v1/portals/{portalId}/tickets/{ticketId}/status", PORTAL_ID, TICKET_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"CLOSED\"}")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.NO_CONTENT);
@@ -105,8 +117,11 @@ class TicketControllerTest {
     @DisplayName("PUT /portals/{id}/tickets/{id}/priority без тела → 400, сервис не вызывается")
     void setPriority_withoutBody_returnsBadRequest() throws Exception {
         // given / when
-        MvcTestResult result = mockMvc.put().uri("/api/v1/portals/{portalId}/tickets/{ticketId}/priority", PORTAL_ID, TICKET_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{}").exchange();
+        MvcTestResult result = mockMvc.put()
+                .uri("/api/v1/portals/{portalId}/tickets/{ticketId}/priority", PORTAL_ID, TICKET_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
@@ -119,8 +134,10 @@ class TicketControllerTest {
     @DisplayName("POST .../set/status/{id} (старый контракт) → 404")
     void setTicketStatus_legacyPath_returnsNotFound() throws Exception {
         // given / when
-        MvcTestResult result = mockMvc.post().uri("/api/v1/portals/{portalId}/ticket/set/status/{ticketId}", PORTAL_ID, TICKET_ID)
-                .param("status", "CLOSED").exchange();
+        MvcTestResult result = mockMvc.post()
+                .uri("/api/v1/portals/{portalId}/ticket/set/status/{ticketId}", PORTAL_ID, TICKET_ID)
+                .param("status", "CLOSED")
+                .exchange();
 
         // then
         assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
@@ -149,8 +166,13 @@ class TicketControllerTest {
     void getPagedTickets_noFilter_returnsEmptyPage() throws Exception {
         // given
         when(mockTicketManageService.getPageTickets(eq(PORTAL_ID), eq(0), eq(10), eq("createdAt"), eq("desc")))
-                .thenReturn(new PageResponse.Builder<TicketResponse>().content(List.of()).page(0).size(10).totalElements(0).totalPages(0)
-                        .last(true).build());
+                .thenReturn(new PageResponse.Builder<TicketResponse>().content(List.of())
+                        .page(0)
+                        .size(10)
+                        .totalElements(0)
+                        .totalPages(0)
+                        .last(true)
+                        .build());
 
         // when
         MvcTestResult result = mockMvc.get().uri("/api/v1/portals/{portalId}/tickets", PORTAL_ID).exchange();
@@ -165,12 +187,21 @@ class TicketControllerTest {
     void getPagedTickets_statusFilter_queriesByIdsOnly() throws Exception {
         // given
         when(mockTicketManageService.getIdTicketWithStatus(PORTAL_ID, TicketStatus.OPEN)).thenReturn(Set.of(1L, 2L));
-        when(mockTicketManageService.getPageTicketsByIds(eq(Set.of(1L, 2L)), eq(0), eq(10), eq("createdAt"), eq("desc")))
-                .thenReturn(new PageResponse.Builder<TicketResponse>().content(List.of()).page(0).size(10).totalElements(0).totalPages(0)
-                        .last(true).build());
+        when(mockTicketManageService.getPageTicketsByIds(eq(Set.of(1L, 2L)), eq(0), eq(10), eq("createdAt"),
+                eq("desc")))
+                .thenReturn(new PageResponse.Builder<TicketResponse>().content(List.of())
+                        .page(0)
+                        .size(10)
+                        .totalElements(0)
+                        .totalPages(0)
+                        .last(true)
+                        .build());
 
         // when
-        MvcTestResult result = mockMvc.get().uri("/api/v1/portals/{portalId}/tickets", PORTAL_ID).param("status", "OPEN").exchange();
+        MvcTestResult result = mockMvc.get()
+                .uri("/api/v1/portals/{portalId}/tickets", PORTAL_ID)
+                .param("status", "OPEN")
+                .exchange();
 
         // then
         assertThat(result).hasStatusOk();
@@ -185,7 +216,10 @@ class TicketControllerTest {
         when(mockTicketManageService.getIdTicketNoAnswer(PORTAL_ID)).thenReturn(Set.of(9L));
 
         // when
-        MvcTestResult result = mockMvc.get().uri("/api/v1/portals/{portalId}/tickets/ids", PORTAL_ID).param("noAnswer", "true").exchange();
+        MvcTestResult result = mockMvc.get()
+                .uri("/api/v1/portals/{portalId}/tickets/ids", PORTAL_ID)
+                .param("noAnswer", "true")
+                .exchange();
 
         // then
         assertThat(result).hasStatusOk();

@@ -18,7 +18,7 @@ import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
 import com.ukhanov.realhelpdesk.core.pagination.service.PaginationAdapter;
-import com.ukhanov.realhelpdesk.core.security.accesscontrol.TicketAccessValidationService;
+import com.ukhanov.realhelpdesk.core.security.accesscontrol.service.TicketAccessValidationService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
@@ -47,7 +47,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class TicketManageService {
 
-    private static final Set<String> SORTABLE_TICKET_FIELDS = Set.of("createdAt", "title", "ticketStatus", "ticketPriority");
+    private static final Set<String> SORTABLE_TICKET_FIELDS = Set.of("createdAt", "title", "ticketStatus",
+            "ticketPriority");
 
     private final TicketDomainService ticketDomainService;
     private final CurrentUserProvider currentUserProvider;
@@ -81,27 +82,34 @@ public class TicketManageService {
 
         TicketModel ticket = ticketMapper.fromRequest(request, user, portal);
         Observation observation = Observation.createNotStarted("ticket.create", observationRegistry)
-                .lowCardinalityKeyValue("operation", "create").highCardinalityKeyValue("ticket.portal.id", String.valueOf(portalId))
+                .lowCardinalityKeyValue("operation", "create")
+                .highCardinalityKeyValue("ticket.portal.id", String.valueOf(portalId))
                 .start();
+        boolean created = false;
         try {
             TicketModel saved = ticketDomainService.saveTicket(ticket);
-            // инкремент после коммита saveTicket: откат или исключение раньше счётчик не завышает
+            // инкремент после коммита saveTicket: при откате транзакции метрика не завышается
             businessMetrics.ticketCreated(saved.getTicketPriority(), saved.getAccessStatus());
             observation.highCardinalityKeyValue("ticket.id", String.valueOf(saved.getId()));
             logger.info("Создана заявка {} в портале {}", saved.getId(), portalId);
 
             // In-app оповещение о новой заявке: до письма, чтобы не зависеть от SMTP; автора исключает publisher
-            notificationPublisher.publishToPortalUsers(portal, NotificationEvent.NEW_TICKET, user.getId(), saved.getId(), saved.getTitle());
+            notificationPublisher.publishToPortalUsers(portal, NotificationEvent.NEW_TICKET, user.getId(),
+                    saved.getId(), saved.getTitle());
 
             // Отправляем письмо с оповещением о создании заявки всем пользователям портала
             emailDeliveryService.initNotifyPortalUsers(portal, emailTemplates.ticketCreatedSubject(ticket.getId()),
                     emailTemplates.ticketCreatedBody(ticket.getId(), portal.getId()), NotificationEvent.NEW_TICKET);
 
-            observation.stop();
+            created = true;
             return new CreateTicketResponse(saved.getId());
-        } catch (Exception e) {
-            observation.lowCardinalityKeyValue("outcome", "error").stop();
-            throw e;
+        } finally {
+            // finally вместо catch: сбой наблюдения фиксируется для любого исключения, включая RuntimeException
+            if (created) {
+                observation.stop();
+            } else {
+                observation.lowCardinalityKeyValue("outcome", "error").stop();
+            }
         }
 
     }
@@ -126,7 +134,8 @@ public class TicketManageService {
         return paginationAdapter.mapToResponse(mappedPage, sortBy, order);
     }
 
-    public PageResponse<TicketResponse> getPageTicketsByIds(Set<Long> ids, int page, int size, String sortBy, String order)
+    public PageResponse<TicketResponse> getPageTicketsByIds(Set<Long> ids, int page, int size, String sortBy,
+            String order)
             throws TicketException, PortalException {
         Objects.requireNonNull(ids, "ids не должен быть null");
 
@@ -166,8 +175,11 @@ public class TicketManageService {
         }
 
         Observation observation = Observation.createNotStarted("ticket.status.change", observationRegistry)
-                .lowCardinalityKeyValue("operation", "status.change").lowCardinalityKeyValue("status", status.name())
-                .highCardinalityKeyValue("ticket.id", String.valueOf(ticketId)).start();
+                .lowCardinalityKeyValue("operation", "status.change")
+                .lowCardinalityKeyValue("status", status.name())
+                .highCardinalityKeyValue("ticket.id", String.valueOf(ticketId))
+                .start();
+        boolean changed = false;
         try {
             TicketStatus previousStatus = ticket.getTicketStatus();
             ticket.setTicketStatus(status);
@@ -181,16 +193,23 @@ public class TicketManageService {
             PortalModel portal = portalDomainService.getPortalById(portalId);
 
             // In-app оповещение об изменении заявки (действующего пользователя publisher исключает)
-            notificationPublisher.publishToPortalUsers(portal, NotificationEvent.CHANGE_TICKET, currentUserProvider.getCurrentUserId(),
+            notificationPublisher.publishToPortalUsers(portal, NotificationEvent.CHANGE_TICKET,
+                    currentUserProvider.getCurrentUserId(),
                     ticketSaved.getId(), ticketSaved.getTitle());
 
             // Отправляем письмо
-            emailDeliveryService.initNotifyPortalUsers(portal, emailTemplates.updateStatusTicketSubject(ticketSaved.getId(), status),
-                    emailTemplates.updateStatusTicketBody(ticketSaved.getId(), portalId), NotificationEvent.CHANGE_TICKET);
-            observation.stop();
-        } catch (Exception e) {
-            observation.lowCardinalityKeyValue("outcome", "error").stop();
-            throw e;
+            emailDeliveryService.initNotifyPortalUsers(portal,
+                    emailTemplates.updateStatusTicketSubject(ticketSaved.getId(), status),
+                    emailTemplates.updateStatusTicketBody(ticketSaved.getId(), portalId),
+                    NotificationEvent.CHANGE_TICKET);
+            changed = true;
+        } finally {
+            // finally вместо catch: сбой наблюдения фиксируется для любого исключения, включая RuntimeException
+            if (changed) {
+                observation.stop();
+            } else {
+                observation.lowCardinalityKeyValue("outcome", "error").stop();
+            }
         }
     }
 
@@ -214,12 +233,15 @@ public class TicketManageService {
         PortalModel portal = portalDomainService.getPortalById(portalId);
 
         // In-app оповещение об изменении заявки
-        notificationPublisher.publishToPortalUsers(portal, NotificationEvent.CHANGE_TICKET, currentUserProvider.getCurrentUserId(),
+        notificationPublisher.publishToPortalUsers(portal, NotificationEvent.CHANGE_TICKET,
+                currentUserProvider.getCurrentUserId(),
                 ticketSaved.getId(), ticketSaved.getTitle());
 
         // Отправляем письмо
-        emailDeliveryService.initNotifyPortalUsers(portal, emailTemplates.updatePriorityTicketSubject(ticketSaved.getId(), priority),
-                emailTemplates.updatePriorityTicketBody(ticketSaved.getId(), portal.getId()), NotificationEvent.CHANGE_TICKET);
+        emailDeliveryService.initNotifyPortalUsers(portal,
+                emailTemplates.updatePriorityTicketSubject(ticketSaved.getId(), priority),
+                emailTemplates.updatePriorityTicketBody(ticketSaved.getId(), portal.getId()),
+                NotificationEvent.CHANGE_TICKET);
     }
 
     public void deleteTicket(Long ticketID, Long portalId)
@@ -243,7 +265,8 @@ public class TicketManageService {
         PortalModel portal = portalDomainService.getPortalById(portalId);
 
         // In-app оповещение об удалении заявки
-        notificationPublisher.publishToPortalUsers(portal, NotificationEvent.TICKET_DELETED, user.getId(), ticketSaved.getId(),
+        notificationPublisher.publishToPortalUsers(portal, NotificationEvent.TICKET_DELETED, user.getId(),
+                ticketSaved.getId(),
                 ticketSaved.getTitle());
 
         // Отправляем письмо

@@ -35,7 +35,8 @@ public class LoginService {
             // Адрес в лог не пишем: это PII и данные, которые присылает клиент (в том числе злоумышленник).
             logger.warn("Отказ во входе: пользователь не найден");
             authMetrics.record(AuthMetrics.TYPE_LOGIN, AuthMetrics.RESULT_FAILURE);
-            throw new UsernameNotFoundException("Ошибка авторизации: неверный логин, пароль или отсутствующий пользователь");
+            throw new UsernameNotFoundException(
+                    "Ошибка авторизации: неверный логин, пароль или отсутствующий пользователь");
         }
 
         SecurityUser user = customUserDetailsService.loadUserByUsername(loginRequest.email());
@@ -44,19 +45,20 @@ public class LoginService {
         if (user.getOriginalUser().getUserStatus() != UserStatus.ACTIVE) {
             logger.warn("Отказ во входе: учётная запись не активна, userId={}", userId);
             authMetrics.record(AuthMetrics.TYPE_LOGIN, AuthMetrics.RESULT_LOCKED);
-            throw new BadCredentialsException("Ошибка авторизации: неверный логин, пароль или отсутствующий пользователь");
+            throw new BadCredentialsException(
+                    "Ошибка авторизации: неверный логин, пароль или отсутствующий пользователь");
         }
 
         if (!isPasswordValid(loginRequest.password(), user.getPassword())) {
             logger.warn("Отказ во входе: неверный пароль, userId={}", userId);
             authMetrics.record(AuthMetrics.TYPE_LOGIN, AuthMetrics.RESULT_FAILURE);
-            throw new BadCredentialsException("Ошибка авторизации: неверный логин, пароль или отсутствующий пользователь");
+            throw new BadCredentialsException(
+                    "Ошибка авторизации: неверный логин, пароль или отсутствующий пользователь");
 
         }
 
         // Ротация: при каждом входе выдаём свежий refresh-токен (в БД хранится только его хеш).
-        // Успешный вход логируем всегда: раньше строка появлялась только при отзыве старых refresh-токенов,
-        // и первый вход после регистрации не оставлял следа.
+        // Успешный вход логируем всегда, чтобы первый вход после регистрации не оставался без следа.
         TokensResponse tokens = getTokenService.getNewTokens(user.getOriginalUser());
         logger.info("Вход выполнен, userId={}", userId);
         authMetrics.record(AuthMetrics.TYPE_LOGIN, AuthMetrics.RESULT_SUCCESS);

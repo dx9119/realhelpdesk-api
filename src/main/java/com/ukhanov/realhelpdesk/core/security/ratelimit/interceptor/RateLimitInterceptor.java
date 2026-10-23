@@ -1,5 +1,6 @@
 package com.ukhanov.realhelpdesk.core.security.ratelimit.interceptor;
 
+import java.io.IOException;
 import java.time.Duration;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,7 +33,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final ClientIpResolver clientIpResolver;
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+            throws IOException {
         if (!(handler instanceof HandlerMethod handlerMethod)) {
             return true;
         }
@@ -47,13 +49,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         String client = clientIpResolver.resolve(request);
         // ключ — по шаблону маршрута: /password-resets/123 и /password-resets/456 должны считаться одним лимитом
         String key = client + "|" + request.getMethod() + " " + routeOf(request);
-        RateLimitService.Decision decision = rateLimitService.check(key, limit.requests(), Duration.ofSeconds(limit.windowSeconds()));
+        RateLimitService.Decision decision = rateLimitService.check(key, limit.requests(),
+                Duration.ofSeconds(limit.windowSeconds()));
 
         if (decision.allowed()) {
             return true;
         }
 
-        logger.warn("Превышен лимит запросов: {} {}, ip={}", request.getMethod(), LogSanitizer.uri(request.getRequestURI()), client);
+        logger.warn("Превышен лимит запросов: {} {}, ip={}", request.getMethod(),
+                LogSanitizer.uri(request.getRequestURI()), client);
 
         String detail = "Слишком много запросов. Повторите через " + decision.retryAfterSeconds() + " сек.";
         // Retry-After — до записи тела: после writeValue заголовки уже отправлены

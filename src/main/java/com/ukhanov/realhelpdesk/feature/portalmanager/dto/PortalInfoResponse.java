@@ -1,12 +1,16 @@
 package com.ukhanov.realhelpdesk.feature.portalmanager.dto;
 
-/**
- * Информация о портале. {@code version} — колонка {@code @Version}: клиент использует её как ETag (см. {@code core.http.EntityTag}) и как
- * признак «данные устарели» перед сохранением формы.
- */
-public record PortalInfoResponse(Long id, String namePortal, String description, Integer version) {
+import io.swagger.v3.oas.annotations.media.Schema;
 
-    /** Портал без описания: у entity описание может быть null, но клиенту уходит прежнее значение по умолчанию. */
+@Schema(description = "Портал с версией для If-Match; отдаётся с заголовком ETag")
+public record PortalInfoResponse(@Schema(description = "Идентификатор портала", example = "1") Long id,
+
+        @Schema(description = "Название портала", example = "Поддержка") String namePortal,
+
+        @Schema(description = "Описание портала", example = "none") String description,
+
+        @Schema(description = "Версия для If-Match; при устаревшей версии — 412", example = "0") Integer version) {
+
     public PortalInfoResponse(Long id, String namePortal) {
         this(id, namePortal, "none", null);
     }
