@@ -41,7 +41,9 @@ PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile mo
         migrate db-seed \
         openapi openapi-types \
         e2e-reset-limits \
-        e2e-portal-access e2e-ratelimit e2e-jwt e2e-notifications e2e-portal-transfer e2e-token-cleanup e2e-keycloak e2e-all
+        e2e-portal-access e2e-ratelimit e2e-jwt e2e-notifications e2e-portal-transfer e2e-token-cleanup e2e-keycloak \
+        e2e-portal-access-kc e2e-notifications-kc \
+        e2e-jwt-in-app e2e-keycloak e2e-all
 
 help: ## Показать список команд
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -258,9 +260,18 @@ openapi-types: openapi ## Сгенерировать TypeScript-типы из с
 	npx --yes openapi-typescript openapi.json -o web/src/api/schema.d.ts
 
 ## --- E2E (нужен поднятый стек: make up) ---
-# Сценарии ходят в cookie-эндпоинты /api/v1/auth/* — это внутренний JWT-контур,
-# поэтому перед прогоном приложение переводится на профиль dev (без keycloak).
-# Контур Keycloak проверяет отдельный сценарий e2e-keycloak (профиль dev,keycloak).
+# E2e разделены на два контура аутентификации:
+#
+# 1. e2e-jwt-in-app — внутренний JWT-контур (профиль dev).
+#    Сценарии ходят в cookie-эндпоинты /api/v1/auth/*, проверяют
+#    refresh-ротацию, логаут, смену пароля, email-подтверждения.
+#
+# 2. e2e-keycloak — внешний OAuth2-контур (профиль dev,keycloak).
+#    Использует Bearer-токены Keycloak (direct access grant), не зависит
+#    от cookie и локального AuthController (не создаётся в keycloak-профиле).
+#    Owner-transfer не проверяется — требует пароль пользователя,
+#    у Keycloak-пользователей password_hash = 'keycloak-no-local-password:uuid'.
+#
 # Перед сценариями сбрасываются in-memory бакеты рейт-лимитов
 # (POST /api/v1/dev/ratelimit-reset, @Profile("dev")) — без make restart.
 #
@@ -270,14 +281,16 @@ openapi-types: openapi ## Сгенерировать TypeScript-типы из с
 # ручного прогона после изменений в рейт-лимитах.
 
 e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпоинт; стек запущен, профиль dev)
-	@code=$$(curl -sk -o /dev/null -w '%{http_code}' -X POST \
+	@code=$(curl -sk -o /dev/null -w '%{http_code}' -X POST \
 	  -H 'X-Requested-With: XMLHttpRequest' \
 	  https://localhost:8443/api/v1/dev/ratelimit-reset); \
-	if [ "$$code" = "204" ] || [ "$$code" = "200" ]; then \
+	if [ "$code" = "204" ] || [ "$code" = "200" ]; then \
 	  echo "rate-limit бакеты сброшены"; \
 	else \
-	  echo "предупреждение: сброс лимитов не прошёл (HTTP $$code) — стек запущен? профиль dev?"; \
+	  echo "предупреждение: сброс лимитов не прошёл (HTTP $code) — стек запущен? профиль dev?"; \
 	fi
+
+## --- JWT in-app-контур (профиль dev) ---
 
 e2e-portal-access: profile-local e2e-reset-limits ## E2E: права на портал
 	bash $(E2E_DIR)/e2e-portal-access.sh
@@ -294,13 +307,33 @@ e2e-notifications: profile-local e2e-reset-limits ## E2E: in-app оповеще�
 e2e-portal-transfer: profile-local e2e-reset-limits ## E2E: передача владения порталом
 	bash $(E2E_DIR)/e2e-portal-transfer.sh
 
-e2e-token-cleanup: profile-local e2e-reset-limits ## E2E: очистка отозванных и протухших refresh-токенов (пересоздаёт app)
+e2e-token-cleanup: profile-local e2e-reset-limits ## E2E: очистка refresh-токенов по cron (пересоздаёт app)
 	bash $(E2E_DIR)/e2e-token-cleanup.sh
 
-e2e-keycloak: profile-keycloak e2e-reset-limits ## E2E: вход через Keycloak (нужен сервис keycloak профиля dev)
+## --- Keycloak-контур (профиль dev,keycloak) ---
+
+e2e-keycloak-auth: profile-keycloak e2e-reset-limits ## E2E: вход через Keycloak (OAuth2 RS, роли, блокировка)
 	bash $(E2E_DIR)/e2e-keycloak.sh
 
-e2e-all: profile-local ## E2E: базовые сценарии подряд (лимиты сбрасываются перед каждым)
+e2e-portal-access-kc: profile-keycloak e2e-reset-limits ## E2E: портал через Keycloak (Bearer, CRUD)
+	bash $(E2E_DIR)/e2e-portal-access-kc.sh
+
+e2e-notifications-kc: profile-keycloak e2e-reset-limits ## E2E: уведомления через Keycloak (Bearer)
+	bash $(E2E_DIR)/e2e-notifications-kc.sh
+
+## --- Агрегаторы контуров ---
+# Профиль переключается зависимостью цели, а не инлайном в рецепте: при прямом
+# вызове make e2e-jwt-in-app приложение гарантированно оказывается в нужном
+# контуре, иначе сценарии ключевого контура упали бы на профиле предыдущего
+# прогона.
+#
+# e2e-all намеренно включает ТОЛЬКО Keycloak-контур: это рекомендуемая схема
+# развёртывания, и именно она проверяется по умолчанию. Внутренний JWT-контур
+# (e2e-jwt-in-app) поддерживается для автономных инсталляций без внешнего
+# OAuth2-сервера, но новым пользователям не предлагается — поэтому его сценарии
+# вынесены в отдельную цель и в e2e-all не входят.
+
+e2e-jwt-in-app: profile-local ## E2E: контур внутреннего JWT (cookie, профиль dev; не входит в e2e-all)
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-portal-access.sh
 	$(MAKE) e2e-reset-limits
@@ -311,4 +344,13 @@ e2e-all: profile-local ## E2E: базовые сценарии подряд (л�
 	bash $(E2E_DIR)/e2e-portal-transfer.sh
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-token-cleanup.sh
-	$(MAKE) e2e-keycloak
+
+e2e-keycloak: profile-keycloak ## E2E: контур Keycloak (Bearer, профиль dev,keycloak)
+	$(MAKE) e2e-reset-limits
+	bash $(E2E_DIR)/e2e-keycloak.sh
+	$(MAKE) e2e-reset-limits
+	bash $(E2E_DIR)/e2e-portal-access-kc.sh
+	$(MAKE) e2e-reset-limits
+	bash $(E2E_DIR)/e2e-notifications-kc.sh
+
+e2e-all: e2e-keycloak ## E2E: рекомендуемый контур (Keycloak); внутренний JWT — отдельной целью e2e-jwt-in-app
