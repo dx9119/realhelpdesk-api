@@ -60,8 +60,7 @@ gen_secret() { # gen_secret KEY [LENGTH_HEX]
     log "Секрет сгенерирован: $key"
 }
 
-if grep -q '^MINIO_ROOT_USER=
- "$ENV_FILE"; then
+if grep -q '^MINIO_ROOT_USER=$' "$ENV_FILE"; then
     sed -i 's|^MINIO_ROOT_USER=$|MINIO_ROOT_USER=minioadmin|' "$ENV_FILE"
     log "Сгенерировано: MINIO_ROOT_USER=minioadmin"
 fi

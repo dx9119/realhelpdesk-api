@@ -187,7 +187,7 @@ check-secrets: ## gitleaks: секреты в дереве и истории к�
 check-dockerfile: ## hadolint: линтер Dockerfile (как в CI)
 	docker run --rm -i hadolint/hadolint:2.12.0 < Dockerfile
 
-ci-image: ## Собрать образ $(CI_IMAGE) для trivy (как в CI)
+ci-image: ## Собрать CI-образ (CI_IMAGE, по умолчанию realhelpdesk:ci) для trivy (как в CI)
 	docker build --build-arg GIT_SHA=$(GIT_SHA) -t $(CI_IMAGE) .
 
 # --timeout выше дефолтных 5м: разбор вложенных jar внутри Spring Boot fat-jar
