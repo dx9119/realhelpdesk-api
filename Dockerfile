@@ -30,9 +30,8 @@ RUN groupadd -r -g 10001 spring-group && \
             -c "Spring Boot application user" \
             spring-user
 
-# Удаляем pebble (CVE в Trivy) и создаём директорию под SSL keystore
-RUN rm -f /usr/bin/pebble && \
-    mkdir -p /app/ssl && chown spring-user:spring-group /app /app/ssl
+# Удаляем pebble (CVE в Trivy)
+RUN rm -f /usr/bin/pebble
 
 COPY --chown=spring-user:spring-group --chmod=755 scripts/docker/entrypoint.sh /app/entrypoint.sh
 
@@ -63,8 +62,8 @@ ENV JAVA_JMX_OPTS="-Djava.rmi.server.hostname=127.0.0.1 \
     -Dcom.sun.management.jmxremote.port=5005 \
     -Dcom.sun.management.jmxremote.rmi.port=5005"
 
-# 8443 — API, 8081 — Actuator
-EXPOSE 8443
+# 8080 — API, 8081 — Actuator
+EXPOSE 8080
 EXPOSE 8081
 
 ENTRYPOINT ["/app/entrypoint.sh"]
