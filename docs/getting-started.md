@@ -4,6 +4,17 @@
 порты и креды. Подробный разбор конфигурации — в
 [`configuration.md`](configuration.md).
 
+## Быстрый старт
+
+```bash
+make env && make dev-up && make e2e-all
+```
+
+`make env` создаёт `infrastructure/.env` с секретами, `make dev-up` поднимает
+стек целиком, `make e2e-all` проверяет его сквозным сценарием. Адреса
+поднятых сервисов (API, Swagger, Actuator, smtp4dev, Keycloak) —
+[таблица в §2.1](#21-весь-стек-в-контейнерах-первый-запуск).
+
 ## 1. Подготовка (однократно)
 
 ```bash
