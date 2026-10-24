@@ -208,7 +208,8 @@ run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://12
 # На сервере:
 cd /opt/realhelpdesk
 
-# 1. Синхронизировать IMAGE_TAG в .env (v-тег релиза или sha-<git_sha>)
+# 1. Синхронизировать IMAGE_TAG в .env (v-тег релиза или sha-<git_sha>);
+#    строка должна быть одна — при повторе замените существующее значение
 echo "IMAGE_TAG=v1.0.0" >> infrastructure/.env
 
 # 2. Pull нового образа
@@ -240,7 +241,13 @@ git tag v1.2.3
 
 **Триггеры:**
 - Пуш тега `v*` — автоматически (`IMAGE_TAG=<имя тега>`, например `v1.0.0`)
-- `workflow_dispatch` — ручной запуск с полем `image_tag`
+- `workflow_dispatch` — ручной запуск с полем `image_tag` (дефолт `latest` —
+  осознанный выбор оператора)
+
+Push в main деплой **не запускает**: CI при нём только публикует образы
+`sha-<git_sha>` и `latest` в ghcr.io. Рабочий контур всегда держит
+закреплённый `IMAGE_TAG` в `infrastructure/.env` на сервере и на `latest`
+молча не переходит — раскатка только по явному тегу (или руками).
 
 Секреты environment `production`: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
 `VPS_PORT`, `VPS_APP_DIR` (дефолт `/opt/realhelpdesk`), `GHCR_TOKEN`.
@@ -278,7 +285,7 @@ make prod-restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
 
 ## 4. CI/CD (GitHub Actions)
 
-### 4.1 CI (на push в main / PR)
+### 4.1 CI (на push в main, тег v* / PR)
 
 ```
 job: build — Maven (JDK 25)
@@ -286,7 +293,8 @@ job: build — Maven (JDK 25)
 
 job: docker
   └─► hadolint → сборка образа → trivy (CRITICAL/HIGH) → gitleaks
-  └─► при push в main: login ghcr.io + push :sha-<git_sha> и :latest
+  └─► push в main: push в ghcr.io :sha-<git_sha> и :latest
+  └─► тег v*:      push в ghcr.io :v<версия> (v1.0.0), :sha-<git_sha> и :latest
       (на PR пуш образа не выполняется)
 
 job: e2e — compose-стек (JDK 25)
@@ -296,13 +304,18 @@ job: e2e — compose-стек (JDK 25)
   └─► always: make dev-down
 ```
 
-### 4.2 Deploy (по тегу)
+### 4.2 Deploy (только по явному тегу)
+
+Раскатку запускает **только** пуш тега `v*` или ручной `workflow_dispatch`.
+Push в main публикует образы (включая `:latest`) в ghcr.io, но на прод не
+катится: сервер держит закреплённый `IMAGE_TAG` в `infrastructure/.env`,
+автоматического перехода на `latest` нет.
 
 ```
 tag v* / workflow_dispatch
   └─► job: deploy (environment: production)
        └─► SSH на VPS
-            └─► pull + prod-up + health-gate + авто-откат (§3.5)
+            └─► pull (ждёт тег в ghcr.io) + prod-up + health-gate + авто-откат (§3.5)
 ```
 
 ---
