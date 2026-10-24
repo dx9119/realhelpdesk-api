@@ -111,10 +111,11 @@ make dev-up-deps   # один раз: поднять infra + local-tools
 ```
 
 В IntelliJ IDEA (2025.2+) конфигурация `RealHelpDeskApplication`
-(`.run/RealHelpDeskApplication.run.xml`) уже настроена: профили `dev,host`,
-`infrastructure/.env` и инлайн-переменные. Кнопка Debug — приложение
-стартует за 2–3 секунды против `127.0.0.1:5432`/`9000`/`25`. Альтернатива
-без IDEA: `make run-local`.
+(`.run/RealHelpDeskApplication.run.xml`) уже настроена: запуск через Maven
+(`spring-boot:run`, профили `dev,host`, env из `infrastructure/.env` и
+инлайн-переменные) — фазы validate не обходятся IDE-сборкой. Кнопка Debug —
+приложение стартует за несколько секунд против
+`127.0.0.1:5432`/`9000`/`25`. Альтернатива без IDEA: `make run-local`.
 
 #### Inner loop: правка Java-кода
 

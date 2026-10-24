@@ -128,11 +128,11 @@ Compose сравнивает конфигурацию контейнера: пр
    профиль `host` сделает это сам через spring-boot-docker-compose).
 2. Открыть проект в IntelliJ IDEA (2025.2+): конфигурация
    `RealHelpDeskApplication` (`.run/RealHelpDeskApplication.run.xml`)
-   настроена — профили `dev,host`, путь к `infrastructure/.env`,
-   инлайн-переменные `SSL_ENABLED=false`,
+   настроена — запуск через Maven (`spring-boot:run`, профили `dev,host`),
+   путь к `infrastructure/.env`, инлайн-переменные `SSL_ENABLED=false`,
    `MINIO_ENDPOINT=http://127.0.0.1:9000` и дефолты compose-интерполяции
    `OTLP_TRACING_ENDPOINT` / `TRUST_PROXY_HEADERS` / `CLIENT_IP_FORWARDED_INDEX`.
-3. Debug: приложение стартует за 2–3 секунды, подключаясь к
+3. Debug: приложение стартует за несколько секунд, подключаясь к
    `127.0.0.1:5432`/`9000`/`25`.
 
 Для IDEA старше 2025.2 — плагин EnvFile и путь к `infrastructure/.env`

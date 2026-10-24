@@ -1,5 +1,7 @@
 <!--
-  Запуск приложения на хосте против dockerized-инфраструктуры (Debug/Run в IDEA).
+  Запуск приложения на хосте против dockerized-инфраструктуры (Debug/Run в IDEA)
+  через Maven: spring-boot:run собирается и стартует тем же путём, что и CLI
+  (make run-local) — фазы validate (spotless/checkstyle) не обходятся IDE-сборкой.
   Переменные окружения — infrastructure/.env (нативная поддержка .env-файлов в
   Environment variables, IDEA 2025.2+; для более старых версий — плагин EnvFile).
   Профили: dev (логи/отладка) + host (loopback-адреса инфры и
@@ -11,13 +13,16 @@
   имени minio (OS-env перекрывает application-host.properties).
 -->
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="RealHelpDeskApplication" type="Spring Boot" factoryName="Spring Boot">
-    <option name="MAIN_CLASS_NAME" value="com.ukhanov.realhelpdesk.RealHelpDeskApplication" />
-    <option name="ACTIVE_PROFILES" value="dev,host" />
+  <configuration default="false" name="RealHelpDeskApplication" type="MavenRunConfiguration" factoryName="Maven">
+    <MavenSettings>
+      <option name="myGeneralSettings" />
+      <option name="myRunnerSettings" />
+      <option name="myGeneratedCode" />
+      <option name="myLocalRepository" />
+      <option name="mySelectorConfig" />
+    </MavenSettings>
+    <option name="cmdLine" value="spring-boot:run -Dspring-boot.run.profiles=dev,host" />
     <option name="ENVIRONMENT_VARIABLES" value="$PROJECT_DIR$/infrastructure/.env;SSL_ENABLED=false;OTLP_TRACING_ENDPOINT=http://localhost:4317;TRUST_PROXY_HEADERS=false;CLIENT_IP_FORWARDED_INDEX=0;MINIO_ENDPOINT=http://127.0.0.1:9000" />
-    <module name="realhelpdesk" />
-    <method v="2">
-      <option name="Make" enabled="true" />
-    </method>
+    <method v="2" />
   </configuration>
 </component>
