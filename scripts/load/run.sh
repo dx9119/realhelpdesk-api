@@ -30,7 +30,7 @@ RUN_ID=${RUN_ID:-$(date +%s)}
 TARGET_VUS=${TARGET_VUS:-10}
 DURATION=${DURATION:-5m}
 PASSWORD=${PASSWORD:-Password123!}
-BASE=${BASE:-https://localhost:8443}
+BASE=${BASE:-http://localhost:8080}
 COMPOSE="docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.load.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app --profile load"
 
 if [ "$POOL_SIZE" -gt 10 ]; then
@@ -61,8 +61,7 @@ for i in $(seq 1 "$POOL_SIZE"); do
   email="load-pool-${RUN_ID}-p${i}@load.test"
   # уникальный XFF на пользователя: сидирование не делит общий bucket
   # регистрации и рейт-лимитов капчи; captchaToken решается по-настоящему
-  # (challenge → PoW → solve), NODE_TLS — самоподписанный локальный сертификат
-  token=$(NODE_TLS_REJECT_UNAUTHORIZED=0 XFF="10.99.0.${i}" \
+  # (challenge → PoW → solve)
     node scripts/load/solve-pow.js "$BASE" register)
   code=$(curl -sk -o /dev/null -w '%{http_code}' \
     -H 'X-Requested-With: XMLHttpRequest' -H 'Content-Type: application/json' \

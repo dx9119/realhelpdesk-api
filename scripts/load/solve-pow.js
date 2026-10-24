@@ -2,11 +2,8 @@
 // Решает PoW-капчу RealHelpDesk и печатает captchaToken в stdout.
 //
 // Использование (из scripts/load/run.sh):
-//   NODE_TLS_REJECT_UNAUTHORIZED=0 XFF=10.99.0.1 \
-//     node scripts/load/solve-pow.js https://localhost:8443 register
+//     node scripts/load/solve-pow.js http://localhost:8080 register
 //
-// Локальный стек использует самоподписанный TLS-сертификат — потому
-// NODE_TLS_REJECT_UNAUTHORIZED=0 (как curl -k в соседних скриптах).
 // XFF (опционально) — заголовок X-Forwarded-For: у каждого пулового
 // пользователя свой bucket рейт-лимита /captcha/*.
 //
@@ -19,7 +16,7 @@
 
 const crypto = require('crypto');
 
-const base = (process.argv[2] || 'https://localhost:8443').replace(/\/$/, '');
+const base = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '');
 const action = process.argv[3] || 'register';
 const XFF = process.env.XFF || null;
 

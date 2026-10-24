@@ -16,7 +16,7 @@
 # повторный запуск до истечения окна упрётся в 429 — перезапустите
 # приложение (make dev-restart) или подождите.
 set -u
-BASE=${BASE:-https://localhost:8443}
+BASE=${BASE:-http://localhost:8080}
 SMTP=${SMTP:-http://localhost:3000}
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 # Windows Git Bash: inline-аргумент с не-ASCII портится (argv уходит в ANSI-кодировке), тело запроса

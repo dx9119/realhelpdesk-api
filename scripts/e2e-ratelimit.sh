@@ -16,7 +16,7 @@
 # (по умолчанию).
 set -u
 
-BASE=${BASE:-https://localhost:8443/api/v1}
+BASE=${BASE:-http://localhost:8080/api/v1}
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 BODY="$TMP/body.txt"

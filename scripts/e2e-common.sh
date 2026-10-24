@@ -11,7 +11,7 @@
 set -u
 
 # ── Общие переменные ──────────────────────────────────────────
-BASE=${BASE:-https://localhost:8443/api/v1}
+BASE=${BASE:-http://localhost:8080/api/v1}
 SMTP=${SMTP:-http://localhost:3000}
 KEYCLOAK=${KEYCLOAK:-http://localhost:8180}
 REALM=${REALM:-realhelpdesk}

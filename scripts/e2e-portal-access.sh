@@ -12,7 +12,7 @@
 # пользователей со временными email.
 set -u
 
-BASE=${BASE:-https://localhost:8443/api/v1}
+BASE=${BASE:-http://localhost:8080/api/v1}
 TMP=$(mktemp -d)
 # Windows Git Bash: inline-аргумент с не-ASCII портится (argv уходит в ANSI-кодировке), тело запроса
 # перестаёт быть UTF-8 и сервер отвечает 400. Поэтому тела с кириллицей пишем в файл целиком.

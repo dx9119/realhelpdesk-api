@@ -14,7 +14,7 @@
 # приложение (make dev-restart) и повторите запуск.
 set -u
 
-BASE=${BASE:-https://localhost:8443}
+BASE=${BASE:-http://localhost:8080}
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 JAR="$TMP/cookies.txt"

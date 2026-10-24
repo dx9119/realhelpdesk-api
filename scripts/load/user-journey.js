@@ -21,9 +21,6 @@
 // Без него все VU делят 127.0.0.1 и логин упрётся в 10/300с.
 //
 // CSRF: изменяющие методы несут X-Requested-With (CsrfProtectionFilter).
-// TLS: локальный keystore самоподписанный — insecureSkipTLSVerify в options.
-//
-// Запуск: make load (полный) или make load-smoke (2 VU, 1 минута).
 // Параметры через окружение: TARGET_VUS, DURATION, POOL_SIZE, THINK_TIME,
 // WAIT_TIMEOUT_SEC, RUN_ID (см. Makefile и run.sh).
 
@@ -31,7 +28,7 @@ import http from 'k6/http';
 import { check, group, sleep } from 'k6';
 import { sha256 } from 'k6/crypto';
 
-const BASE = __ENV.BASE_URL || 'https://localhost:8443';
+const BASE = __ENV.BASE_URL || 'http://localhost:8080';
 const API = `${BASE}/api/v1`;
 const RUN_ID = __ENV.RUN_ID || 'local';
 const POOL_SIZE = Number(__ENV.POOL_SIZE || 8);
@@ -42,7 +39,6 @@ const WAIT_TIMEOUT_SEC = Number(__ENV.WAIT_TIMEOUT_SEC || 3);
 const PASSWORD = 'Password123!';
 
 export const options = {
-  insecureSkipTLSVerify: true,
   scenarios: {
     user_journey: {
       executor: 'ramping-vus',

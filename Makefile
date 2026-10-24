@@ -256,7 +256,7 @@ dev-db-seed: env ## Локальные фикстуры (Liquibase context=seed)
 ## --- OpenAPI (нужен поднятый стек: make dev-up) ---
 
 dev-openapi: ## Забрать OpenAPI-спеку с запущенного стека в openapi.json
-	curl -sk https://localhost:8443/v3/api-docs -o openapi.json && echo "openapi.json обновлён"
+	curl -s http://localhost:8080/v3/api-docs -o openapi.json && echo "openapi.json обновлён"
 
 dev-openapi-types: dev-openapi ## Сгенерировать TypeScript-типы из спеки (нужен npx)
 	npx --yes openapi-typescript openapi.json -o web/src/api/schema.d.ts
@@ -283,9 +283,9 @@ dev-openapi-types: dev-openapi ## Сгенерировать TypeScript-типы
 # ручного прогона после изменений в рейт-лимитах.
 
 e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпоинт; стек запущен, профиль dev)
-	@code=$$(curl -sk -o /dev/null -w '%{http_code}' -X POST \
+	@code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
 	  -H 'X-Requested-With: XMLHttpRequest' \
-	  https://localhost:8443/api/v1/dev/ratelimit-reset); \
+	  http://localhost:8080/api/v1/dev/ratelimit-reset); \
 	if [ "$$code" = "204" ] || [ "$$code" = "200" ]; then \
 	  echo "rate-limit бакеты сброшены"; \
 	else \

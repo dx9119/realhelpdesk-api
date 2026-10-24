@@ -25,7 +25,7 @@
 # пересоздание app сбрасывает счётчики, поэтому прогон укладывается в лимит.
 set -u
 
-BASE=${BASE:-https://localhost:8443/api/v1}
+BASE=${BASE:-http://localhost:8080/api/v1}
 ENV_FILE=${ENV_FILE:-infrastructure/.env}
 COMPOSE="docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml"
 APP_COMPOSE="$COMPOSE --profile infra --profile local-tools --profile app"

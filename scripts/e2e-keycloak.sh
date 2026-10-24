@@ -17,7 +17,7 @@
 # прогон их переиспользует.
 set -u
 
-BASE=${BASE:-https://localhost:8443}
+BASE=${BASE:-http://localhost:8080}
 KEYCLOAK=${KEYCLOAK:-http://localhost:8180}
 REALM=${REALM:-realhelpdesk}
 CLIENT=${CLIENT:-realhelpdesk-api}
