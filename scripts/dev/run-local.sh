@@ -9,9 +9,7 @@
 # Что делает:
 #   1. подгружает infrastructure/.env — переименований ключей больше нет
 #      (DB_PASSWORD/MINIO_ROOT_* читаются приложением напрямую);
-#   2. выключает SSL (SSL_ENABLED=false): HTTP без keystore на хосту;
-#      HTTPS остаётся в контейнерном стеке (make dev-up);
-#   3. запускает ./mvnw spring-boot:run с профилями dev,host
+#   2. запускает ./mvnw spring-boot:run с профилями dev,host
 #      (host — loopback-адреса инфры: application-host.properties).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -45,8 +43,6 @@ export CLIENT_IP_FORWARDED_INDEX="${CLIENT_IP_FORWARDED_INDEX:-0}"
 # Принудительно указываем loopback, как и в host-профиле.
 export MINIO_ENDPOINT="http://127.0.0.1:${MINIO_API_PORT:-9000}"
 
-# HTTP без keystore на хосту (иначе нужен KEY_STORE_PATH с существующим p12)
-export SSL_ENABLED=false
 # Профили хостового запуска: dev (логи/отладка) + host (loopback-адреса инфры).
 # Значение из .env (dev,keycloak) перекрывается здесь: контур keycloak из хоста
 # требует KC_JWK_SET_URI на 127.0.0.1 — задайте его в env при необходимости.
@@ -57,5 +53,5 @@ if [[ -n "${JAVA_HOME:-}" ]]; then
   echo "JAVA_HOME=$JAVA_HOME"
 fi
 
-echo "Старт: profiles=$SPRING_PROFILES_ACTIVE, SSL_ENABLED=false (HTTP)"
+echo "Старт: profiles=$SPRING_PROFILES_ACTIVE, HTTP (порт 8080)"
 exec ./mvnw -q spring-boot:run

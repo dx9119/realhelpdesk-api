@@ -86,7 +86,6 @@ jobs:
             -e "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -base64 32)|" \
             -e "s|^CAPTCHA_HMAC_SECRET=.*|CAPTCHA_HMAC_SECRET=$(openssl rand -base64 32)|" \
             -e "s|^DB_PASSWORD=.*|DB_PASSWORD=$(openssl rand -base64 32)|" \
-            -e "s|^KEY_STORE_PASS=.*|KEY_STORE_PASS=$(openssl rand -hex 8)|" \
             -e "s|^MINIO_ROOT_USER=.*|MINIO_ROOT_USER=rhd-ci|" \
             -e "s|^MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=$(openssl rand -base64 32)|" \
             -e "s|^METRICS_PASSWORD=.*|METRICS_PASSWORD=$(openssl rand -base64 32)|" \
