@@ -13,7 +13,7 @@
     * изменения enum-значений в колонках с CHECK — отдельный changeset с пересозданием ограничения;
     * changes/ — только DDL (структура). Любые данные (INSERT/UPDATE/DELETE) —
       только в seed/ и только с context="seed": при DB_MIGRATIONS_CONTEXTS=schema
-      (дефолт) база остаётся чистой, сид — make db-seed.
+      (дефолт) база остаётся чистой, сид — make dev-db-seed.
 -->
 <databaseChangeLog
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
@@ -28,7 +28,7 @@
     <include file="changes/005-user-platform-source-keycloak.xml" relativeToChangelogFile="true"/>
 
     <!-- Фикстуры вне контекста schema: подключены, но применяются только при
-         DB_MIGRATIONS_CONTEXTS=schema,seed (make db-seed). -->
+         DB_MIGRATIONS_CONTEXTS=schema,seed (make dev-db-seed). -->
     <include file="seed/100-demo-data.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

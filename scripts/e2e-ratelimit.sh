@@ -11,7 +11,7 @@
 #
 # Счетчики живут в памяти приложения: если лимит уже исчерпан прошлым
 # запуском, скрипт об этом скажет — перезапустите приложение
-# (make restart) и повторите. Пока окно /captcha/challenge не истекло
+# (make dev-restart) и повторите. Пока окно /captcha/challenge не истекло
 # (60 сек), проверка капчи не сойдется. Капча должна быть выключена
 # (по умолчанию).
 set -u
@@ -48,7 +48,7 @@ challenge_body='{"action":"register"}'
 first=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -H 'Content-Type: application/json' -d "$challenge_body" -o /dev/null -w "%{http_code}" -X POST "$BASE/captcha/challenge")
 if [ "$first" != "200" ]; then
   echo "  FAIL окно /captcha/challenge уже исчерпано (http=$first)"
-  echo "  подсказка: make restart && bash scripts/e2e-ratelimit.sh"
+  echo "  подсказка: make dev-restart && bash scripts/e2e-ratelimit.sh"
   exit 1
 fi
 ok=1; r429=0

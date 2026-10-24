@@ -17,7 +17,7 @@
 //
 // Рейт-лимиты: каждый запрос несёт уникальный X-Forwarded-For по номеру VU,
 // поэтому у каждой VU свой bucket лимита. Это работает только когда стек
-// поднят с load-оверлеем (TRUST_PROXY_HEADERS=true): make up-load / make load.
+// поднят с load-оверлеем (TRUST_PROXY_HEADERS=true): make dev-up-load / make load.
 // Без него все VU делят 127.0.0.1 и логин упрётся в 10/300с.
 //
 // CSRF: изменяющие методы несут X-Requested-With (CsrfProtectionFilter).

@@ -15,7 +15,7 @@ Output Language (Docs, Javadoc, Comments, Swagger, Configs): **Russian ONLY**. T
 - **No Fluff/Buzzwords:** Ban filler intros and words: *"надежный", "современный", "масштабируемый", "мощный", "бесшовный", "ключевой", "играет важную роль"*. Write strictly: fact, command, diagram.
 
 ## 2. Single Source of Truth & Format
-- **Markdown API Docs (`springdoc`):** No endpoint lists, DTO fields, or raw JSON in `.md` files. Link to `/swagger-ui.html`, `/v3/api-docs`, or `make openapi`. Describe only end-to-end business flows.
+- **Markdown API Docs (`springdoc`):** No endpoint lists, DTO fields, or raw JSON in `.md` files. Link to `/swagger-ui.html`, `/v3/api-docs`, or `make dev-openapi`. Describe only end-to-end business flows.
 - **Code Comments & API Contracts (Swagger vs Javadoc vs `//`):**
     - *OpenAPI (`@Operation`, `@Schema`, `@ApiResponse`):* Sole source of truth for REST controllers and DTOs. Keep descriptions concise.
     - *Javadoc (`/** ... */`):* FORBIDDEN on Controllers, DTOs, Mappers, Entities, and trivial CRUD/getters. Write brief Javadoc ONLY on Services/Utils to document non-obvious business invariants, concurrency/cache rules (Caffeine), or non-transactional side effects (e.g., MinIO/SMTP rollback behavior).
@@ -26,7 +26,7 @@ Output Language (Docs, Javadoc, Comments, Swagger, Configs): **Russian ONLY**. T
     - *`Dockerfile` & `docker-compose.yaml`:* Comment non-obvious JVM/CLI flags, healthcheck intervals, port/volume mappings, and image tag pins.
     - *`Makefile`:* Add a 1-line comment above each target stating its purpose and prerequisites (e.g., requires running DB).
     - *`.env`:* Group by service; specify units (ms, sec, MB), allowed formats, and mark secrets that must be overridden in prod.
-- **DB (`Liquibase`):** No text descriptions of tables/columns. Reference `db/changelog/db.changelog-master.xml` (`make migrate`) and invariant: Hibernate `validate` mode only.
+- **DB (`Liquibase`):** No text descriptions of tables/columns. Reference `db/changelog/db.changelog-master.xml` (`make dev-migrate`) and invariant: Hibernate `validate` mode only.
 - **Linting:** Do not explain code style rules. Write only: "Must pass `mvn validate`; format via `mvn spotless:apply`".
 - **Genre Rules:**
     - *How-To:* Commands, paths, and steps only. Zero "why" explanations.

@@ -112,7 +112,7 @@
 | SpotBugs (plugin + движок) | 4.9.6.0 / 4.9.6 | Статический анализ байткода (фаза `verify`, `spotbugs:check`) |
 | ArchUnit | 1.4.2 | Контракт слоёв (controller/feature/domain/core) как юнит-тест (`ArchitectureTest`) |
 | JaCoCo | 0.8.14 | Покрытие в `mvn verify`; порог LINE ≥ 65%, BRANCH ≥ 55% |
-| liquibase-maven-plugin | 5.0.3 | Миграции без контейнера приложения (`make migrate`) |
+| liquibase-maven-plugin | 5.0.3 | Миграции без контейнера приложения (`make dev-migrate`) |
 | spring-boot-maven-plugin | 4.1.1 | Fat-jar, фиксация main-class |
 | Docker (multi-stage) | `maven:3.9.16-eclipse-temurin-25-noble` → `eclipse-temurin:25-jre-noble` | Сборка в контейнере и компактный рантайм-образ |
 | hadolint / trivy / gitleaks | 2.12.0 / 0.58.2 / 8.21.2 | CI: линтер Dockerfile, скан уязвимостей образа (CRITICAL/HIGH), поиск секретов |

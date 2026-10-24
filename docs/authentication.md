@@ -16,7 +16,7 @@
 проверяет подпись по JWK и читает из токена email и realm-роли. Роль для
 проверки прав приложение всегда читает из БД — блокировка пользователя и
 понижение роли действуют сразу, не дожидаясь истечения токена. Переключение
-контура: `make profile-local` / `make profile-keycloak` (передают
+контура: `make dev-profile-local` / `make dev-profile-keycloak` (передают
 `SPRING_PROFILES_ACTIVE` инлайном и пересоздают контейнер `app`, ничего не
 записывая в файлы — см. [`configuration.md`](configuration.md#профили-spring)).
 

@@ -1,7 +1,7 @@
 -- Локальные фикстуры (context="seed"): демо-пользователи, портал, заявка с диалогом.
 -- В контуре по умолчанию не применяются: приложение работает с
 -- DB_MIGRATIONS_CONTEXTS=schema и оставляет базу пустой. Сидировать —
--- make db-seed (или DB_MIGRATIONS_CONTEXTS=schema,seed + перезапуск app).
+-- make dev-db-seed (или DB_MIGRATIONS_CONTEXTS=schema,seed + перезапуск app).
 --
 -- Пароли совпадают с realm'ом Keycloak (infrastructure/keycloak/
 -- realhelpdesk-realm.json): user-pass / operator-pass. Адреса при этом
@@ -9,7 +9,7 @@
 -- своих при первом входе, seed с ними не конфликтует.
 --
 -- Все вставки идемпотентны (ON CONFLICT / NOT EXISTS) — повторный прогон
--- безопасен. Чистая схема вместо сида: make down-volumes && make up.
+-- безопасен. Чистая схема вместо сида: make dev-down-volumes && make dev-up.
 
 -- Пользователь: пароль user-pass (BCrypt)
 INSERT INTO users (first_name, last_name, email, is_email_verified, password_hash,

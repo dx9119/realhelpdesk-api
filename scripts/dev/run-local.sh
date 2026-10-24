@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Запуск приложения на хосте против dockerized-инфраструктуры (make run-local).
 #
-# Предпосылка: make up-deps — postgres/minio/smtp/keycloak подняты, порты
+# Предпосылка: make dev-deps — postgres/minio/smtp/keycloak подняты, порты
 # 5432/9000/25/8180 проброшены на 127.0.0.1 (docker-compose.override.yaml).
 # Если стек не поднят, профиль host поднимет его сам при старте
 # (spring-boot-docker-compose, start-only).
@@ -10,7 +10,7 @@
 #   1. подгружает infrastructure/.env — переименований ключей больше нет
 #      (DB_PASSWORD/MINIO_ROOT_* читаются приложением напрямую);
 #   2. выключает SSL (SSL_ENABLED=false): HTTP без keystore на хосту;
-#      HTTPS остаётся в контейнерном стеке (make up);
+#      HTTPS остаётся в контейнерном стеке (make dev-up);
 #   3. запускает ./mvnw spring-boot:run с профилями dev,host
 #      (host — loopback-адреса инфры: application-host.properties).
 set -euo pipefail

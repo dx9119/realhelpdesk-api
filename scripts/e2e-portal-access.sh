@@ -7,7 +7,7 @@
 # публичность открывает только чтение имени/описания (GET /portals/{id}).
 # Смена isPublic доступна только владельцу.
 #
-# Требования: поднятый стек (make up), капча выключена
+# Требования: поднятый стек (make dev-up), капча выключена
 # (по умолчанию), docker для запросов к postgres. Регистрирует двух
 # пользователей со временными email.
 set -u
@@ -45,7 +45,7 @@ step "Регистрация владельца A и гостя B"
 s=$(code -c "$JAR_A" -X POST "$BASE/auth/register" -H 'Content-Type: application/json' \
   -d "{\"firstName\":\"Alpha\",\"lastName\":\"Owner\",\"email\":\"$OWNER_EMAIL\",\"password\":\"Password123!\"}")
 if [ "$s" = "429" ]; then
-  echo "  FAIL лимит регистрации исчерпан — make restart и повторите скрипт"
+  echo "  FAIL лимит регистрации исчерпан — make dev-restart и повторите скрипт"
   exit 1
 fi
 check "$s" "201" "A зарегистрирован"

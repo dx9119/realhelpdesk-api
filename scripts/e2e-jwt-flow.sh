@@ -8,10 +8,10 @@
 #   - отзыв всех refresh-токенов при смене пароля
 #   - отказ неактивным/неаутентифицированным запросам
 #
-# Требует запущенный стек: make up (API :8443, smtp4dev :3000).
+# Требует запущенный стек: make dev-up (API :8443, smtp4dev :3000).
 # Капча должна быть выключена (по умолчанию).
 # Счетчики рейт-лимитов живут в памяти: при исчерпании перезапустите
-# приложение (make restart) и повторите запуск.
+# приложение (make dev-restart) и повторите запуск.
 set -u
 
 BASE=${BASE:-https://localhost:8443}
@@ -88,7 +88,7 @@ REQ_STATUS=$(status -X POST "$BASE/api/v1/users/password-resets" \
   -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\"}")
 if [ "$REQ_STATUS" = "429" ]; then
   echo "  FAIL /users/password-resets -> 429: лимит 3 / 10 мин исчерпан."
-  echo "       Счетчики в памяти приложения: make restart и повторите запуск."
+  echo "       Счетчики в памяти приложения: make dev-restart и повторите запуск."
   echo; echo "Итого: OK $PASS, FAIL $((FAIL+1))"
   exit 1
 fi

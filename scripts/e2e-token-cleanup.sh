@@ -20,7 +20,7 @@
 # (Ctrl+C, kill -9) не оставляет сломанной конфигурации. По завершении app
 # пересоздаётся без инлайн-переменных — возвращается штатное расписание.
 #
-# Требования: поднятый стек (make up), капча выключена (по умолчанию), docker
+# Требования: поднятый стек (make dev-up), капча выключена (по умолчанию), docker
 # для psql. Тратит рейт-лимиты /auth/register и /auth/login (по 10 на 5 мин);
 # пересоздание app сбрасывает счётчики, поэтому прогон укладывается в лимит.
 set -u
@@ -108,7 +108,7 @@ wait_both() {
 # health. Переданные переменные действуют в рамках команды: compose подставляет их
 # в интерполяцию, infrastructure/.env не меняется.
 # Профиль приложения переносится из работающего контейнера: SPRING_PROFILES_ACTIVE
-# задаётся не в .env, а инлайном вызывающей make-целью (profile-local → dev), и
+# задаётся не в .env, а инлайном вызывающей make-целью (dev-profile-local → dev), и
 # без этого пересоздание вернуло бы compose-дефолт (dev,keycloak) — сценарий
 # работает во внутреннем JWT-контуре и на нём бы упал.
 up_app() {
@@ -153,7 +153,7 @@ finish() {
   rm -rf "$TMP"
   [ "$FINISHED" = "1" ] && return 0
   echo "  Пересоздаю app со штатным конфигом..."
-  restore_app || echo "  ВНИМАНИЕ: app не поднялся сам — проверьте 'make ps' и выполните 'make restart'"
+  restore_app || echo "  ВНИМАНИЕ: app не поднялся сам — проверьте 'make dev-ps' и выполните 'make dev-restart'"
 }
 trap finish EXIT
 
@@ -164,11 +164,11 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 if [ "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/health")" != "200" ]; then
-  echo "  FAIL $BASE/health недоступен — поднимите стек: make up"
+  echo "  FAIL $BASE/health недоступен — поднимите стек: make dev-up"
   exit 1
 fi
 if [ "$(sql 'select 1;')" != "1" ]; then
-  echo "  FAIL postgres недоступен через docker compose — поднимите стек: make up"
+  echo "  FAIL postgres недоступен через docker compose — поднимите стек: make dev-up"
   exit 1
 fi
 

@@ -10,11 +10,11 @@
 # постороннему — 403), ошибки (409 второй запрос, 401 чужой пароль, 404
 # чужой confirm) и события PORTAL_TRANSFER_* в email_log.
 #
-# Требования: поднятый стек (make up), капча выключена
+# Требования: поднятый стек (make dev-up), капча выключена
 # (по умолчанию), docker для запросов к postgres, smtp4dev на localhost:3000.
 # За прогон тратит лимит portal-transfer-request (5 initiate / 5 мин):
 # повторный запуск до истечения окна упрётся в 429 — перезапустите
-# приложение (make restart) или подождите.
+# приложение (make dev-restart) или подождите.
 set -u
 BASE=${BASE:-https://localhost:8443}
 SMTP=${SMTP:-http://localhost:3000}

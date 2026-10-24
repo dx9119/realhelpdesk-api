@@ -30,16 +30,19 @@ PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile mo
 
 .DEFAULT_GOAL := help
 
+# Префикс dev- = цель локального dev-контура (compose-цепочка с override,
+# порты на хост): на prod-сервере не запускается — там только up-prod/backup/restore.
 .PHONY: help build clean compile package test verify format check run \
-        dev-run dev-test run-local up-deps \
-        env apply-config docker-build up up-prod up-load down down-volumes logs ps restart shell check-image \
+        dev-run dev-test run-local dev-deps \
+        env dev-apply-config dev-docker-build dev-up up-prod dev-up-load dev-down dev-down-volumes \
+        dev-logs dev-ps dev-restart dev-shell check-image \
         check-ci check-secrets check-dockerfile ci-image check-image-vuln \
         backup restore \
-        profile-local profile-keycloak \
+        dev-profile-local dev-profile-keycloak \
         obs-up obs-down obs-reload obs-alerts \
         load load-smoke \
-        migrate db-seed \
-        openapi openapi-types \
+        dev-migrate dev-db-seed \
+        dev-openapi dev-openapi-types \
         e2e-reset-limits \
         e2e-portal-access e2e-ratelimit e2e-jwt e2e-notifications e2e-portal-transfer e2e-token-cleanup e2e-keycloak \
         e2e-portal-access-kc e2e-notifications-kc \
@@ -77,13 +80,13 @@ check: ## Проверки стиля (spotless:check + checkstyle)
 run: ## Запустить приложение локально (spring-boot:run)
 	$(MVN) spring-boot:run
 
-run-local: env ## Приложение на хосте против dockerized-инфры (профили dev,host; инфру поднимает spring-boot-docker-compose или make up-deps)
+run-local: env ## Приложение на хосте против dockerized-инфры (профили dev,host; инфру поднимает spring-boot-docker-compose или make dev-deps)
 	bash scripts/dev/run-local.sh
 
 dev-run: env ## Dev-среда: compose up в foreground (логи всех сервисов, Ctrl+C — стоп)
 	$(COMPOSE) $(PROFILES_LOCAL) up --build
 
-dev-test: ## Dev-среда: mvn verify + e2e-сценарии (нужен поднятый стек: dev-run/up)
+dev-test: ## Dev-среда: mvn verify + e2e-сценарии (нужен поднятый стек: dev-run/dev-up)
 	$(MVN) verify
 	$(MAKE) e2e-all
 
@@ -92,29 +95,29 @@ dev-test: ## Dev-среда: mvn verify + e2e-сценарии (нужен по�
 env: ## Создать infrastructure/.env и сгенерировать пустые локальные секреты
 	bash scripts/docker/init-secrets.sh
 
-apply-config: ## Применить изменения .env к запущенному стеку (профиль app сохраняется)
-	@# Профиль задаётся не в .env, а инлайном (profile-local/keycloak): без переноса
+dev-apply-config: ## Применить изменения .env к запущенному стеку (профиль app сохраняется)
+	@# Профиль задаётся не в .env, а инлайном (dev-profile-local/dev-profile-keycloak): без переноса
 	@# значения из работающего контейнера пересоздание вернуло бы .env/дефолт и
 	@# молча сменило контур. Пустой profile (app не запущен) даст compose-дефолт.
 	@profile=$($(COMPOSE) $(PROFILES_ALL) exec -T app printenv SPRING_PROFILES_ACTIVE 2>/dev/null | tr -d '');
 	SPRING_PROFILES_ACTIVE="${profile}" $(COMPOSE) $(PROFILES_ALL) up -d --force-recreate --no-deps app
 
-docker-build: ## Собрать docker-образ приложения (с меткой GIT_SHA)
+dev-docker-build: ## Собрать docker-образ приложения (с меткой GIT_SHA)
 	$(COMPOSE) $(PROFILES_LOCAL) build --build-arg GIT_SHA=$(GIT_SHA)
 
-up: env ## Поднять локальный стек (профили infra+local-tools+app, сборка образа, в фоне)
+dev-up: env ## Поднять локальный стек (профили infra+local-tools+app, сборка образа, в фоне)
 	$(COMPOSE) $(PROFILES_LOCAL) up --build -d
 
-up-deps: env ## Поднять только инфраструктуру (infra+local-tools: БД, MinIO, smtp4dev, Keycloak) — для запуска app из IDEA/CLI
+dev-deps: env ## Поднять только инфраструктуру (infra+local-tools: БД, MinIO, smtp4dev, Keycloak) — для запуска app из IDEA/CLI
 	$(COMPOSE) $(PROFILES_DEPS) up -d
 
 up-prod: env ## Поднять рабочий стек (infra+app, pull из ghcr.io; настройки — «Рабочий контур» в .env)
 	$(COMPOSE_PROD) $(PROFILES_PROD) up -d --no-build
 
-down: ## Остановить стек (все профили)
+dev-down: ## Остановить стек (все профили)
 	$(COMPOSE) $(PROFILES_ALL) down
 
-down-volumes: ## Остановить стек и удалить тома (данные БД/MinIO)
+dev-down-volumes: ## Остановить стек и удалить тома (данные БД/MinIO)
 	$(COMPOSE) $(PROFILES_ALL) down -v
 
 ## --- Бэкапы (PostgreSQL + MinIO; артефакты — ./backups/) ---
@@ -148,13 +151,13 @@ obs-reload: ## Перечитать правила алертов Mimir (нуж�
 obs-alerts: ## Текущие состояния алертов Mimir (нужен obs-up)
 	curl -s localhost:9090/prometheus/api/v1/alerts | grep -oE '"alertname":"[^"]+"|"state":"[^"]+"' | paste - - || echo "Mimir недоступен"
 
-logs: ## Логи приложения (follow)
+dev-logs: ## Логи приложения (follow)
 	$(COMPOSE) $(PROFILES_ALL) logs -f app
 
-ps: ## Статус контейнеров (все профили)
+dev-ps: ## Статус контейнеров (все профили)
 	$(COMPOSE) $(PROFILES_ALL) ps
 
-restart: ## Перезапустить только приложение
+dev-restart: ## Перезапустить только приложение
 	$(COMPOSE) $(PROFILES_ALL) restart app
 
 # Переключение контура — инлайном: SPRING_PROFILES_ACTIVE объявлен в
@@ -165,16 +168,16 @@ restart: ## Перезапустить только приложение
 # перезапускает стек зря). --wait дожидается healthcheck, чтобы следующая
 # команда (e2e-сценарий) не била в ещё поднимающийся app. Если стек был
 # остановлен, up поднимает его целиком с нужным профилем.
-profile-local: env ## Переключить приложение на внутренний JWT-контур (профиль dev) и пересоздать app
+dev-profile-local: env ## Переключить приложение на внутренний JWT-контур (профиль dev) и пересоздать app
 	SPRING_PROFILES_ACTIVE=dev $(COMPOSE) $(PROFILES_LOCAL) up -d --wait
 
-profile-keycloak: env ## Переключить приложение на контур Keycloak (профиль dev,keycloak) и пересоздать app
+dev-profile-keycloak: env ## Переключить приложение на контур Keycloak (профиль dev,keycloak) и пересоздать app
 	SPRING_PROFILES_ACTIVE=dev,keycloak $(COMPOSE) $(PROFILES_LOCAL) up -d --wait
 
-shell: ## Shell внутри контейнера app
+dev-shell: ## Shell внутри контейнера app
 	$(COMPOSE) $(PROFILES_ALL) exec app sh
 
-check-image: docker-build ## Проверки образа: секреты, ФС, jar
+check-image: dev-docker-build ## Проверки образа: секреты, ФС, jar
 	./scripts/docker/check-image.sh $(IMAGE)
 
 ## --- Локальные проверки CI (те же команды, что job docker в .github/workflows/ci.yml) ---
@@ -207,9 +210,9 @@ check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-пров�
 
 ## --- Нагрузочное тестирование (k6, scripts/load/) ---
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это
-# внутренний JWT-контур, поэтому up-load переводит приложение на профиль dev.
+# внутренний JWT-контур, поэтому dev-up-load переводит приложение на профиль dev.
 
-up-load: env ## Поднять стек для нагрузки (профиль dev и TRUST_PROXY_HEADERS=true инлайном; только локально)
+dev-up-load: env ## Поднять стек для нагрузки (профиль dev и TRUST_PROXY_HEADERS=true инлайном; только локально)
 	# Внутренний JWT-контур (пул сидируется через /api/v1/auth/register) и
 	# доверие X-Forwarded-For (каждой VU — свой bucket рейт-лимита) задаются
 	# инлайном: .env не меняется.
@@ -217,21 +220,21 @@ up-load: env ## Поднять стек для нагрузки (профиль 
 	TRUST_PROXY_HEADERS=true OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces \
 	$(COMPOSE_LOAD) $(PROFILES_LOCAL) up --build -d --wait
 
-load: up-load ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
+load: dev-up-load ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
 	bash scripts/load/run.sh
 
-load-smoke: up-load ## Короткий smoke-прогон user journey (2 VU, 1 минута)
+load-smoke: dev-up-load ## Короткий smoke-прогон user journey (2 VU, 1 минута)
 	TARGET_VUS=2 DURATION=1m bash scripts/load/run.sh
 
 ## --- Миграции схемы (Liquibase с хоста; порт 127.0.0.1:5432 публикует
-## docker-compose.override.yaml — нужен make up-deps) ---
+## docker-compose.override.yaml — нужен make dev-deps) ---
 # Миграции также применяет само приложение при старте (DB_MIGRATIONS_ENABLED).
 # Цели ниже — для чистого/ручного прогона без контейнера приложения.
 
-# Контекст передаёт и migrate: Liquibase без -Dliquibase.contexts применяет
+# Контекст передаёт и dev-migrate: Liquibase без -Dliquibase.contexts применяет
 # ВСЕ changeset'ы, включая помеченные context="seed" — без него «чистая»
 # миграция незаметно наполнила бы базу фикстурами.
-migrate: env ## Миграции Liquibase на основную БД (localhost:5432)
+dev-migrate: env ## Миграции Liquibase на основную БД (localhost:5432)
 	@set -a && . infrastructure/.env && set +a && \
 	$(MVN) -q liquibase:update \
 	  -Dliquibase.url=jdbc:postgresql://127.0.0.1:5432/desk \
@@ -239,11 +242,11 @@ migrate: env ## Миграции Liquibase на основную БД (localhost
 	  -Dliquibase.password="$$DB_PASSWORD" \
 	  -Dliquibase.contexts="$${DB_MIGRATIONS_CONTEXTS:-schema}"
 
-# Сид отличается от migrate контекстом: фикстуры помечены context="seed" и не
+# Сид отличается от dev-migrate контекстом: фикстуры помечены context="seed" и не
 # применяются при DB_MIGRATIONS_CONTEXTS=schema (чистая dev-база по умолчанию).
 # Повторный прогон безопасен — seed-INSERT'ы идемпотентны. Чистая схема взамен:
-# make down-volumes && make up.
-db-seed: env ## Локальные фикстуры (Liquibase context=seed) на основную БД (localhost:5432)
+# make dev-down-volumes && make dev-up.
+dev-db-seed: env ## Локальные фикстуры (Liquibase context=seed) на основную БД (localhost:5432)
 	@set -a && . infrastructure/.env && set +a && \
 	$(MVN) -q liquibase:update \
 	  -Dliquibase.url=jdbc:postgresql://127.0.0.1:5432/desk \
@@ -251,15 +254,15 @@ db-seed: env ## Локальные фикстуры (Liquibase context=seed) н�
 	  -Dliquibase.password="$$DB_PASSWORD" \
 	  -Dliquibase.contexts=schema,seed
 
-## --- OpenAPI (нужен поднятый стек: make up) ---
+## --- OpenAPI (нужен поднятый стек: make dev-up) ---
 
-openapi: ## Забрать OpenAPI-спеку с запущенного стека в openapi.json
+dev-openapi: ## Забрать OpenAPI-спеку с запущенного стека в openapi.json
 	curl -sk https://localhost:8443/v3/api-docs -o openapi.json && echo "openapi.json обновлён"
 
-openapi-types: openapi ## Сгенерировать TypeScript-типы из спеки (нужен npx)
+dev-openapi-types: dev-openapi ## Сгенерировать TypeScript-типы из спеки (нужен npx)
 	npx --yes openapi-typescript openapi.json -o web/src/api/schema.d.ts
 
-## --- E2E (нужен поднятый стек: make up) ---
+## --- E2E (нужен поднятый стек: make dev-up) ---
 # E2e разделены на два контура аутентификации:
 #
 # 1. e2e-jwt-in-app — внутренний JWT-контур (профиль dev).
@@ -273,7 +276,7 @@ openapi-types: openapi ## Сгенерировать TypeScript-типы из с
 #    у Keycloak-пользователей password_hash = 'keycloak-no-local-password:uuid'.
 #
 # Перед сценариями сбрасываются in-memory бакеты рейт-лимитов
-# (POST /api/v1/dev/ratelimit-reset, @Profile("dev")) — без make restart.
+# (POST /api/v1/dev/ratelimit-reset, @Profile("dev")) — без make dev-restart.
 #
 # e2e-ratelimit в e2e-all не входит: логика бакетов/429/Retry-After целиком
 # покрыта RateLimitServiceTest, а e2e-прогон тратит 56 последовательных
@@ -292,33 +295,33 @@ e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпои�
 
 ## --- JWT in-app-контур (профиль dev) ---
 
-e2e-portal-access: profile-local e2e-reset-limits ## E2E: права на портал
+e2e-portal-access: dev-profile-local e2e-reset-limits ## E2E: права на портал
 	bash $(E2E_DIR)/e2e-portal-access.sh
 
-e2e-ratelimit: profile-local e2e-reset-limits ## E2E: рейт-лимиты
+e2e-ratelimit: dev-profile-local e2e-reset-limits ## E2E: рейт-лимиты
 	bash $(E2E_DIR)/e2e-ratelimit.sh
 
-e2e-jwt: profile-local e2e-reset-limits ## E2E: JWT-поток аутентификации
+e2e-jwt: dev-profile-local e2e-reset-limits ## E2E: JWT-поток аутентификации
 	bash $(E2E_DIR)/e2e-jwt-flow.sh
 
-e2e-notifications: profile-local e2e-reset-limits ## E2E: in-app оповещения (long polling)
+e2e-notifications: dev-profile-local e2e-reset-limits ## E2E: in-app оповещения (long polling)
 	bash $(E2E_DIR)/e2e-notifications.sh
 
-e2e-portal-transfer: profile-local e2e-reset-limits ## E2E: передача владения порталом
+e2e-portal-transfer: dev-profile-local e2e-reset-limits ## E2E: передача владения порталом
 	bash $(E2E_DIR)/e2e-portal-transfer.sh
 
-e2e-token-cleanup: profile-local e2e-reset-limits ## E2E: очистка refresh-токенов по cron (пересоздаёт app)
+e2e-token-cleanup: dev-profile-local e2e-reset-limits ## E2E: очистка refresh-токенов по cron (пересоздаёт app)
 	bash $(E2E_DIR)/e2e-token-cleanup.sh
 
 ## --- Keycloak-контур (профиль dev,keycloak) ---
 
-e2e-keycloak-auth: profile-keycloak e2e-reset-limits ## E2E: вход через Keycloak (OAuth2 RS, роли, блокировка)
+e2e-keycloak-auth: dev-profile-keycloak e2e-reset-limits ## E2E: вход через Keycloak (OAuth2 RS, роли, блокировка)
 	bash $(E2E_DIR)/e2e-keycloak.sh
 
-e2e-portal-access-kc: profile-keycloak e2e-reset-limits ## E2E: портал через Keycloak (Bearer, CRUD)
+e2e-portal-access-kc: dev-profile-keycloak e2e-reset-limits ## E2E: портал через Keycloak (Bearer, CRUD)
 	bash $(E2E_DIR)/e2e-portal-access-kc.sh
 
-e2e-notifications-kc: profile-keycloak e2e-reset-limits ## E2E: уведомления через Keycloak (Bearer)
+e2e-notifications-kc: dev-profile-keycloak e2e-reset-limits ## E2E: уведомления через Keycloak (Bearer)
 	bash $(E2E_DIR)/e2e-notifications-kc.sh
 
 ## --- Агрегаторы контуров ---
@@ -333,7 +336,7 @@ e2e-notifications-kc: profile-keycloak e2e-reset-limits ## E2E: уведомле
 # OAuth2-сервера, но новым пользователям не предлагается — поэтому его сценарии
 # вынесены в отдельную цель и в e2e-all не входят.
 
-e2e-jwt-in-app: profile-local ## E2E: контур внутреннего JWT (cookie, профиль dev; не входит в e2e-all)
+e2e-jwt-in-app: dev-profile-local ## E2E: контур внутреннего JWT (cookie, профиль dev; не входит в e2e-all)
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-portal-access.sh
 	$(MAKE) e2e-reset-limits
@@ -345,7 +348,7 @@ e2e-jwt-in-app: profile-local ## E2E: контур внутреннего JWT (c
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-token-cleanup.sh
 
-e2e-keycloak: profile-keycloak ## E2E: контур Keycloak (Bearer, профиль dev,keycloak)
+e2e-keycloak: dev-profile-keycloak ## E2E: контур Keycloak (Bearer, профиль dev,keycloak)
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-keycloak.sh
 	$(MAKE) e2e-reset-limits

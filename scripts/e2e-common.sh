@@ -188,7 +188,7 @@ check_kc_ready() {
     echo "  OK   Keycloak доступен, realm '$REALM' найден"
     return 0
   fi
-  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make up (профиль dev)"
+  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make dev-up (профиль dev)"
   return 1
 }
 
@@ -252,11 +252,11 @@ body_file() {
 # check_base — базовые проверки доступности стека
 check_base() {
   if [ "$(http_code "$BASE/health")" != "200" ]; then
-    echo "  FAIL $BASE/health недоступен — поднимите стек: make up"
+    echo "  FAIL $BASE/health недоступен — поднимите стек: make dev-up"
     exit 1
   fi
   if [ "$($PSQL 'select 1;' | tail -1)" != "1" ]; then
-    echo "  FAIL postgres недоступен — поднимите стек: make up"
+    echo "  FAIL postgres недоступен — поднимите стек: make dev-up"
     exit 1
   fi
 }

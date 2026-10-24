@@ -41,13 +41,13 @@ make env
 
 | Вариант | Команды | Когда выбирать |
 |---|---|---|
-| Весь стек в контейнерах | `make up` (в фоне) / `make dev-run` (foreground) | штатный путь без IDEA: код правится редко или правка Java с пересборкой образа допустима |
-| Приложение на хосте | `make up-deps` + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
+| Весь стек в контейнерах | `make dev-up` (в фоне) / `make dev-run` (foreground) | штатный путь без IDEA: код правится редко или правка Java с пересборкой образа допустима |
+| Приложение на хосте | `make dev-deps` + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
 
 ### 2.1 Весь стек в контейнерах: первый запуск
 
 ```bash
-make up        # сборка образа и запуск всего в фоне
+make dev-up        # сборка образа и запуск всего в фоне
 make dev-run   # то же в foreground: логи всех сервисов, Ctrl+C — остановка
 ```
 
@@ -78,12 +78,12 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
   curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/users/profile
   ```
 
-- **Внутренний JWT** (после `make profile-local`): зарегистрировать
+- **Внутренний JWT** (после `make dev-profile-local`): зарегистрировать
   пользователя `POST /api/v1/auth/register` и подтвердить email — письмо
   с кодом придёт в smtp4dev; cookies дальше держит браузер или Swagger UI.
   Пока email не подтверждён, создание портала отвечает `403`.
 
-Переключение контуров: `make profile-local` / `make profile-keycloak` —
+Переключение контуров: `make dev-profile-local` / `make dev-profile-keycloak` —
 передают `SPRING_PROFILES_ACTIVE` инлайном и пересоздают только контейнер
 `app` (файлы не меняются; подробности — в
 [`configuration.md`](configuration.md#профили-spring)).
@@ -92,22 +92,22 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 
 | Сценарий | Команда |
 |---|---|
-| Поднять стек (первый или после `down`) | `make up` |
-| Поднять только инфраструктуру (БД, MinIO, smtp4dev, Keycloak) | `make up-deps` |
+| Поднять стек (первый или после `down`) | `make dev-up` |
+| Поднять только инфраструктуру (БД, MinIO, smtp4dev, Keycloak) | `make dev-deps` |
 | Стек в foreground со всеми логами | `make dev-run` |
-| Перезапустить только app (быстрый цикл) | `make restart` |
-| Применить изменения `.env` к запущенному стеку | `make apply-config` |
-| Логи app / статус контейнеров | `make logs` / `make ps` |
-| Shell внутри контейнера app (осмотреть ФС, keystore, дампы) | `make shell` |
-| Остановить стек | `make down` |
-| Полная очистка (с удалением томов) | `make down-volumes` |
+| Перезапустить только app (быстрый цикл) | `make dev-restart` |
+| Применить изменения `.env` к запущенному стеку | `make dev-apply-config` |
+| Логи app / статус контейнеров | `make dev-logs` / `make dev-ps` |
+| Shell внутри контейнера app (осмотреть ФС, keystore, дампы) | `make dev-shell` |
+| Остановить стек | `make dev-down` |
+| Полная очистка (с удалением томов) | `make dev-down-volumes` |
 
 ### 2.3 Приложение на хосте (IDEA / CLI)
 
 Инфраструктура — в Docker, приложение — на хосте с отладчиком:
 
 ```bash
-make up-deps   # один раз: поднять infra + local-tools
+make dev-deps   # один раз: поднять infra + local-tools
 ```
 
 В IntelliJ IDEA (2025.2+) конфигурация `RealHelpDeskApplication`
@@ -121,7 +121,7 @@ make up-deps   # один раз: поднять infra + local-tools
 **Вариант A — в контейнере** (штатный):
 
 ```bash
-make up          # пересборка слоя app (docker layer cache из m2 ускоряет)
+make dev-up          # пересборка слоя app (docker layer cache из m2 ускоряет)
 ```
 
 Любая правка Java требует пересборки образа.
@@ -129,7 +129,7 @@ make up          # пересборка слоя app (docker layer cache из m2
 **Вариант B — на хосте** (быстрый):
 
 ```bash
-make up-deps    # один раз: поднять infra + local-tools
+make dev-deps    # один раз: поднять infra + local-tools
 # Debug в IDEA (конфиг RealHelpDeskApplication, профили dev,host) —
 # при отсутствии стека инфру поднимет spring-boot-docker-compose сам;
 # либо CLI:
@@ -188,16 +188,19 @@ run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://12
 
 ### 3.3 Запрещённые команды (не запускать на prod-сервере)
 
-Ни одна из команд ниже не должна выполняться на prod-сервере — все они
-задуманы для локальной dev-машины:
+Правило читается прямо по имени: **всё, что начинается с `dev-`, — команды
+локальной машины** (плюс `e2e-*`, `load*`, `obs-*`, `check-*`, `run`,
+`run-local`, `dev-run`, `dev-test`). На prod-сервере не существует
+штатной причины их запускать — рабочие операции перечислены в §3.2.
 
-| ❌ Команда — НЕ запускать на prod | Почему нельзя |
+| Команда | Почему нельзя |
 |---|---|
-| ❌ `make up`, ❌ `make dev-run`, ❌ `make docker-build`, ❌ `make ci-image`, ❌ любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; локальные цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
-| ❌ `make down-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
-| ❌ `make profile-local`, ❌ `make profile-keycloak`, ❌ инлайн `SPRING_PROFILES_ACTIVE=dev…` | Переводят приложение в dev-профиль через локальную цепочку с override; профиль рабочего контура задаёт только `.env` сервера (`prod` / `prod,keycloak`) |
-| ❌ `make restart`, ❌ `make apply-config`, ❌ `make logs`, ❌ `make ps`, ❌ `make down` | Локальные цепочки `-f …override.yaml` с профилями local-tools/monitoring/load; на сервере управлять контуром командами из §3.2 |
-| ❌ `make e2e-*`, ❌ `make load`, ❌ `make load-smoke`, ❌ `make obs-*`, ❌ `make migrate`, ❌ `make db-seed`, ❌ `make openapi` | Dev-инструменты: сидируют тестовые данные, тратят рейт-лимиты, требуют портов на хост; миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`) |
+| `make dev-up`, `make dev-run`, `make dev-docker-build`, `make ci-image`, любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; эти цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
+| `make dev-down-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
+| `make dev-profile-local`, `make dev-profile-keycloak`, инлайн `SPRING_PROFILES_ACTIVE=dev…` | Переводят приложение в dev-профиль; профиль рабочего контура задаёт только `.env` сервера (`prod` / `prod,keycloak`) |
+| `make dev-restart`, `make dev-apply-config`, `make dev-logs`, `make dev-ps`, `make dev-down`, `make dev-shell` | Локальные compose-цепочки с override-файлом и профилями local-tools/monitoring/load; на сервере управлять контуром командами из §3.2 |
+| `make dev-migrate`, `make dev-db-seed` | Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`); сид — тестовые данные в рабочей БД |
+| `make e2e-*`, `make load`, `make load-smoke`, `make dev-up-load`, `make obs-*`, `make dev-openapi` | Dev-инструменты: тестовые данные, рейт-лимиты, порты на хост |
 
 ### 3.4 Ручной деплой и обновление образа
 
@@ -286,10 +289,10 @@ job: docker
       (на PR пуш образа не выполняется)
 
 job: e2e — compose-стек (JDK 25)
-  └─► make env → make up → wait health (app) → wait Keycloak
+  └─► make env → make dev-up → wait health (app) → wait Keycloak
   └─► make e2e-all
   └─► при провале — ps + logs всех контейнеров в CI-вывод
-  └─► always: make down
+  └─► always: make dev-down
 ```
 
 ### 4.2 Deploy (по тегу)
@@ -335,7 +338,7 @@ compose и `*.env.example` — сломали схему → упал `make test
 долгий шаг выполняет последним):
 
 ```bash
-make docker-build      # собрать образ приложения с меткой GIT_SHA
+make dev-docker-build      # собрать образ приложения с меткой GIT_SHA
 make check-image       # образ собран и пригоден: секреты, ФС, содержимое jar
 make check-secrets     # gitleaks: секреты в дереве и истории коммитов
 make check-dockerfile  # hadolint: линтер Dockerfile
@@ -347,7 +350,7 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 ### E2E-тесты
 
 Шелл-сценарии в `scripts/e2e-*.sh`, ходят в реальный стек по
-`https://localhost:8443` (нужен `make up`). Контуры аутентификации два:
+`https://localhost:8443` (нужен `make dev-up`). Контуры аутентификации два:
 **Keycloak** (рекомендуемый, `make e2e-all`) и внутренний JWT
 (`make e2e-jwt-in-app`, автономные инсталляции). Каждый сценарий автоматически
 переводит приложение на нужный профиль и сбрасывает in-memory рейт-лимиты.
@@ -395,10 +398,10 @@ make obs-down    # остановить стек (тома целы)
 ```bash
 make load-smoke   # smoke: 2 VU, 1 минута
 make load         # user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
-make up-load      # только стек для нагрузки, без прогона k6
+make dev-up-load      # только стек для нагрузки, без прогона k6
 ```
 
-`up-load` переводит приложение на внутренний JWT-контур (пул сидируется
+`dev-up-load` переводит приложение на внутренний JWT-контур (пул сидируется
 через `/api/v1/auth/register`) и поднимает стек с
 `TRUST_PROXY_HEADERS=true` — только локально. Скрипты и сценарии —
 `scripts/load/`. Устройство пула пользователей, пороги k6 и параметры —
@@ -410,12 +413,12 @@ make up-load      # только стек для нагрузки, без про
 
 Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`).
 Цели ниже — для чистого/ручного прогона; нужен поднятый postgres
-(`make up-deps`, порт `127.0.0.1:5432`):
+(`make dev-deps`, порт `127.0.0.1:5432`):
 
 ```bash
-make migrate           # контекст schema (чистая схема; context=seed НЕ применяется)
-make db-seed           # schema + seed: демо-фикстуры, идемпотентны
-make down-volumes && make up   # чистая dev-база заново
+make dev-migrate           # контекст schema (чистая схема; context=seed НЕ применяется)
+make dev-db-seed           # schema + seed: демо-фикстуры, идемпотентны
+make dev-down-volumes && make dev-up   # чистая dev-база заново
 ```
 
 ---
@@ -423,8 +426,8 @@ make down-volumes && make up   # чистая dev-база заново
 ## 9. OpenAPI для фронтенда
 
 ```bash
-make openapi        # вытащить спеку с запущенного стека → openapi.json
-make openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (нужен npx)
+make dev-openapi        # вытащить спеку с запущенного стека → openapi.json
+make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (нужен npx)
 ```
 
 ---

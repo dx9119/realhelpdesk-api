@@ -4,7 +4,7 @@
   заявка с диалогом. Единственный place для DML в changelog.
 
   changeset помечен context="seed" и применяется только когда контекст seed
-  запрошен явно (DB_MIGRATIONS_CONTEXTS=schema,seed или make db-seed). Контур
+  запрошен явно (DB_MIGRATIONS_CONTEXTS=schema,seed или make dev-db-seed). Контур
   по умолчанию (schema) оставляет базу пустой — dev и prod стартуют с чистой
   схемы без тестовых заявок и фейковых пользователей.
 

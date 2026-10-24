@@ -90,9 +90,9 @@ curl -s localhost:9090/prometheus/api/v1/alerts
 запросы     ──PromQL──▶ mimir:9090/prometheus │ TraceQL──▶ tempo:3200 │ LogQL──▶ loki:3100
 ```
 
-Без наблюдаемости (обычный `make up`) endpoint — `localhost:4318/v1/traces` (дефолт
+Без наблюдаемости (обычный `make dev-up`) endpoint — `localhost:4318/v1/traces` (дефолт
 compose-интерполяции, HTTP OTLP), экспорта трейсов нет (соединение отклоняется, приложение
-работает). `make obs-up` и `make up-load`/`make load-smoke` передают
+работает). `make obs-up` и `make dev-up-load`/`make load-smoke` передают
 `OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces` инлайном, поэтому
 в комбинации «obs + load» endpoint'ы совпадают — экспорт трейсов не ломается
 при пересоздании app ни одной из команд. Постоянный адрес collector'а для всех
@@ -101,7 +101,7 @@ compose-интерполяции, HTTP OTLP), экспорта трейсов н
 ## Как найти трейс по traceId из лога
 
 1. Возьмите `traceId` (32 hex) из строки лога приложения: колонка после `role`
-   (`… | INFO | … | <traceId> | <spanId> | <logger> | <msg>`); там же его отдаёт `make logs`.
+   (`… | INFO | … | <traceId> | <spanId> | <logger> | <msg>`); там же его отдаёт `make dev-logs`.
 2. Запросите трейс в Tempo: `curl -s "localhost:3200/api/traces/$TRACE_ID"` —
    JSON со списком спанов (operational name, duration, теги ресурса).
 3. Поиск по признакам — TraceQL (обязательны `start`/`end`: без окна Tempo

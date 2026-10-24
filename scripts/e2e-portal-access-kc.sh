@@ -12,7 +12,7 @@
 #   - создание заявки и смена статуса;
 #   - базовые уведомления (GET /notifications).
 #
-# Требования: поднятый стек (make up — сервисы профиля dev, включая keycloak),
+# Требования: поднятый стек (make dev-up — сервисы профиля dev, включая keycloak),
 # SPRING_PROFILES_ACTIVE=dev,keycloak (дефолт шаблона), docker для psql.
 # Перед прогоном удаляет порталы владельца и связанные данные — прогон
 # идемпотентен (имя портала фиксировано, лимит порталов на пользователя — 2).
@@ -96,7 +96,7 @@ kc_post() { # kc_post <token> <endpoint> <body> — возвращает "ста
 
 step "Готовность Keycloak и realm $REALM"
 if [ "$(curl -s -o /dev/null -w '%{http_code}' "$KEYCLOAK/realms/$REALM/.well-known/openid-configuration")" != "200" ]; then
-  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make up (профиль dev)"
+  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make dev-up (профиль dev)"
   exit 1
 fi
 echo "  OK   discovery realm'а доступен"
@@ -148,7 +148,7 @@ delete from portal_history where portal_id in (select p.id from portals p join u
 delete from portals where owner_id in (select id from users where email='$USER_EMAIL');" >/dev/null 2>&1; then
   echo "  OK   порталы $USER_EMAIL и связанные данные удалены"
 else
-  echo "  FAIL очистка БД не удалась — postgres поднят? (make up)"
+  echo "  FAIL очистка БД не удалась — postgres поднят? (make dev-up)"
   exit 1
 fi
 

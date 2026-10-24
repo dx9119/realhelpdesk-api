@@ -4,7 +4,7 @@
 #   docker compose -f docker-compose.yaml -f docker-compose.load.yaml ...
 #
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это
-# внутренний JWT-контур, поэтому up-load переводит приложение на профиль dev.
+# внутренний JWT-контур, поэтому dev-up-load переводит приложение на профиль dev.
 
 name: realhelpdesk
 

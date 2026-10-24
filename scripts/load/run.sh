@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Запуск нагрузочного user journey (k6): сидирование пула пользователей + прогон.
 #
-# Требует поднятый стек (make up-load) — включённый
+# Требует поднятый стек (make dev-up-load) — включённый
 # TRUST_PROXY_HEADERS даёт каждой VU свой bucket рейт-лимитов.
 #
 # Сидирование проходит полный контракт капчи: POST /captcha/challenge →
@@ -52,7 +52,7 @@ fi
 
 echo "── Проверка стека (http://localhost:8081/actuator/health)"
 if ! timeout 120 bash -c 'until curl -sf http://localhost:8081/actuator/health >/dev/null; do sleep 3; done'; then
-  echo "Стек не отвечает. Поднимите: make up-load" >&2
+  echo "Стек не отвечает. Поднимите: make dev-up-load" >&2
   exit 1
 fi
 

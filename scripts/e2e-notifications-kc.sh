@@ -10,7 +10,7 @@
 #   - чужое уведомление не читается (404);
 #   - без токена — 401.
 #
-# Требования: поднятый стек (make up — сервисы профиля dev, включая keycloak),
+# Требования: поднятый стек (make dev-up — сервисы профиля dev, включая keycloak),
 # SPRING_PROFILES_ACTIVE=dev,keycloak.
 # Перед прогоном удаляет порталы оператора, уведомления и preferences
 # обоих realm-пользователей — прогон идемпотентен (счётчики непрочитанных
@@ -124,7 +124,7 @@ await_grep() {
 
 step "Готовность Keycloak"
 if [ "$(curl -s -o /dev/null -w '%{http_code}' "$KEYCLOAK/realms/$REALM/.well-known/openid-configuration")" != "200" ]; then
-  echo "  FAIL Keycloak недоступен — поднимите стек: make up"
+  echo "  FAIL Keycloak недоступен — поднимите стек: make dev-up"
   exit 1
 fi
 echo "  OK   discovery realm'а доступен"
@@ -162,7 +162,7 @@ delete from user_notification_preferences_events where preferences_id in (select
 delete from user_notification_preferences where user_id in (select id from users where email in ('$USER_EMAIL','$OPER_EMAIL'));" >/dev/null 2>&1; then
   echo "  OK   порталы $OPER_EMAIL, уведомления и preferences сброшены"
 else
-  echo "  FAIL очистка БД не удалась — postgres поднят? (make up)"
+  echo "  FAIL очистка БД не удалась — postgres поднят? (make dev-up)"
   exit 1
 fi
 

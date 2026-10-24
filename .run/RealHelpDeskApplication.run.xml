@@ -5,7 +5,7 @@
   Профили: dev (логи/отладка) + host (loopback-адреса инфры и
   spring-boot-docker-compose: модуль сам поднимет infra+local-tools, если стек
   не запущен). SSL_ENABLED=false — HTTP без keystore на хосту; Secure-куки и
-  HTTPS остаются в контейнерном стеке (make up). Инлайн-переменные после .env
+  HTTPS остаются в контейнерном стеке (make dev-up). Инлайн-переменные после .env
   продублированы сознательно: OTLP/TRUST_PROXY/CLIENT_IP — дефолты
   compose-интерполяции (:-), MINIO_ENDPOINT — loopback вместо контейнерного
   имени minio (OS-env перекрывает application-host.properties).

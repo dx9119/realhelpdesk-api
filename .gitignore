@@ -65,7 +65,7 @@ java_pid*
 # Артефакты бэкапов (make backup)
 backups/
 
-# Артефакты локальных прогонов (make openapi / openapi-types): спека и типы
+# Артефакты локальных прогонов (make dev-openapi / dev-openapi-types): спека и типы
 # снимаются с запущенного стека, в истории не нужны — контракт живёт в
 # src/main/resources/openapi/schema-contract.json.
 openapi.json

@@ -12,7 +12,7 @@
 
 1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=rate(http_server_requests_seconds_count{status=~"5.."}[5m])'`
    — локализуйте uri с ошибками.
-2. **Логи** (`make logs` или
+2. **Логи** (`make dev-logs` или
    `curl -s -G localhost:3100/loki/api/v1/query_range --data-urlencode 'query={container_label_com_docker_compose_service="app"} |= "ERROR"' --data-urlencode 'limit=20'`):
    ищите `exception` (NPE, constraint violation, таймаут БД/MinIO/SMTP).
 3. **Трейсы** (`curl -s -G localhost:3200/api/search --data-urlencode 'q={ status = error }' --data-urlencode "start=$(( $(date +%s) - 3600 ))" --data-urlencode "end=$(date +%s)" --data-urlencode 'limit=20'` —

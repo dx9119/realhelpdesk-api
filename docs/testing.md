@@ -3,7 +3,7 @@
 Все тесты проводятся только в dev-среде. Юнит-тесты — на хосте, без Docker, в тестовой
 конфигурации `src/test/resources/application.properties`; интеграционные (`*IT`) — тоже на
 хосте, но им нужен Docker (Testcontainers поднимает PostgreSQL 18 и MinIO); e2e — только на
-поднятом dev-стеке (`make dev-run` или `make up`). В других средах тесты не запускаются.
+поднятом dev-стеке (`make dev-run` или `make dev-up`). В других средах тесты не запускаются.
 
 | Команда | Что делает |
 |---|---|
@@ -13,8 +13,8 @@
 | `make format` | Форматирование (`spotless:apply`) |
 | `make check` | Проверки стиля (`spotless:check`, `checkstyle`) |
 | `make check-ci` | CI-проверки локально: gitleaks + hadolint + trivy |
-| `make openapi` | Снять OpenAPI-спеку с запущенного стека в `openapi.json` |
-| `make openapi-types` | Сгенерировать TypeScript-типы (`npx openapi-typescript`) |
+| `make dev-openapi` | Снять OpenAPI-спеку с запущенного стека в `openapi.json` |
+| `make dev-openapi-types` | Сгенерировать TypeScript-типы (`npx openapi-typescript`) |
 | `make dev-run` | Dev-среда: сборка и запуск стека в foreground (логи всех сервисов) |
 | `make dev-test` | Dev-среда: `mvn verify` + все e2e-сценарии (нужен поднятый стек) |
 
@@ -317,7 +317,7 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
 изменений в рейт-лимитах (см. [`rate-limits.md`](rate-limits.md)).
 
 Скрипты создают тестовых пользователей и тратят рейт-лимиты — при повторных
-прогонах может потребоваться `make restart`. `e2e-token-cleanup` дополнительно
+прогонах может потребоваться `make dev-restart`. `e2e-token-cleanup` дополнительно
 занимает сроки токенов в `infrastructure/.env` до секунд, пересоздаёт контейнер
 `app` и по завершении возвращает конфиг и контейнер (в том числе по `Ctrl+C`).
 
@@ -333,7 +333,7 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
 |---|---|
 | `make load` | Полный прогон: сидит пул пользователей и гоняет journey (10 VU, 5 минут) |
 | `make load-smoke` | Короткий smoke: 2 VU, 1 минута |
-| `make up-load` | Только поднять стек с load-оверлеем (k6 запускать вручную) |
+| `make dev-up-load` | Только поднять стек с load-оверлеем (k6 запускать вручную) |
 
 Параметры: `TARGET_VUS`, `DURATION`, `POOL_SIZE` (≤10), `THINK_TIME`,
 `WAIT_TIMEOUT_SEC` — через окружение, например `TARGET_VUS=30 DURATION=15m make load`.
@@ -346,12 +346,12 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
   `run.sh` (регистрация + psql-верификация email — портал создаёт только
   `isEmailVerified=true`). VU распределяют пользователей по кругу
   (`VU1 → p1, VU2 → p2, …`), общий лимит регистрации не превышается.
-- **Рейт-лимиты** — `make up-load` передаёт `TRUST_PROXY_HEADERS=true`
+- **Рейт-лимиты** — `make dev-up-load` передаёт `TRUST_PROXY_HEADERS=true`
   инлайном: каждая k6-VU шлёт уникальный `X-Forwarded-For` и получает свой
   bucket рейт-лимитов. Без этого профиля все VU делят один `127.0.0.1` и
   логин упирается в лимит 10/300с. Включать **только локально** — за таким
   профилем нет прокси.
-- **Совместимость с наблюдаемостью** — `up-load`/`load-smoke` передают
+- **Совместимость с наблюдаемостью** — `dev-up-load`/`load-smoke` передают
   `OTLP_TRACING_ENDPOINT` на collector инлайном: app пересоздаётся, и без
   этого ключа экспорт трейсов откатился бы на `localhost:4318/v1/traces` (дефолт
   compose-интерполяции), сломав связку с запущенным obs-стеком

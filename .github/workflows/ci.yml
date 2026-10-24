@@ -87,7 +87,7 @@ jobs:
             infrastructure/.env
           # MAIL_PASSWORD остаётся пустым: локальному smtp4dev пароль не нужен
       - name: Поднять стек
-        run: make up
+        run: make dev-up
       - name: Дождаться готовности приложения
         run: |
           timeout 180 bash -c 'until curl -sf http://localhost:8081/actuator/health >/dev/null; do echo "wait..."; sleep 5; done'
@@ -103,4 +103,4 @@ jobs:
           docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app logs --no-color || true
       - name: Остановить стек
         if: always()
-        run: make down
+        run: make dev-down

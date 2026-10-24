@@ -2,7 +2,7 @@
 
 Частые ошибки и способы их устранения.
 
-## Сборка Docker-образа (`make check-ci`, `docker-build`, `docker-compose build`)
+## Сборка Docker-образа (`make check-ci`, `dev-docker-build`, `docker-compose build`)
 
 ### Ошибка: Maven падает с `No match found` / `404` / `Temporary shutdown`
 

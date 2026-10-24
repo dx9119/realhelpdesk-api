@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * Разделение контуров: {@code changes/} + {@code sql/} — только DDL; любые фикстуры живут в {@code seed/} и помечены
  * {@code context="seed"}. Приложение по умолчанию работает с {@code DB_MIGRATIONS_CONTEXTS=schema}, поэтому
- * seed-changeset'ы подключены, но не выполняются: база остаётся чистой, а сид — явная команда {@code make db-seed}.
+ * seed-changeset'ы подключены, но не выполняются: база остаётся чистой, а сид — явная команда {@code make dev-db-seed}.
  * </p>
  */
 @DisplayName("Миграции Liquibase: DDL в changes/, данные — только в seed/ с context=\"seed\"")
