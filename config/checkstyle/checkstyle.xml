@@ -60,6 +60,15 @@
             <property name="illegalPkgs" value="org.junit.jupiter.api.Assertions"/>
             <property name="illegalClasses" value="org.junit.jupiter.api.Assertions"/>
         </module>
+        <!-- IllegalImport видит только секцию import; полное имя в коде
+             (org.junit.jupiter.api.Assertions.assertEquals(...)) обходило бы запрет. -->
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="NoFqcnJUnitAssertions"/>
+            <property name="format" value="org\.junit\.jupiter\.api\.Assertions\."/>
+            <property name="ignoreComments" value="true"/>
+            <message key="regexp.exceeded"
+                     value="Полное имя org.junit.jupiter.api.Assertions в коде обходит IllegalImport: в тестах — только AssertJ."/>
+        </module>
 
         <!-- JUnit 4 и TestNG в проекте не используются: смешение движков ломает
              отчёты и @DisplayName. Пакет org.junit перечислять нельзя — под ним
@@ -145,12 +154,38 @@
             <message key="matchxpath.match"
                      value="Тестовому методу нужен @DisplayName, описывающий сценарий."/>
         </module>
+        <!-- Секция считается отмеченной, если комментарий начинается с её маркера
+             («// given …», «// when / then — пояснение») или содержит её как часть
+             комбинированной строки «… / given …». Слитное «// given when then» без
+             слэшей закрывает только первую секцию и не проходит правило.
+             В @text COMMENT_CONTENT XpathUtil заменяет перенос строки на литеральные
+             символы «\n» — их срезает substring-before. -->
         <module name="MatchXpath">
             <property name="id" value="GivenWhenThenStructure"/>
             <property name="query"
-                      value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][not(.//COMMENT_CONTENT[contains(@text, 'given')]) or not(.//COMMENT_CONTENT[contains(@text, 'when')]) or not(.//COMMENT_CONTENT[contains(@text, 'then')])]"/>
+                      value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][not(.//COMMENT_CONTENT[starts-with(normalize-space(substring-before(@text, '\n')), 'given') or contains(normalize-space(substring-before(@text, '\n')), ' / given')]) or not(.//COMMENT_CONTENT[starts-with(normalize-space(substring-before(@text, '\n')), 'when') or contains(normalize-space(substring-before(@text, '\n')), ' / when')]) or not(.//COMMENT_CONTENT[starts-with(normalize-space(substring-before(@text, '\n')), 'then') or contains(normalize-space(substring-before(@text, '\n')), ' / then')])]"/>
             <message key="matchxpath.match"
-                     value="Тестовый метод должен содержать комментарии // given, // when, // then."/>
+                     value="Тестовый метод должен отмечать секции given, when, then отдельными комментариями или комбинированными строками «// given / when / then»."/>
+        </module>
+        <!-- Тест без единой проверки не тестирует ничего — он только набивает
+             покрытие для JaCoCo. Префиксные шаблоны покрывают семейства
+             AssertJ (assertThat*, assertThrows), кастомные assert-хелперы,
+             Mockito (verify, verifyNoInteractions) и MockMvc (andExpect*). -->
+        <module name="MatchXpath">
+            <property name="id" value="RequireAssertionInTests"/>
+            <property name="query"
+                      value="//METHOD_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest']][not(.//METHOD_CALL[.//IDENT[matches(@text, '^assert[A-Z]') or matches(@text, '^verify') or matches(@text, '^andExpect') or @text='fail']])]"/>
+            <message key="matchxpath.match"
+                     value="Тестовый метод обязан содержать проверку: assertThat/assertThrows/verify/andExpect/fail."/>
+        </module>
+        <!-- Парное к RequireAssertionInTests: без него пустой хелпер
+             assertNothing() стал бы способом обойти требование ассерта. -->
+        <module name="MatchXpath">
+            <property name="id" value="CustomAssertHelperMustAssert"/>
+            <property name="query"
+                      value="//METHOD_DEF[IDENT[matches(@text, '^assert[A-Z]')][not(MODIFIERS/ANNOTATION/IDENT[@text='Test' or @text='ParameterizedTest' or @text='RepeatedTest'])]][not(.//METHOD_CALL[.//IDENT[@text='assertThat' or @text='assertThatThrownBy' or @text='assertThatCode' or @text='assertThatNoException' or @text='assertThatExceptionOfType' or @text='assertThrows' or @text='assertDoesNotThrow' or matches(@text, '^verify') or matches(@text, '^andExpect') or @text='fail']])]"/>
+            <message key="matchxpath.match"
+                     value="Метод с именем assert* обязан сам вызывать реальный ассерт (assertThat/verify/...), а не быть пустышкой."/>
         </module>
         <module name="MatchXpath">
             <property name="id" value="JUnit5PackagePrivate"/>
@@ -297,16 +332,30 @@
             <property name="format" value="(?i)(TODO|FIXME)"/>
         </module>
 
+        <!-- Подавление предупреждений прячет причину вместо её исправления —
+             типичный способ «продавить» сборку мимо Checkstyle/-Werror.
+             Единственное исключение — unchecked: сырые типы на границе
+             Mockito/JSON-фикстур, где стирание не даёт типобезопасного каста. -->
+        <module name="MatchXpath">
+            <property name="id" value="NoSuppressWarnings"/>
+            <property name="query"
+                      value="//ANNOTATION[IDENT[@text='SuppressWarnings']][.//STRING_LITERAL[not(matches(@text, '^\s*&quot;?unchecked&quot;?\s*$'))]]"/>
+            <message key="matchxpath.match"
+                     value="@SuppressWarnings запрещён (кроме unchecked): исправляй причину предупреждения, а не глушите."/>
+        </module>
+
         <!-- Дизайн и модификаторы -->
         <module name="FinalClass"/>
         <!-- Utility-классу нужен приватный конструктор. Жёсткий список имён
              хрупок (новый @Configuration/@Mapper валит сборку), поэтому
              подавление — по аннотации через XPath: Spring-бины создаёт контейнер,
-             MapStruct-интерфейсы — генератор, приватный конструктор им не нужен. -->
+             MapStruct-интерфейсы — генератор, приватный конструктор им не нужен.
+             Список покрывает все стереотипы контейнера: мета-аннотации (@Service →
+             @Component) в AST не видны, каждый стереотип перечисляется явно. -->
         <module name="SuppressionXpathSingleFilter">
             <property name="checks" value="HideUtilityClassConstructor"/>
             <property name="query"
-                      value="//CLASS_DEF[MODIFIERS/ANNOTATION/IDENT[@text='SpringBootApplication' or @text='Configuration' or @text='Component' or @text='Mapper']] | //INTERFACE_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Mapper']]"/>
+                      value="//CLASS_DEF[MODIFIERS/ANNOTATION/IDENT[@text='SpringBootApplication' or @text='Configuration' or @text='Component' or @text='Service' or @text='RestController' or @text='ControllerAdvice' or @text='Repository' or @text='Mapper']] | //INTERFACE_DEF[MODIFIERS/ANNOTATION/IDENT[@text='Mapper']]"/>
         </module>
         <module name="HideUtilityClassConstructor"/>
         <module name="ModifierOrder"/>

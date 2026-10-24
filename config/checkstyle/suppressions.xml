@@ -13,10 +13,12 @@
 <suppressions>
 
     <!-- Продакшн-код: тестовые конвенции (given/when/then, имена из трёх сегментов,
-         @DisplayName, package-private, суффикс класса) к нему не применяются. -->
+         @DisplayName, package-private, суффикс класса, обязательный ассерт)
+         к нему не применяются. -->
     <suppress id="TestMethodNamingConvention" files="src[\\/]main[\\/].*"/>
     <suppress id="RequireDisplayNameOnTests" files="src[\\/]main[\\/].*"/>
     <suppress id="GivenWhenThenStructure" files="src[\\/]main[\\/].*"/>
+    <suppress id="RequireAssertionInTests" files="src[\\/]main[\\/].*"/>
     <suppress id="JUnit5PackagePrivate" files="src[\\/]main[\\/].*"/>
     <suppress id="NoSpringContextInUnitTests" files="src[\\/]main[\\/].*"/>
     <suppress id="TestClassSuffix" files="src[\\/]main[\\/].*"/>
@@ -32,6 +34,8 @@
               files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
     <suppress id="GivenWhenThenStructure"
               files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
+    <suppress id="RequireAssertionInTests"
+              files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
     <suppress id="JUnit5PackagePrivate"
               files="src[\\/]test[\\/].*[\\/](fixture|fixtures|util|utils)[\\/].*"/>
     <suppress id="NoSpringContextInUnitTests"
@@ -43,7 +47,7 @@
          в очистке refresh-токенов: спящий поток — часть механизма повторов,
          а не ожидание в тесте (там — Awaitility). -->
     <suppress id="NoThreadSleepInTests"
-              files="RefreshTokenCleanupService\.java"/>
+              files=".*[\\/]RefreshTokenCleanupService\.java"/>
 
     <!-- @Autowired на полях — идиома Spring Test (нет жизненного цикла бина,
          конструктор только усложняет фикстуры); в main действует NoFieldInjection. -->
