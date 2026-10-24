@@ -21,6 +21,8 @@ processors:
 exporters:
   otlp/tempo:
     endpoint: tempo:4317
+    # plaintext внутри сети compose: TLS по умолчанию для gRPC-экспортёра
+    # отключён явно, иначе коннект к tempo падает при handshake
     tls:
       insecure: true
 

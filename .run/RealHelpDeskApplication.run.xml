@@ -24,7 +24,7 @@
               <entry key="CAPTCHA_RISK_SUBNET_PREFIX_V6" value="64" />
               <entry key="CAPTCHA_TOKEN_TTL_SECONDS" value="300" />
               <entry key="CLIENT_IP_HEADERS" value="X-Forwarded-For,X-Real-IP,CF-Connecting-IP,True-Client-IP,X-Client-IP,Proxy-Client-IP,WL-Proxy-Client-IP,Forwarded" />
-              <entry key="CORS_ALLOWED_ORIGINS" value="https://localhost.ru,https://example.com" />
+              <entry key="CORS_ALLOWED_ORIGINS" value="http://localhost.ru,http://example.com" />
               <entry key="DB_MIGRATIONS_CHANGE_LOG" value="classpath:db/changelog/db.changelog-master.xml" />
               <entry key="DB_MIGRATIONS_CONTEXTS" value="schema" />
               <entry key="DB_MIGRATIONS_ENABLED" value="true" />
@@ -42,10 +42,10 @@
               <entry key="JPA_OSIV" value="false" />
               <entry key="JPA_SHOW_SQL" value="false" />
               <entry key="JWT_ACCESS_TOKEN_EXPIRATION_SECONDS" value="3600" />
-              <entry key="JWT_AUDIENCE" value="https://example.com" />
+              <entry key="JWT_AUDIENCE" value="http://example.com" />
               <entry key="JWT_COOKIE_DOMAIN" value="" />
               <entry key="JWT_COOKIE_SAMESITE" value="None" />
-              <entry key="JWT_ISSUER" value="https://example.com" />
+              <entry key="JWT_ISSUER" value="http://example.com" />
               <entry key="JWT_REFRESH_TOKEN_EXPIRATION_SECONDS" value="2592000" />
               <entry key="JWT_REVOKED_TOKEN_RETENTION_SECONDS" value="604800" />
               <entry key="JWT_SECRET" value="9135bea2df2089350c6547b3faa6d384b00387b971caa82dfe2846624a3df55b" />
@@ -62,9 +62,6 @@
               <entry key="KEYCLOAK_DB" value="keycloak" />
               <entry key="KEYCLOAK_DB_PASSWORD" value="a30a5816519717d95bbb0086e23b654e774daff0b9d35b6f64c07e6f1be72950" />
               <entry key="KEYCLOAK_PORT" value="8180" />
-              <entry key="KEY_STORE_ALIAS" value="tomcat" />
-              <entry key="KEY_STORE_PASS" value="changeit" />
-              <entry key="KEY_STORE_TYPE" value="PKCS12" />
               <entry key="MAIL_FROM" value="noreply@example.com" />
               <entry key="MAIL_HOST" value="smtp" />
               <entry key="MAIL_NOTIFY" value="admin@example.com" />
@@ -111,7 +108,7 @@
               <entry key="RATE_LIMIT_PORTAL_TRANSFER_CONFIRM_WINDOW_SECONDS" value="300" />
               <entry key="RATE_LIMIT_PORTAL_TRANSFER_REQUEST_REQUESTS" value="5" />
               <entry key="RATE_LIMIT_PORTAL_TRANSFER_REQUEST_WINDOW_SECONDS" value="300" />
-              <entry key="SERVER_PORT" value="8443" />
+              <entry key="SERVER_PORT" value="8080" />
               <entry key="SMTP_AUTH" value="false" />
               <entry key="SMTP_STARTTLS" value="false" />
               <entry key="SPRING_PROFILES_ACTIVE" value="dev" />
