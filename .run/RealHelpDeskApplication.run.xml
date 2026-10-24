@@ -1,28 +1,158 @@
-<!--
-  Запуск приложения на хосте против dockerized-инфраструктуры (Debug/Run в IDEA)
-  через Maven: spring-boot:run собирается и стартует тем же путём, что и CLI
-  (make run-local) — фазы validate (spotless/checkstyle) не обходятся IDE-сборкой.
-  Переменные окружения — infrastructure/.env (нативная поддержка .env-файлов в
-  Environment variables, IDEA 2025.2+; для более старых версий — плагин EnvFile).
-  Профили: dev (логи/отладка) + host (loopback-адреса инфры и
-  spring-boot-docker-compose: модуль сам поднимет infra+local-tools, если стек
-  не запущен). SSL_ENABLED=false — HTTP без keystore на хосту; Secure-куки и
-  HTTPS остаются в контейнерном стеке (make dev-up). Инлайн-переменные после .env
-  продублированы сознательно: OTLP/TRUST_PROXY/CLIENT_IP — дефолты
-  compose-интерполяции (:-), MINIO_ENDPOINT — loopback вместо контейнерного
-  имени minio (OS-env перекрывает application-host.properties).
--->
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="RealHelpDeskApplication" type="MavenRunConfiguration" factoryName="Maven">
     <MavenSettings>
       <option name="myGeneralSettings" />
-      <option name="myRunnerSettings" />
-      <option name="myGeneratedCode" />
-      <option name="myLocalRepository" />
-      <option name="mySelectorConfig" />
+      <option name="myRunnerSettings">
+        <MavenRunnerSettings>
+          <option name="delegateBuildToMaven" value="false" />
+          <option name="environmentProperties">
+            <map>
+              <entry key="APP_NAME" value="Real help desk" />
+              <entry key="APP_OPERATOR_EMAILS" value="" />
+              <entry key="APP_PROJECT_NAME" value="real help desk" />
+              <entry key="CAPTCHA_CHALLENGE_TTL_SECONDS" value="300" />
+              <entry key="CAPTCHA_EMOJI_ENABLED" value="true" />
+              <entry key="CAPTCHA_ENABLED" value="false" />
+              <entry key="CAPTCHA_HMAC_SECRET" value="440445f84b67c8bb864fd541a31277445ef2b7d2c14a88e99bdb6de02554f922" />
+              <entry key="CAPTCHA_MIN_FILL_SECONDS" value="0" />
+              <entry key="CAPTCHA_POW_DIFFICULTY" value="18" />
+              <entry key="CAPTCHA_RISK_ELEVATED_DIFFICULTY_BONUS" value="3" />
+              <entry key="CAPTCHA_RISK_FAILURE_THRESHOLD" value="5" />
+              <entry key="CAPTCHA_RISK_FAILURE_WINDOW_SECONDS" value="600" />
+              <entry key="CAPTCHA_RISK_SUBNET_OFFENDER_THRESHOLD" value="3" />
+              <entry key="CAPTCHA_RISK_SUBNET_PREFIX_V4" value="24" />
+              <entry key="CAPTCHA_RISK_SUBNET_PREFIX_V6" value="64" />
+              <entry key="CAPTCHA_TOKEN_TTL_SECONDS" value="300" />
+              <entry key="CLIENT_IP_HEADERS" value="X-Forwarded-For,X-Real-IP,CF-Connecting-IP,True-Client-IP,X-Client-IP,Proxy-Client-IP,WL-Proxy-Client-IP,Forwarded" />
+              <entry key="CORS_ALLOWED_ORIGINS" value="https://localhost.ru,https://example.com" />
+              <entry key="DB_MIGRATIONS_CHANGE_LOG" value="classpath:db/changelog/db.changelog-master.xml" />
+              <entry key="DB_MIGRATIONS_CONTEXTS" value="schema" />
+              <entry key="DB_MIGRATIONS_ENABLED" value="true" />
+              <entry key="DB_PASSWORD" value="cb31d82f7a06af61738e9113b454b9237bb92a2321f421762acf7068c64caf41" />
+              <entry key="DB_URL" value="jdbc:postgresql://postgres:5432/desk?reWriteBatchedInserts=true" />
+              <entry key="DB_USER" value="user" />
+              <entry key="FRONT_DOMAIN" value="front.example.ru" />
+              <entry key="JAVA_HEAP_DUMP_OPTS" value="" />
+              <entry key="JAVA_JFR_OPTS" value="" />
+              <entry key="JAVA_JMX_OPTS" value="" />
+              <entry key="JAVA_NMT_OPTS" value="" />
+              <entry key="JAVA_RAM_PERCENTAGE" value="45" />
+              <entry key="JAVA_XMX" value="" />
+              <entry key="JPA_FORMAT_SQL" value="true" />
+              <entry key="JPA_OSIV" value="false" />
+              <entry key="JPA_SHOW_SQL" value="false" />
+              <entry key="JWT_ACCESS_TOKEN_EXPIRATION_SECONDS" value="3600" />
+              <entry key="JWT_AUDIENCE" value="https://example.com" />
+              <entry key="JWT_COOKIE_DOMAIN" value="" />
+              <entry key="JWT_COOKIE_SAMESITE" value="None" />
+              <entry key="JWT_ISSUER" value="https://example.com" />
+              <entry key="JWT_REFRESH_TOKEN_EXPIRATION_SECONDS" value="2592000" />
+              <entry key="JWT_REVOKED_TOKEN_RETENTION_SECONDS" value="604800" />
+              <entry key="JWT_SECRET" value="9135bea2df2089350c6547b3faa6d384b00387b971caa82dfe2846624a3df55b" />
+              <entry key="JWT_TOKEN_CLEANUP_BATCH_MAX_SIZE" value="5000" />
+              <entry key="JWT_TOKEN_CLEANUP_BATCH_MIN_SIZE" value="100" />
+              <entry key="JWT_TOKEN_CLEANUP_BATCH_PAUSE_MS" value="50" />
+              <entry key="JWT_TOKEN_CLEANUP_CRON" value="0 30 3 * * *" />
+              <entry key="JWT_TOKEN_CLEANUP_TARGET_BATCH_MS" value="200" />
+              <entry key="KC_HOSTNAME" value="http://localhost:8180" />
+              <entry key="KC_ISSUER_URI" value="http://localhost:8180/realms/realhelpdesk" />
+              <entry key="KC_JWK_SET_URI" value="http://keycloak:8080/realms/realhelpdesk/protocol/openid-connect/certs" />
+              <entry key="KEYCLOAK_ADMIN" value="admin" />
+              <entry key="KEYCLOAK_ADMIN_PASSWORD" value="" />
+              <entry key="KEYCLOAK_DB" value="keycloak" />
+              <entry key="KEYCLOAK_DB_PASSWORD" value="a30a5816519717d95bbb0086e23b654e774daff0b9d35b6f64c07e6f1be72950" />
+              <entry key="KEYCLOAK_PORT" value="8180" />
+              <entry key="KEY_STORE_ALIAS" value="tomcat" />
+              <entry key="KEY_STORE_PASS" value="changeit" />
+              <entry key="KEY_STORE_TYPE" value="PKCS12" />
+              <entry key="MAIL_FROM" value="noreply@example.com" />
+              <entry key="MAIL_HOST" value="smtp" />
+              <entry key="MAIL_NOTIFY" value="admin@example.com" />
+              <entry key="MAIL_PASSWORD" value="" />
+              <entry key="MAIL_PORT" value="25" />
+              <entry key="MAIL_PROTOCOL" value="smtp" />
+              <entry key="MAIL_SMTP_CONNECTION_TIMEOUT" value="3000" />
+              <entry key="MAIL_SMTP_READ_TIMEOUT" value="10000" />
+              <entry key="MAIL_SMTP_WRITE_TIMEOUT" value="10000" />
+              <entry key="MAIL_USER" value="user@example.com" />
+              <entry key="MANAGEMENT_ADDRESS" value="0.0.0.0" />
+              <entry key="MANAGEMENT_PORT" value="8081" />
+              <entry key="METRICS_PASSWORD" value="56cc342c92a6bcff65ea199f0ff4a9b11532bd5b0bc4cb9c4ea5cc37a8013f1a" />
+              <entry key="METRICS_USER" value="prometheus" />
+              <entry key="MINIO_BUCKET" value="realhelpdesk-attachments" />
+              <entry key="MINIO_ENDPOINT" value="http://minio:9000" />
+              <entry key="MINIO_ROOT_PASSWORD" value="5f092d6b9a468373b6f7282f8eb2c61076b2f5ec4af2d62c9ce26d30dd1e8f63" />
+              <entry key="MINIO_ROOT_USER" value="minioadmin" />
+              <entry key="MULTIPART_MAX_FILE_SIZE" value="20MB" />
+              <entry key="MULTIPART_MAX_REQUEST_SIZE" value="25MB" />
+              <entry key="OTEL_SERVICE_VERSION" value="1.0.0" />
+              <entry key="OTLP_TRACING_ENDPOINT" value="http://otel-collector:4318/v1/traces" />
+              <entry key="RATE_LIMIT_AUTH_ACCESS_TOKEN_REQUESTS" value="30" />
+              <entry key="RATE_LIMIT_AUTH_ACCESS_TOKEN_WINDOW_SECONDS" value="300" />
+              <entry key="RATE_LIMIT_AUTH_LOGIN_REQUESTS" value="10" />
+              <entry key="RATE_LIMIT_AUTH_LOGIN_WINDOW_SECONDS" value="300" />
+              <entry key="RATE_LIMIT_AUTH_REGISTER_REQUESTS" value="10" />
+              <entry key="RATE_LIMIT_AUTH_REGISTER_WINDOW_SECONDS" value="300" />
+              <entry key="RATE_LIMIT_CAPTCHA_CHALLENGE_REQUESTS" value="30" />
+              <entry key="RATE_LIMIT_CAPTCHA_CHALLENGE_WINDOW_SECONDS" value="60" />
+              <entry key="RATE_LIMIT_CAPTCHA_SOLVE_REQUESTS" value="30" />
+              <entry key="RATE_LIMIT_CAPTCHA_SOLVE_WINDOW_SECONDS" value="60" />
+              <entry key="RATE_LIMIT_EMAIL_CODE_REQUESTS" value="3" />
+              <entry key="RATE_LIMIT_EMAIL_CODE_WINDOW_SECONDS" value="600" />
+              <entry key="RATE_LIMIT_EMAIL_RECOVERY_REQUESTS" value="3" />
+              <entry key="RATE_LIMIT_EMAIL_RECOVERY_WINDOW_SECONDS" value="86400" />
+              <entry key="RATE_LIMIT_NOTIFICATIONS_WAIT_REQUESTS" value="30" />
+              <entry key="RATE_LIMIT_NOTIFICATIONS_WAIT_WINDOW_SECONDS" value="60" />
+              <entry key="RATE_LIMIT_PASSWORD_RESET_CONFIRM_REQUESTS" value="5" />
+              <entry key="RATE_LIMIT_PASSWORD_RESET_CONFIRM_WINDOW_SECONDS" value="600" />
+              <entry key="RATE_LIMIT_PASSWORD_RESET_REQUEST_REQUESTS" value="3" />
+              <entry key="RATE_LIMIT_PASSWORD_RESET_REQUEST_WINDOW_SECONDS" value="600" />
+              <entry key="RATE_LIMIT_PORTAL_TRANSFER_CONFIRM_REQUESTS" value="5" />
+              <entry key="RATE_LIMIT_PORTAL_TRANSFER_CONFIRM_WINDOW_SECONDS" value="300" />
+              <entry key="RATE_LIMIT_PORTAL_TRANSFER_REQUEST_REQUESTS" value="5" />
+              <entry key="RATE_LIMIT_PORTAL_TRANSFER_REQUEST_WINDOW_SECONDS" value="300" />
+              <entry key="SERVER_PORT" value="8443" />
+              <entry key="SMTP_AUTH" value="false" />
+              <entry key="SMTP_STARTTLS" value="false" />
+              <entry key="SPRING_PROFILES_ACTIVE" value="dev" />
+              <entry key="STATIC_BASE_URL" value="" />
+              <entry key="STATIC_CACHE_CONTROL" value="private, no-store" />
+              <entry key="TRACING_SAMPLING_PROBABILITY" value="1.0" />
+            </map>
+          </option>
+          <option name="jreName" value="25" />
+          <option name="mavenProperties">
+            <map />
+          </option>
+          <option name="passParentEnv" value="true" />
+          <option name="skipTests" value="false" />
+          <option name="vmOptions" value="" />
+        </MavenRunnerSettings>
+      </option>
+      <option name="myRunnerParameters">
+        <MavenRunnerParameters>
+          <option name="cmdOptions" />
+          <option name="profiles">
+            <set />
+          </option>
+          <option name="goals">
+            <list>
+              <option value="spring-boot:run" />
+            </list>
+          </option>
+          <option name="multimoduleDir" />
+          <option name="pomFileName" />
+          <option name="profilesMap">
+            <map />
+          </option>
+          <option name="projectsCmdOptionValues">
+            <list />
+          </option>
+          <option name="resolveToWorkspace" value="false" />
+          <option name="workingDirPath" value="$PROJECT_DIR$" />
+        </MavenRunnerParameters>
+      </option>
     </MavenSettings>
-    <option name="cmdLine" value="spring-boot:run -Dspring-boot.run.profiles=dev,host" />
-    <option name="ENVIRONMENT_VARIABLES" value="$PROJECT_DIR$/infrastructure/.env;SSL_ENABLED=false;OTLP_TRACING_ENDPOINT=http://localhost:4317;TRUST_PROXY_HEADERS=false;CLIENT_IP_FORWARDED_INDEX=0;MINIO_ENDPOINT=http://127.0.0.1:9000" />
     <method v="2" />
   </configuration>
 </component>

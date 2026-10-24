@@ -304,6 +304,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <mainClass>com.ukhanov.realhelpdesk.RealHelpDeskApplication</mainClass>
+                    <workingDirectory>${project.basedir}</workingDirectory>
                 </configuration>
             </plugin>
 
