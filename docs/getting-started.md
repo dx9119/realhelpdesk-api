@@ -34,9 +34,17 @@ make env
 
 ---
 
-## 2. Dev: полный стек в контейнерах
+## 2. Dev: запуск проекта
 
-### 2.1 Первый запуск
+Два варианта: весь стек в контейнерах (штатный) или приложение на хосте
+против dockerized-инфраструктуры (отладка).
+
+| Вариант | Команды | Когда выбирать |
+|---|---|---|
+| Весь стек в контейнерах | `make up` (в фоне) / `make dev-run` (foreground) | штатный путь без IDEA: код правится редко или правка Java с пересборкой образа допустима |
+| Приложение на хосте | `make up-deps` + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
+
+### 2.1 Весь стек в контейнерах: первый запуск
 
 ```bash
 make up        # сборка образа и запуск всего в фоне
@@ -80,7 +88,7 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 `app` (файлы не меняются; подробности — в
 [`configuration.md`](configuration.md#профили-spring)).
 
-### 2.2 Повседневная разработка
+### 2.2 Весь стек: повседневные команды
 
 | Сценарий | Команда |
 |---|---|
@@ -94,9 +102,7 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 | Остановить стек | `make down` |
 | Полная очистка (с удалением томов) | `make down-volumes` |
 
----
-
-## 3. Dev: приложение на хосте (IDEA / CLI)
+### 2.3 Приложение на хосте (IDEA / CLI)
 
 Инфраструктура — в Docker, приложение — на хосте с отладчиком:
 
@@ -110,7 +116,7 @@ make up-deps   # один раз: поднять infra + local-tools
 стартует за 2–3 секунды против `127.0.0.1:5432`/`9000`/`25`. Альтернатива
 без IDEA: `make run-local`.
 
-### 3.1 Inner loop: правка Java-кода
+#### Inner loop: правка Java-кода
 
 **Вариант A — в контейнере** (штатный):
 
@@ -145,7 +151,156 @@ run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://12
 
 ---
 
-## 4. Тесты и проверки
+## 3. Prod: развёртывание и обновление
+
+### 3.1 Архитектура
+
+```
+[Клиент] → Nginx (VPS, TLS/LE) → 127.0.0.1:8080 (app container, loopback)
+```
+
+- TLS завершает Nginx на хосте (Certbot/Let's Encrypt).
+- App биндится **только на loopback** — наружу недоступен; порты БД/MinIO
+  на хост не публикуются (override не подключён).
+- `TRUST_PROXY_HEADERS=true` — Spring читает `X-Forwarded-For`.
+- Сборка на сервере **запрещена** — только `pull` из ghcr.io
+  (`up-prod` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG}`).
+- Все различия prod-контура (пароли SMTP, домены, адреса внешнего Keycloak) —
+  в `infrastructure/.env` на сервере (шаблон — `infrastructure/.env.prod.example`,
+  копируется вручную). Профиль `prod` подставляет сам `docker-compose.prod.yaml`
+  (`${SPRING_PROFILES_ACTIVE:-prod}`): забытый на сервере ключ не поднимет
+  dev-режим. Для внешнего Keycloak задайте `SPRING_PROFILES_ACTIVE=prod,keycloak`
+  в `.env` сервера.
+
+### 3.2 Разрешённые команды
+
+Команды выполняются в каталоге проекта на сервере (`VPS_APP_DIR`, по
+умолчанию `/opt/realhelpdesk`):
+
+| Команда | Действие |
+|---|---|
+| `make up-prod` | Поднять/пересоздать стек: pull образа из ghcr.io (`--no-build`) |
+| `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app pull app` | Скачать новый образ перед `make up-prod` |
+| `curl -sf http://127.0.0.1:8081/actuator/health` | Проверка живости |
+| правка `infrastructure/.env` → `make up-prod` | Применить новые настройки: app пересоздаётся с обновлённым окружением |
+| `make backup` / `make restore BACKUP_FILE=…` | Бэкап/восстановление (§3.7) |
+| `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app down` | Остановить стек; тома сохраняются (ключ `-v` не передавать) |
+
+### 3.3 Запрещённые команды
+
+| Команда | Почему нельзя |
+|---|---|
+| `make up`, `make dev-run`, `make docker-build`, `make ci-image`, любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; локальные цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
+| `make down-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
+| `make profile-local` / `make profile-keycloak`, инлайн `SPRING_PROFILES_ACTIVE=dev…` | Переводят приложение в dev-профиль через локальную цепочку с override; профиль рабочего контура задаёт только `.env` сервера (`prod` / `prod,keycloak`) |
+| `make restart`, `make apply-config`, `make logs`, `make ps`, `make down` | Локальные цепочки `-f …override.yaml` с профилями local-tools/monitoring/load; на сервере управлять контуром командами из §3.2 |
+| `make e2e-*`, `make load`, `make load-smoke`, `make obs-*`, `make migrate`, `make db-seed`, `make openapi` | Dev-инструменты: сидируют тестовые данные, тратят рейт-лимиты, требуют портов на хост; миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`) |
+
+### 3.4 Ручной деплой и обновление образа
+
+```bash
+# На сервере:
+cd /opt/realhelpdesk
+
+# 1. Синхронизировать IMAGE_TAG в .env
+echo "IMAGE_TAG=sha-abc123" >> infrastructure/.env
+
+# 2. Pull нового образа
+docker compose -f infrastructure/docker-compose.yaml \
+  -f infrastructure/docker-compose.prod.yaml \
+  --profile infra --profile app pull app
+
+# 3. Поднять prod-стек
+make up-prod
+
+# 4. Проверить health
+curl -sf http://127.0.0.1:8081/actuator/health
+```
+
+### 3.5 Автоматический деплой (CI/CD)
+
+```
+git tag v1.2.3
+  └─► GitHub Actions (deploy.yml)
+       └─► SSH на VPS (concurrency: deploy-production)
+            └─► Записать IMAGE_TAG в .env (sed, предыдущий тег запоминается)
+            └─► docker compose pull app
+            └─► make up-prod
+            └─► Health-gate (до 90 сек, 18×5 сек /actuator/health)
+                 ├─► OK → деплой завершён
+                 └─► FAIL → откат: IMAGE_TAG на предыдущий + up-prod
+```
+
+**Триггеры:**
+- Пуш тега `v*` — автоматически (`IMAGE_TAG=sha-<git_sha>`)
+- `workflow_dispatch` — ручной запуск с полем `image_tag`
+
+Секреты environment `production`: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
+`VPS_PORT`, `VPS_APP_DIR` (дефолт `/opt/realhelpdesk`), `GHCR_TOKEN`.
+
+### 3.6 Prod-preflight
+
+При запуске с `SPRING_PROFILES_ACTIVE=prod` выполняется
+`ProdPreflightValidator`:
+
+- капча включена;
+- CORS настроен строго (без localhost-допусков);
+- keystore самоподписанный отвергается;
+- SMTP доступен;
+- миграции применены;
+- `ddl-auto=validate` не может быть выключен env'ом.
+
+Старт с debug-конфигурацией валится — рабочий контур не поднимется.
+
+### 3.7 Бэкапы
+
+```bash
+make backup                                        # pg_dump -Fc + mc mirror бакета → ./backups/
+make restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
+# restore: stop app → pg_restore --clean --if-exists → up app
+```
+
+Ротация — удаление артефактов старше 14 дней (делает `backup.sh`).
+На сервере рекомендуется crontab:
+
+```
+0 3 * * * cd /opt/realhelpdesk && make backup
+```
+
+---
+
+## 4. CI/CD (GitHub Actions)
+
+### 4.1 CI (на push в main / PR)
+
+```
+job: build — Maven (JDK 25)
+  └─► spotless:check + checkstyle:check + verify (юнит + Testcontainers IT)
+
+job: docker
+  └─► hadolint → сборка образа → trivy (CRITICAL/HIGH) → gitleaks
+  └─► при push в main: login ghcr.io + push :sha-<git_sha> и :latest
+      (на PR пуш образа не выполняется)
+
+job: e2e — compose-стек (JDK 25)
+  └─► make env → make up → wait health (app) → wait Keycloak
+  └─► make e2e-all
+  └─► при провале — ps + logs всех контейнеров в CI-вывод
+  └─► always: make down
+```
+
+### 4.2 Deploy (по тегу)
+
+```
+tag v* / workflow_dispatch
+  └─► job: deploy (environment: production)
+       └─► SSH на VPS
+            └─► pull + up-prod + health-gate + авто-откат (§3.5)
+```
+
+---
+
+## 5. Тесты и проверки
 
 ```bash
 make test        # юнит-тесты (surefire; H2 для слоя репозиториев, быстро)
@@ -215,14 +370,14 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 
 ---
 
-## 5. Наблюдаемость
+## 6. Наблюдаемость
 
 ```bash
 make obs-up      # стек + monitoring: Mimir :9090, Tempo :3200, Loki :3100
                  # (Collector и Alloy — без портов на хост, только сеть compose)
 make obs-alerts  # текущие состояния алертов Mimir
 make obs-reload  # перечитать правила алертов (mimir/rules/)
-make obs-down    # остановить стек (томы целы)
+make obs-down    # остановить стек (тома целы)
 ```
 
 Сбор логов/метрик: `alloy` → Loki (логи) и Mimir (метрики со скрейпа
@@ -232,7 +387,7 @@ make obs-down    # остановить стек (томы целы)
 
 ---
 
-## 6. Нагрузочное тестирование (k6)
+## 7. Нагрузочное тестирование (k6)
 
 ```bash
 make load-smoke   # smoke: 2 VU, 1 минута
@@ -248,7 +403,7 @@ make up-load      # только стек для нагрузки, без про
 
 ---
 
-## 7. Миграции и сиды (Liquibase с хоста)
+## 8. Миграции и сиды (Liquibase с хоста)
 
 Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`).
 Цели ниже — для чистого/ручного прогона; нужен поднятый postgres
@@ -262,7 +417,7 @@ make down-volumes && make up   # чистая dev-база заново
 
 ---
 
-## 8. OpenAPI для фронтенда
+## 9. OpenAPI для фронтенда
 
 ```bash
 make openapi        # вытащить спеку с запущенного стека → openapi.json
@@ -271,132 +426,7 @@ make openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (нуже�
 
 ---
 
-## 9. Prod: рабочий контур
-
-### 9.1 Архитектура
-
-```
-[Клиент] → Nginx (VPS, TLS/LE) → 127.0.0.1:8080 (app container, loopback)
-```
-
-- TLS завершает Nginx на хосте (Certbot/Let's Encrypt).
-- App биндится **только на loopback** — наружу недоступен; порты БД/MinIO
-  на хост не публикуются (override не подключён).
-- `TRUST_PROXY_HEADERS=true` — Spring читает `X-Forwarded-For`.
-- Сборка на сервере **запрещена** — только `pull` из ghcr.io
-  (`up-prod` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG}`).
-- Все различия prod-контура (пароли SMTP, домены, адреса внешнего Keycloak) —
-  в секции «Рабочий контур» файла `infrastructure/.env` на сервере.
-  Профиль `prod` подставляет сам `docker-compose.prod.yaml`
-  (`${SPRING_PROFILES_ACTIVE:-prod}`): забытый на сервере ключ не поднимет
-  dev-режим. Для внешнего Keycloak задайте `SPRING_PROFILES_ACTIVE=prod,keycloak`
-  в `.env` сервера.
-
-### 9.2 Ручной деплой
-
-```bash
-# На сервере:
-cd /opt/realhelpdesk
-
-# 1. Синхронизировать IMAGE_TAG в .env
-echo "IMAGE_TAG=sha-abc123" >> infrastructure/.env
-
-# 2. Pull нового образа
-docker compose -f infrastructure/docker-compose.yaml \
-  -f infrastructure/docker-compose.prod.yaml \
-  --profile infra --profile app pull app
-
-# 3. Поднять prod-стек
-make up-prod
-
-# 4. Проверить health
-curl -sf http://127.0.0.1:8081/actuator/health
-```
-
-### 9.3 Автоматический деплой (CI/CD)
-
-```
-git tag v1.2.3
-  └─► GitHub Actions (deploy.yml)
-       └─► SSH на VPS (concurrency: deploy-production)
-            └─► Записать IMAGE_TAG в .env (sed, предыдущий тег запоминается)
-            └─► docker compose pull app
-            └─► make up-prod
-            └─► Health-gate (до 90 сек, 18×5 сек /actuator/health)
-                 ├─► OK → деплой завершён
-                 └─► FAIL → откат: IMAGE_TAG на предыдущий + up-prod
-```
-
-**Триггеры:**
-- Пуш тега `v*` — автоматически (`IMAGE_TAG=sha-<git_sha>`)
-- `workflow_dispatch` — ручной запуск с полем `image_tag`
-
-Секреты environment `production`: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
-`VPS_PORT`, `VPS_APP_DIR` (дефолт `/opt/realhelpdesk`), `GHCR_TOKEN`.
-
-### 9.4 Prod-preflight
-
-При запуске с `SPRING_PROFILES_ACTIVE=prod` выполняется
-`ProdPreflightValidator`:
-
-- капча включена;
-- CORS настроен строго (без localhost-допусков);
-- keystore самоподписанный отвергается;
-- SMTP доступен;
-- миграции применены;
-- `ddl-auto=validate` не может быть выключен env'ом.
-
-Старт с debug-конфигурацией валится — рабочий контур не поднимется.
-
-### 9.5 Бэкапы
-
-```bash
-make backup                                        # pg_dump -Fc + mc mirror бакета → ./backups/
-make restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
-# restore: stop app → pg_restore --clean --if-exists → up app
-```
-
-Ротация — удаление артефактов старше 14 дней (делает `backup.sh`).
-На сервере рекомендуется crontab:
-
-```
-0 3 * * * cd /opt/realhelpdesk && make backup
-```
-
----
-
-## 10. CI/CD (GitHub Actions)
-
-### 10.1 CI (на push в main / PR)
-
-```
-job: build — Maven (JDK 25)
-  └─► spotless:check + checkstyle:check + verify (юнит + Testcontainers IT)
-
-job: docker
-  └─► hadolint → сборка образа → trivy (CRITICAL/HIGH) → gitleaks
-  └─► при push в main: login ghcr.io + push :sha-<git_sha> и :latest
-      (на PR пуш образа не выполняется)
-
-job: e2e — compose-стек (JDK 25)
-  └─► make env → make up → wait health (app) → wait Keycloak
-  └─► make e2e-all
-  └─► при провале — ps + logs всех контейнеров в CI-вывод
-  └─► always: make down
-```
-
-### 10.2 Deploy (по тегу)
-
-```
-tag v* / workflow_dispatch
-  └─► job: deploy (environment: production)
-       └─► SSH на VPS
-            └─► pull + up-prod + health-gate + авто-откат (§9.3)
-```
-
----
-
-## 11. Вспомогательные скрипты
+## 10. Вспомогательные скрипты
 
 Каждый скрипт вызывается из цели Makefile — руками запускать их не нужно,
 разве что для отладки самого скрипта. Каталог `scripts/` не содержит
@@ -416,7 +446,7 @@ tag v* / workflow_dispatch
 
 | Скрипт | Назначение | Вызывается из |
 |---|---|---|
-| `run-local.sh` | CLI-эквивалент run-конфига IDEA (§3): подгружает `.env`, выключает SSL, переводит адреса на loopback и запускает `spring-boot:run` против dockerized-инфры | `make run-local` |
+| `run-local.sh` | CLI-эквивалент run-конфига IDEA (§2.3): подгружает `.env`, выключает SSL, переводит адреса на loopback и запускает `spring-boot:run` против dockerized-инфры | `make run-local` |
 
 ### `scripts/load/` — нагрузочное тестирование (k6)
 
@@ -428,7 +458,7 @@ tag v* / workflow_dispatch
 
 ### `scripts/e2e-*.sh` — сквозные сценарии
 
-Шелл-сценарии против реального стека (см. §4). Каждый переводит приложение
+Шелл-сценарии против реального стека (см. §5). Каждый переводит приложение
 на нужный профиль аутентификации и сбрасывает рейт-лимиты через зависимости
 Makefile, поэтому запускать их напрямую не следует — профиль не применится.
 
@@ -443,4 +473,3 @@ Makefile, поэтому запускать их напрямую не след�
 | `e2e-portal-access-kc.sh` | порталы через Bearer-токен Keycloak (CRUD) |
 | `e2e-notifications-kc.sh` | уведомления через Bearer-токен Keycloak |
 | `e2e-ratelimit.sh` | бакеты рейт-лимитов, `429` и `Retry-After`; в `e2e-all` не входит — логика покрыта `RateLimitServiceTest` |
-
