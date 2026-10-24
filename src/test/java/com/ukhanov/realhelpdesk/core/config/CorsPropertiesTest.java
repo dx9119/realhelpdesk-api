@@ -19,12 +19,12 @@ class CorsPropertiesTest {
         // given
         // when
         MockEnvironment environment = new MockEnvironment();
-        environment.setProperty("cors.allowed-origins", "https://localhost.ru,https://example.com");
+        environment.setProperty("cors.allowed-origins", "http://localhost.ru,http://example.com");
 
         CorsProperties properties = bind(environment);
 
         // then
-        assertThat(properties.getAllowedOrigins()).containsExactly("https://localhost.ru", "https://example.com");
+        assertThat(properties.getAllowedOrigins()).containsExactly("http://localhost.ru", "http://example.com");
     }
 
     @Test
@@ -34,12 +34,12 @@ class CorsPropertiesTest {
         // given
         // when
         MockEnvironment environment = new MockEnvironment();
-        environment.setProperty("cors.allowed-origins", " https://localhost.ru , https://example.com ");
+        environment.setProperty("cors.allowed-origins", " http://localhost.ru , http://example.com ");
 
         CorsProperties properties = bind(environment);
 
         // then
-        assertThat(properties.getAllowedOrigins()).containsExactly("https://localhost.ru", "https://example.com");
+        assertThat(properties.getAllowedOrigins()).containsExactly("http://localhost.ru", "http://example.com");
     }
 
     @Test

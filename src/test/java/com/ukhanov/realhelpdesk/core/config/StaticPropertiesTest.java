@@ -18,12 +18,12 @@ class StaticPropertiesTest {
         // given
         // when
         MockEnvironment environment = new MockEnvironment();
-        environment.setProperty("static.base-url", "https://cdn.example.com");
+        environment.setProperty("static.base-url", "http://cdn.example.com");
 
         StaticProperties properties = bind(environment);
 
         // then
-        assertThat(properties.getBaseUrl()).isEqualTo("https://cdn.example.com");
+        assertThat(properties.getBaseUrl()).isEqualTo("http://cdn.example.com");
     }
 
     @Test
@@ -33,12 +33,12 @@ class StaticPropertiesTest {
         // given
         // when
         MockEnvironment environment = new MockEnvironment();
-        environment.setProperty("static.base-url", "https://cdn.example.com///");
+        environment.setProperty("static.base-url", "http://cdn.example.com///");
 
         StaticProperties properties = bind(environment);
 
         // then
-        assertThat(properties.getBaseUrl()).isEqualTo("https://cdn.example.com");
+        assertThat(properties.getBaseUrl()).isEqualTo("http://cdn.example.com");
     }
 
     @Test

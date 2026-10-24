@@ -43,7 +43,7 @@ class EmailTemplatesWiringTest {
                     EmailTemplatesFixture.emailProperties());
 
             assertThat(emailTemplates.ticketReplyBody(77L, 5L))
-                    .contains("https://front.example.ru/ticket-show/portal/5/ticket/77");
+                    .contains("http://front.example.ru/ticket-show/portal/5/ticket/77");
             assertThat(emailTemplates.passwordResetSubject()).isEqualTo("Сброс пароля");
         });
     }
