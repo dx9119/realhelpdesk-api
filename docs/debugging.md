@@ -42,8 +42,11 @@ docker builder prune --filter type=exec.cachemount -f
 
 ```
 ERROR i.o.exporter.internal.http.HttpExporter | Failed to export spans
-java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:4317
+java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:4318
 ```
+
+При `make run-local` адрес в ошибке — `otel-collector`: значение приходит из
+`OTLP_TRACING_ENDPOINT` в `infrastructure/.env`.
 
 **Причина:** экспортёр трейсов отправляет OTLP-спаны по
 `OTLP_TRACING_ENDPOINT`, но `otel-collector` живёт только в compose-сети

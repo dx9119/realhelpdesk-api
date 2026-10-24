@@ -34,7 +34,7 @@ done < "$ENV_FILE"
 # Дефолты compose-интерполяции (:-) из infrastructure/docker-compose.yaml:
 # в контейнере их подставляет compose, на хосте — этот скрипт или конфиг IDEA,
 # иначе схема ${VAR} в application.properties не резолвится.
-export OTLP_TRACING_ENDPOINT="${OTLP_TRACING_ENDPOINT:-http://localhost:4317}"
+export OTLP_TRACING_ENDPOINT="${OTLP_TRACING_ENDPOINT:-http://localhost:4318/v1/traces}"
 export TRUST_PROXY_HEADERS="${TRUST_PROXY_HEADERS:-false}"
 export CLIENT_IP_FORWARDED_INDEX="${CLIENT_IP_FORWARDED_INDEX:-0}"
 
