@@ -283,9 +283,11 @@ make prod-restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
 
 ---
 
-## 4. CI/CD (GitHub Actions)
+## 4. CI (GitHub Actions)
 
-### 4.1 CI (на push в main, тег v* / PR)
+Запускается на push в main, тег `v*` и PR. Прод не трогает: раскатка —
+отдельный workflow `deploy.yml`, только по явному тегу (флоу, health-gate
+и авто-откат — §3.5).
 
 ```
 job: build — Maven (JDK 25)
@@ -302,20 +304,6 @@ job: e2e — compose-стек (JDK 25)
   └─► make e2e-all
   └─► при провале — ps + logs всех контейнеров в CI-вывод
   └─► always: make dev-down
-```
-
-### 4.2 Deploy (только по явному тегу)
-
-Раскатку запускает **только** пуш тега `v*` или ручной `workflow_dispatch`.
-Push в main публикует образы (включая `:latest`) в ghcr.io, но на прод не
-катится: сервер держит закреплённый `IMAGE_TAG` в `infrastructure/.env`,
-автоматического перехода на `latest` нет.
-
-```
-tag v* / workflow_dispatch
-  └─► job: deploy (environment: production)
-       └─► SSH на VPS
-            └─► pull (ждёт тег в ghcr.io) + prod-up + health-gate + авто-откат (§3.5)
 ```
 
 ---
