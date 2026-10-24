@@ -94,7 +94,7 @@ class RegistrationServiceTest {
 
         assertThat(user.getVerifyEmailToken()).isNotNull();
         assertThat(bodyCaptor.getValue()).contains(user.getVerifyEmailToken().toString())
-                .contains("https://" + EmailTemplatesFixture.DOMAIN + "/notify-settings");
+                .contains("http://" + EmailTemplatesFixture.DOMAIN + "/notify-settings");
     }
 
     @Test
