@@ -33,6 +33,32 @@ docker builder prune --filter type=exec.cachemount -f
 > начинайте с `docker builder prune --filter type=exec.cachemount -f`,
 > прежде чем искать проблему в конфигурации.
 
+## Запуск приложения на хосте (`IDEA`, `make run-local`)
+
+### Ошибка: `Failed to export spans` каждые ~30 секунд
+
+Симптом: в логе приложения, запущенного из IDEA (конфигурация
+`RealHelpDeskApplication`) или `make run-local`, периодически появляется:
+
+```
+ERROR i.o.exporter.internal.http.HttpExporter | Failed to export spans
+java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:4317
+```
+
+**Причина:** экспортёр трейсов отправляет OTLP-спаны по
+`OTLP_TRACING_ENDPOINT`, но `otel-collector` живёт только в compose-сети
+профиля `monitoring` и портов на хост не публикует — хостовому процессу
+коллектор недоступен, соединение отклоняется.
+
+**Влияние:** только трейсы — они никуда не экспортируются. На запросы, БД и
+health-эндпоинты ошибка не влияет.
+
+**Решение:** ошибка не требует устранения. Заглушить —
+`TRACING_SAMPLING_PROBABILITY=0` в env запуска (спаны не сэмплируются,
+экспортёр не пытается отправлять). Трейсы смотреть в контейнерном контуре:
+`make obs-up`, Tempo — `localhost:3200`
+([`observability/overview.md`](observability/overview.md)).
+
 ## Запуск тестов
 
 ### Ложная ошибка `WrongTypeOfReturnValue` после правки кода

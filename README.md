@@ -208,27 +208,6 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
 
 Подробнее: [`docs/testing.md`](docs/testing.md)
 
-## Известные ошибки
-
-### `Failed to export spans` при dev-запуске на хосте
-
-Симптом: в логе приложения, запущенного из IDEA (конфигурация
-`RealHelpDeskApplication`) или `make run-local`, каждые ~30 секунд появляется
-`ERROR i.o.exporter.internal.http.HttpExporter | Failed to export spans` с
-`java.net.ConnectException: Connection refused` на `localhost:4317`.
-
-Причина: экспортёр трейсов отправляет OTLP-спаны по `OTLP_TRACING_ENDPOINT`, но
-`otel-collector` живёт только в compose-сети профиля `monitoring` и портов на
-хост не публикует — хостовому процессу коллектор недоступен.
-
-Влияние: только трейсы — они никуда не экспортируются. На запросы, БД и
-health-эндпоинты ошибка не влияет.
-
-Действия: заглушить — `TRACING_SAMPLING_PROBABILITY=0` в env запуска (спаны не
-сэмплируются, экспортёр не пытается отправлять). Трейсы смотреть в контейнерном
-контуре: `make obs-up`, Tempo — `localhost:3200`
-([`observability/overview.md`](docs/observability/overview.md)).
-
 ## Документация
 
 | Документ | Содержание |
