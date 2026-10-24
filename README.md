@@ -78,10 +78,11 @@ extension-поля, которые RFC 7807 разрешает добавлят�
 
 ## Конфигурация
 
-Приложение не хранит значений настроек в коде: каждая настройка — переменная
-окружения без дефолта. В файлах `application*.properties` записана только
-схема — строки вида `${VAR}`. Не заданная переменная приводит к отказу старта
-с явным указанием причины, а не к молчаливой работе на чужих значениях.
+Несекретные настройки хранят разумные дефолты прямо в схеме
+`application*.properties` — строки вида `${VAR:default}`. Без дефолта
+остались только секреты (`JWT_SECRET`, `DB_PASSWORD`, …) и специфичные для
+среды хосты/URL: не заданная такая переменная приводит к отказу старта с
+явным указанием причины, а не к молчаливой работе на чужих значениях.
 Среды различаются наборами профилей Spring и compose-файлов.
 
 Подробнее: [`docs/configuration.md`](docs/configuration.md)
@@ -213,7 +214,8 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
 |---|---|
 | [`getting-started.md`](docs/getting-started.md) | Сценарии запуска: dev, хост, рабочий контур |
 | [`configuration.md`](docs/configuration.md) | Переменные окружения, профили, compose-файлы, почта, миграции |
-| [`authentication.md`](docs/authentication.md) | JWT-контур, Keycloak, refresh-токены, CSRF, капча |
+| [`authentication.md`](docs/authentication.md) | JWT-контур, Keycloak, refresh-токены, CSRF |
+| [`capcha.md`](docs/capcha.md) | Капча: PoW, эмодзи-эскалация, риск-движок, параметры |
 | [`access-control.md`](docs/access-control.md) | Уровни доступа к порталам, политики заявок, передача владения |
 | [`notifications.md`](docs/notifications.md) | SSE, long polling, механизм пробуждения, повторы |
 | [`rate-limits.md`](docs/rate-limits.md) | Каталог лимитов, добавление нового лимита |
