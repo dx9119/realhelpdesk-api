@@ -54,9 +54,7 @@ application-local.properties
 
 # Секретные ключи и файлы конфигурации (будьте осторожны!)
 *.key
-*.p12
 *.pem
-ssl/
 
 # Локальные секреты (шаблоны — infrastructure/.env.dev.example, .env.prod.example)
 infrastructure/.env
