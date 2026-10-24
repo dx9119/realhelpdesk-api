@@ -136,8 +136,8 @@ prod-preflight). Двухуровневая схема вместо тексто
 
 Защита от автоматики: подписи HMAC (`CAPTCHA_HMAC_SECRET` — секрет, минимум
 32 символа), одноразовость challenge и токена, минимальное время заполнения
-формы (`CAPTCHA_MIN_FILL_SECONDS`, 0 локально / 3 в рабочем контуре) и
-honeypot-поле `website` (его заполнение = `honeypot` в ответе). При отказе в
+формы (`CAPTCHA_MIN_FILL_SECONDS`, дефолт 0; в рабочем контуре
+рекомендуется 3) и honeypot-поле `website` (его заполнение = `honeypot` в ответе). При отказе в
 проблеме-JSON поле `code` — `pow_failed`, `wrong_answer`, `replayed`,
 `too_fast`, `honeypot` и т.д. (полный список — [`api.md`](api.md)).
 Метрики: `captcha.challenge.issued{type}` и
