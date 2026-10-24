@@ -62,7 +62,7 @@ hs_err_pid*
 # Файлы профилирования
 java_pid*
 
-# Артефакты бэкапов (make backup)
+# Артефакты бэкапов (make prod-backup)
 backups/
 
 # Артефакты локальных прогонов (make dev-openapi / dev-openapi-types): спека и типы

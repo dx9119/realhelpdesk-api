@@ -5,19 +5,19 @@
 #   infra       — postgres, minio: внутренняя сеть data (internal), портов на хост нет
 #   local-tools — smtp4dev и keycloak (локальные сервисы разработки)
 #
-# make dev-deps     → infra + local-tools        (зависимости для запуска app из IDEA)
+# make dev-up-deps     → infra + local-tools        (зависимости для запуска app из IDEA)
 # make dev-up       → infra + local-tools + app  (локальная разработка)
-# make up-prod     → infra + app                (рабочий контур: без local-tools/monitoring)
+# make prod-up     → infra + app                (рабочий контур: без local-tools/monitoring)
 #
 # Порты БД/MinIO на loopback хоста (для IDEA/psql/MinIO-консоли) публикует
 # infrastructure/docker-compose.override.yaml — локальный оверлей, который
-# make подключает явно (-f) для локальных целей; make up-prod (base + prod)
+# make подключает явно (-f) для локальных целей; make prod-up (base + prod)
 # его игнорирует, поэтому в рабочем контуре на хост не выходит ничего.
 #
 # Профиль приложения (SPRING_PROFILES_ACTIVE) — dev/prod. По умолчанию — dev,
 # внутренний JWT-контур приложения (cookie, /api/v1/auth/*). Для Keycloak:
 # make dev-profile-keycloak передаёт dev,keycloak инлайном (см. Makefile).
-# Сервис keycloak живёт в профиле local-tools, поэтому make up-prod поднимает
+# Сервис keycloak живёт в профиле local-tools, поэтому make prod-up поднимает
 # приложение без него: в рабочем контуре Keycloak разворачивается отдельно (см. README).
 #
 # Сети:

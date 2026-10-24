@@ -5,7 +5,7 @@
 #
 # Итог для модуля: docker compose up поднимает infra+local-tools (профили задаёт
 # application-host.properties) с портами на 127.0.0.1; жизненный цикл — start-only,
-# стек не останавливается вместе с приложением. Если стек уже поднят make dev-deps,
+# стек не останавливается вместе с приложением. Если стек уже поднят make dev-up-deps,
 # up становится no-op, а service connection'ы привязываются к запущенным контейнерам.
 
 include:
@@ -14,5 +14,5 @@ include:
 
 # name в included-файлах compose игнорирует: без него проект получил бы имя
 # корневого файла ("infrastructure"), второй набор томов и конфликт портов с
-# уже поднятым make dev-deps. Имя дублируется, чтобы compose шёл в тот же проект.
+# уже поднятым make dev-up-deps. Имя дублируется, чтобы compose шёл в тот же проект.
 name: realhelpdesk

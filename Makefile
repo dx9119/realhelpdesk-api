@@ -31,13 +31,13 @@ PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile mo
 .DEFAULT_GOAL := help
 
 # Префикс dev- = цель локального dev-контура (compose-цепочка с override,
-# порты на хост): на prod-сервере не запускается — там только up-prod/backup/restore.
+# порты на хост): на prod-сервере не запускается — там только prod-up/prod-backup/prod-restore.
 .PHONY: help build clean compile package test verify format check run \
-        dev-run dev-test run-local dev-deps \
-        env dev-apply-config dev-docker-build dev-up up-prod dev-up-load dev-down dev-down-volumes \
+        dev-run dev-test run-local dev-up-deps \
+        env dev-apply-config dev-docker-build dev-up prod-up dev-up-load dev-down dev-down-volumes \
         dev-logs dev-ps dev-restart dev-shell check-image \
         check-ci check-secrets check-dockerfile ci-image check-image-vuln \
-        backup restore \
+        prod-backup prod-restore \
         dev-profile-local dev-profile-keycloak \
         obs-up obs-down obs-reload obs-alerts \
         load load-smoke \
@@ -80,7 +80,7 @@ check: ## Проверки стиля (spotless:check + checkstyle)
 run: ## Запустить приложение локально (spring-boot:run)
 	$(MVN) spring-boot:run
 
-run-local: env ## Приложение на хосте против dockerized-инфры (профили dev,host; инфру поднимает spring-boot-docker-compose или make dev-deps)
+run-local: env ## Приложение на хосте против dockerized-инфры (профили dev,host; инфру поднимает spring-boot-docker-compose или make dev-up-deps)
 	bash scripts/dev/run-local.sh
 
 dev-run: env ## Dev-среда: compose up в foreground (логи всех сервисов, Ctrl+C — стоп)
@@ -108,10 +108,10 @@ dev-docker-build: ## Собрать docker-образ приложения (с �
 dev-up: env ## Поднять локальный стек (профили infra+local-tools+app, сборка образа, в фоне)
 	$(COMPOSE) $(PROFILES_LOCAL) up --build -d
 
-dev-deps: env ## Поднять только инфраструктуру (infra+local-tools: БД, MinIO, smtp4dev, Keycloak) — для запуска app из IDEA/CLI
+dev-up-deps: env ## Поднять только инфраструктуру (infra+local-tools: БД, MinIO, smtp4dev, Keycloak) — для запуска app из IDEA/CLI
 	$(COMPOSE) $(PROFILES_DEPS) up -d
 
-up-prod: env ## Поднять рабочий стек (infra+app, pull из ghcr.io; настройки — «Рабочий контур» в .env)
+prod-up: env ## Поднять рабочий стек (infra+app, pull из ghcr.io; настройки — «Рабочий контур» в .env)
 	$(COMPOSE_PROD) $(PROFILES_PROD) up -d --no-build
 
 dev-down: ## Остановить стек (все профили)
@@ -122,10 +122,10 @@ dev-down-volumes: ## Остановить стек и удалить тома (�
 
 ## --- Бэкапы (PostgreSQL + MinIO; артефакты — ./backups/) ---
 
-backup: env ## Бэкап БД (pg_dump -Fc) и MinIO в ./backups/ + ротация старше 14 дней
+prod-backup: env ## Бэкап БД (pg_dump -Fc) и MinIO в ./backups/ + ротация старше 14 дней
 	bash scripts/docker/backup.sh
 
-restore: env ## Восстановить БД из дампа: make restore BACKUP_FILE=backups/db_....dump
+prod-restore: env ## Восстановить БД из дампа: make prod-restore BACKUP_FILE=backups/db_....dump
 	@test -n "$(BACKUP_FILE)" || (echo "Укажите BACKUP_FILE=path/to/db_....dump" && exit 1)
 	@test -f "$(BACKUP_FILE)" || (echo "Файл не найден: $(BACKUP_FILE)" && exit 1)
 	@echo "==> Останавливаю app"
@@ -227,7 +227,7 @@ load-smoke: dev-up-load ## Короткий smoke-прогон user journey (2 V
 	TARGET_VUS=2 DURATION=1m bash scripts/load/run.sh
 
 ## --- Миграции схемы (Liquibase с хоста; порт 127.0.0.1:5432 публикует
-## docker-compose.override.yaml — нужен make dev-deps) ---
+## docker-compose.override.yaml — нужен make dev-up-deps) ---
 # Миграции также применяет само приложение при старте (DB_MIGRATIONS_ENABLED).
 # Цели ниже — для чистого/ручного прогона без контейнера приложения.
 

@@ -63,7 +63,7 @@
 | `infrastructure/docker-compose.obs.yaml` | Наблюдаемость: mimir, tempo, loki, otel-collector, alloy (профиль `monitoring`). Подключает `make obs-up` |
 | `infrastructure/docker-compose.load.yaml` | Нагрузочное тестирование: k6 (профиль `load`). Подключает `make load` |
 | `infrastructure/docker-compose.override.yaml` | Локальная разработка: порты postgres/minio на `127.0.0.1` + сеть `backend` для приложения на хосте. Подключают только локальные цели make |
-| `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make up-prod`): pull из ghcr.io, дефолт профиля `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`), без портов БД наружу; override не подключён |
+| `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make prod-up`): pull из ghcr.io, дефолт профиля `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`), без портов БД наружу; override не подключён |
 | `infrastructure/docker-compose.host.yaml` | Одностраничная сборка через top-level `include:` для spring-boot-docker-compose (модуль Boot принимает только один файл) |
 
 Почему порты нельзя переключить профилем: профиль не может сказать «в dev
@@ -73,8 +73,8 @@
 порты БД наружу.
 
 Цепочки `-f` инкапсулированы в Makefile (`COMPOSE`, `COMPOSE_OBS`,
-`COMPOSE_LOAD`, `COMPOSE_PROD`) — запуск идёт через `make dev-deps` / `make dev-up`
-/ `make obs-up` / `make load` / `make up-prod`.
+`COMPOSE_LOAD`, `COMPOSE_PROD`) — запуск идёт через `make dev-up-deps` / `make dev-up`
+/ `make obs-up` / `make load` / `make prod-up`.
 
 ## Клиентский IP
 
@@ -124,7 +124,7 @@ Compose сравнивает конфигурацию контейнера: пр
 
 ### Запуск из IDEA
 
-1. `make dev-deps` — поднять БД, MinIO, smtp4dev и Keycloak (или не поднимать:
+1. `make dev-up-deps` — поднять БД, MinIO, smtp4dev и Keycloak (или не поднимать:
    профиль `host` сделает это сам через spring-boot-docker-compose).
 2. Открыть проект в IntelliJ IDEA (2025.2+): конфигурация
    `RealHelpDeskApplication` (`.run/RealHelpDeskApplication.run.xml`)
@@ -201,7 +201,7 @@ changeset'ы). `make dev-down-volumes` удаляет том PostgreSQL.
    `@Table`, `@Index` и т.д.) — Hibernate валидирует модель против схемы
    при старте (`validate`). Если `validate` падает — схема и сущности
    рассинхронизированы.
-5. **Проверить локально.** `make dev-deps && make dev-up` — Liquibase применит
+5. **Проверить локально.** `make dev-up-deps && make dev-up` — Liquibase применит
    миграцию автоматически. Убедитесь, что приложение стартует без ошибок.
 6. **Тесты.** `LiquibaseChangelogGuardTest` следит, чтобы в `changes/`
    не было DML (INSERT/UPDATE/DELETE) — только DDL. Данные, если нужны,

@@ -7,7 +7,7 @@
 #     --profile infra --profile app up -d --no-build
 #
 # IMAGE_TAG задаёт деплой-workflow (записывает в infrastructure/.env на сервере);
-# локально/up-prod без тега берёт :latest.
+# локально/prod-up без тега берёт :latest.
 
 services:
   app:
@@ -17,7 +17,7 @@ services:
     pull_policy: always
     environment:
       # Дефолт рабочего контура — prod (в базовом файле dev,keycloak): этот
-      # оверлей подключается только make up-prod, и забытый на сервере
+      # оверлей подключается только make prod-up, и забытый на сервере
       # SPRING_PROFILES_ACTIVE не должен поднимать dev-режим (отладочные логи,
       # самоподписанный keystore, выключенная капча). Внешний Keycloak — явно:
       # SPRING_PROFILES_ACTIVE=prod,keycloak в infrastructure/.env сервера.

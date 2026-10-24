@@ -42,7 +42,7 @@ make env
 | Вариант | Команды | Когда выбирать |
 |---|---|---|
 | Весь стек в контейнерах | `make dev-up` (в фоне) / `make dev-run` (foreground) | штатный путь без IDEA: код правится редко или правка Java с пересборкой образа допустима |
-| Приложение на хосте | `make dev-deps` + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
+| Приложение на хосте | `make dev-up-deps` + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
 
 ### 2.1 Весь стек в контейнерах: первый запуск
 
@@ -93,7 +93,7 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 | Сценарий | Команда |
 |---|---|
 | Поднять стек (первый или после `down`) | `make dev-up` |
-| Поднять только инфраструктуру (БД, MinIO, smtp4dev, Keycloak) | `make dev-deps` |
+| Поднять только инфраструктуру (БД, MinIO, smtp4dev, Keycloak) | `make dev-up-deps` |
 | Стек в foreground со всеми логами | `make dev-run` |
 | Перезапустить только app (быстрый цикл) | `make dev-restart` |
 | Применить изменения `.env` к запущенному стеку | `make dev-apply-config` |
@@ -107,7 +107,7 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 Инфраструктура — в Docker, приложение — на хосте с отладчиком:
 
 ```bash
-make dev-deps   # один раз: поднять infra + local-tools
+make dev-up-deps   # один раз: поднять infra + local-tools
 ```
 
 В IntelliJ IDEA (2025.2+) конфигурация `RealHelpDeskApplication`
@@ -129,7 +129,7 @@ make dev-up          # пересборка слоя app (docker layer cache и�
 **Вариант B — на хосте** (быстрый):
 
 ```bash
-make dev-deps    # один раз: поднять infra + local-tools
+make dev-up-deps    # один раз: поднять infra + local-tools
 # Debug в IDEA (конфиг RealHelpDeskApplication, профили dev,host) —
 # при отсутствии стека инфру поднимет spring-boot-docker-compose сам;
 # либо CLI:
@@ -164,7 +164,7 @@ run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://12
   на хост не публикуются (override не подключён).
 - `TRUST_PROXY_HEADERS=true` — Spring читает `X-Forwarded-For`.
 - Сборка на сервере **запрещена** — только `pull` из ghcr.io
-  (`up-prod` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG}`).
+  (`prod-up` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG}`).
 - Все различия prod-контура (пароли SMTP, домены, адреса внешнего Keycloak) —
   в `infrastructure/.env` на сервере (шаблон — `infrastructure/.env.prod.example`,
   копируется вручную). Профиль `prod` подставляет сам `docker-compose.prod.yaml`
@@ -179,11 +179,11 @@ run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://12
 
 | Команда | Действие |
 |---|---|
-| `make up-prod` | Поднять/пересоздать стек: pull образа из ghcr.io (`--no-build`) |
-| `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app pull app` | Скачать новый образ перед `make up-prod` |
+| `make prod-up` | Поднять/пересоздать стек: pull образа из ghcr.io (`--no-build`) |
+| `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app pull app` | Скачать новый образ перед `make prod-up` |
 | `curl -sf http://127.0.0.1:8081/actuator/health` | Проверка живости |
-| правка `infrastructure/.env` → `make up-prod` | Применить новые настройки: app пересоздаётся с обновлённым окружением |
-| `make backup` / `make restore BACKUP_FILE=…` | Бэкап/восстановление (§3.7) |
+| правка `infrastructure/.env` → `make prod-up` | Применить новые настройки: app пересоздаётся с обновлённым окружением |
+| `make prod-backup` / `make prod-restore BACKUP_FILE=…` | Бэкап/восстановление (§3.7) |
 | `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app down` | Остановить стек; тома сохраняются (ключ `-v` не передавать) |
 
 ### 3.3 Запрещённые команды (не запускать на prod-сервере)
@@ -217,7 +217,7 @@ docker compose -f infrastructure/docker-compose.yaml \
   --profile infra --profile app pull app
 
 # 3. Поднять prod-стек
-make up-prod
+make prod-up
 
 # 4. Проверить health
 curl -sf http://127.0.0.1:8081/actuator/health
@@ -231,10 +231,10 @@ git tag v1.2.3
        └─► SSH на VPS (concurrency: deploy-production)
             └─► Записать IMAGE_TAG в .env (sed, предыдущий тег запоминается)
             └─► docker compose pull app
-            └─► make up-prod
+            └─► make prod-up
             └─► Health-gate (до 90 сек, 18×5 сек /actuator/health)
                  ├─► OK → деплой завершён
-                 └─► FAIL → откат: IMAGE_TAG на предыдущий + up-prod
+                 └─► FAIL → откат: IMAGE_TAG на предыдущий + prod-up
 ```
 
 **Триггеры:**
@@ -261,8 +261,8 @@ git tag v1.2.3
 ### 3.7 Бэкапы
 
 ```bash
-make backup                                        # pg_dump -Fc + mc mirror бакета → ./backups/
-make restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
+make prod-backup                                        # pg_dump -Fc + mc mirror бакета → ./backups/
+make prod-restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
 # restore: stop app → pg_restore --clean --if-exists → up app
 ```
 
@@ -270,7 +270,7 @@ make restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
 На сервере рекомендуется crontab:
 
 ```
-0 3 * * * cd /opt/realhelpdesk && make backup
+0 3 * * * cd /opt/realhelpdesk && make prod-backup
 ```
 
 ---
@@ -301,7 +301,7 @@ job: e2e — compose-стек (JDK 25)
 tag v* / workflow_dispatch
   └─► job: deploy (environment: production)
        └─► SSH на VPS
-            └─► pull + up-prod + health-gate + авто-откат (§3.5)
+            └─► pull + prod-up + health-gate + авто-откат (§3.5)
 ```
 
 ---
@@ -413,7 +413,7 @@ make dev-up-load      # только стек для нагрузки, без п
 
 Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`).
 Цели ниже — для чистого/ручного прогона; нужен поднятый postgres
-(`make dev-deps`, порт `127.0.0.1:5432`):
+(`make dev-up-deps`, порт `127.0.0.1:5432`):
 
 ```bash
 make dev-migrate           # контекст schema (чистая схема; context=seed НЕ применяется)
@@ -446,7 +446,7 @@ make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (ну�
 | `entrypoint.sh` | Точка входа контейнера: генерирует keystore при старте (если не смонтирован извне) и запускает JVM. Пароль не попадает в слои образа и `docker history`, смена пароля не требует пересборки | `Dockerfile` (`ENTRYPOINT`) |
 | `init-secrets.sh` | Создаёт `infrastructure/.env` из шаблона (если файла нет) и заполняет пустые секреты случайными значениями. Существующий `.env` не меняет — только предупреждает о ключах, которых в нём нет | `make env` |
 | `check-image.sh` | Гигиена собранного образа: нет ли секретов в слоях, лишней ФС на пути к jar, цел ли сам jar | `make check-image` |
-| `backup.sh` | `pg_dump -Fc` + `mc mirror` бакета MinIO в `./backups/`, ротация старше `BACKUP_RETENTION_DAYS` (14) | `make backup` |
+| `backup.sh` | `pg_dump -Fc` + `mc mirror` бакета MinIO в `./backups/`, ротация старше `BACKUP_RETENTION_DAYS` (14) | `make prod-backup` |
 
 ### `scripts/dev/` — запуск на хосте
 

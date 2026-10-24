@@ -1,7 +1,7 @@
 # Деплой на VPS по SSH: тег `v*` или ручной запуск (workflow_dispatch).
 # Порядок шагов:
 #   1) записывает IMAGE_TAG в серверный infrastructure/.env;
-#   2) docker compose pull app + make up-prod (без сборки);
+#   2) docker compose pull app + make prod-up (без сборки);
 #   3) ждёт до 90 секунд 200 OK от http://127.0.0.1:8081/actuator/health;
 #   4) при провале healthcheck — авто-откат на предыдущий IMAGE_TAG.
 
@@ -50,7 +50,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          # Скрипт деплоя: пишет IMAGE_TAG, pull, up-prod, health-gate, авто-откат
+          # Скрипт деплоя: пишет IMAGE_TAG, pull, prod-up, health-gate, авто-откат
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_APP_DIR || '/opt/realhelpdesk' }}"
@@ -69,10 +69,10 @@ jobs:
               printf '\nIMAGE_TAG=%s\n' "$NEW_TAG" >> "$ENV_FILE"
             fi
 
-            echo "==> pull + up-prod"
+            echo "==> pull + prod-up"
             docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml \
               --profile infra --profile app pull app
-            make up-prod
+            make prod-up
 
             echo "==> Health-gate: ждём 200 OK от /actuator/health (до 90 сек)"
             HEALTH_OK=0
@@ -99,6 +99,6 @@ jobs:
             fi
             docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml \
               --profile infra --profile app pull app || true
-            make up-prod || true
+            make prod-up || true
             echo "==> Откат на IMAGE_TAG=${PREV_TAG:-<default>} выполнен"
             exit 1

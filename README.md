@@ -42,8 +42,8 @@ REST API системы управления заявками. Предоста�
 
 ```
 Подготовка → .env (make env) → секреты в .env
-  ├─ Dev: контейнеры (make dev-up) / хост из IDEA (make dev-deps + Debug)
-  ├─ Prod: pull из ghcr.io → make up-prod
+  ├─ Dev: контейнеры (make dev-up) / хост из IDEA (make dev-up-deps + Debug)
+  ├─ Prod: pull из ghcr.io → make prod-up
   ├─ Тесты: make verify (хост) / make e2e-all (Keycloak-контур, поднятый стек)
   ├─ Нагрузка: make load (k6)
   └─ CI/CD: push → build → push-образ → deploy по тегу

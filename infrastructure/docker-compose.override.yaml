@@ -4,7 +4,7 @@
 # (-f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml)
 # для локальных целей (up-deps/up/dev-run/...).
 #
-# Рабочий контур (make up-prod: -f docker-compose.yaml -f docker-compose.prod.yaml)
+# Рабочий контур (make prod-up: -f docker-compose.yaml -f docker-compose.prod.yaml)
 # оверлей НЕ подключает — на хост публикуется ровно ничего.
 #
 # postgres/minio в базовом файле нарочно без ports: БД и хранилище не должны

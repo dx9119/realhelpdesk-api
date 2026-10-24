@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Запуск приложения на хосте против dockerized-инфраструктуры (make run-local).
 #
-# Предпосылка: make dev-deps — postgres/minio/smtp/keycloak подняты, порты
+# Предпосылка: make dev-up-deps — postgres/minio/smtp/keycloak подняты, порты
 # 5432/9000/25/8180 проброшены на 127.0.0.1 (docker-compose.override.yaml).
 # Если стек не поднят, профиль host поднимет его сам при старте
 # (spring-boot-docker-compose, start-only).

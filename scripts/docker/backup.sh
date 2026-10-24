@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Бэкап рабочего контура: PostgreSQL (pg_dump -Fc) + MinIO (mc mirror).
-# Запуск: make backup  (или bash scripts/docker/backup.sh)
-# Восстановление: make restore BACKUP_FILE=backups/db_....dump
+# Запуск: make prod-backup  (или bash scripts/docker/backup.sh)
+# Восстановление: make prod-restore BACKUP_FILE=backups/db_....dump
 #
 # Артефакты складываются в ./backups/ (в корне проекта):
 #   db_YYYY-MM-DD_HH-MM.dump  — custom-формат pg_dump (сжат, pg_restore)
