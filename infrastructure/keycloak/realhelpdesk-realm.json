@@ -2,7 +2,7 @@
   "realm": "realhelpdesk",
   "displayName": "RealHelpDesk",
   "enabled": true,
-  "sslRequired": "external",
+  "sslRequired": "none",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
@@ -113,18 +113,18 @@
       "frontchannelLogout": false,
       "fullScopeAllowed": true,
       "redirectUris": [
-        "https://localhost:8443/*",
+        "http://localhost:8080/*",
         "http://localhost:3000/*",
         "http://localhost:5173/*"
       ],
       "webOrigins": [
-        "https://localhost:8443",
+        "http://localhost:8080",
         "http://localhost:3000",
         "http://localhost:5173"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://localhost:8443/*##http://localhost:3000/*##http://localhost:5173/*",
+        "post.logout.redirect.uris": "http://localhost:8080/*##http://localhost:3000/*##http://localhost:5173/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
         "backchannel.logout.revoke.offline.tokens": "false"

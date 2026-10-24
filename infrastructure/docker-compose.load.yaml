@@ -32,7 +32,7 @@ services:
     entrypoint: ["k6"]
     command: ["run", "/scripts/user-journey.js"]
     environment:
-      BASE_URL: https://app:8443
+      BASE_URL: http://app:8080
       POOL_SIZE: ${POOL_SIZE:-8}
       TARGET_VUS: ${TARGET_VUS:-10}
       DURATION: ${DURATION:-5m}
