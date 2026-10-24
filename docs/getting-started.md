@@ -186,15 +186,18 @@ run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://12
 | `make backup` / `make restore BACKUP_FILE=…` | Бэкап/восстановление (§3.7) |
 | `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app down` | Остановить стек; тома сохраняются (ключ `-v` не передавать) |
 
-### 3.3 Запрещённые команды
+### 3.3 Запрещённые команды (не запускать на prod-сервере)
 
-| Команда | Почему нельзя |
+Ни одна из команд ниже не должна выполняться на prod-сервере — все они
+задуманы для локальной dev-машины:
+
+| ❌ Команда — НЕ запускать на prod | Почему нельзя |
 |---|---|
-| `make up`, `make dev-run`, `make docker-build`, `make ci-image`, любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; локальные цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
-| `make down-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
-| `make profile-local` / `make profile-keycloak`, инлайн `SPRING_PROFILES_ACTIVE=dev…` | Переводят приложение в dev-профиль через локальную цепочку с override; профиль рабочего контура задаёт только `.env` сервера (`prod` / `prod,keycloak`) |
-| `make restart`, `make apply-config`, `make logs`, `make ps`, `make down` | Локальные цепочки `-f …override.yaml` с профилями local-tools/monitoring/load; на сервере управлять контуром командами из §3.2 |
-| `make e2e-*`, `make load`, `make load-smoke`, `make obs-*`, `make migrate`, `make db-seed`, `make openapi` | Dev-инструменты: сидируют тестовые данные, тратят рейт-лимиты, требуют портов на хост; миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`) |
+| ❌ `make up`, `make dev-run`, `make docker-build`, `make ci-image`, любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; локальные цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
+| ❌ `make down-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
+| ❌ `make profile-local` / `make profile-keycloak`, инлайн `SPRING_PROFILES_ACTIVE=dev…` | Переводят приложение в dev-профиль через локальную цепочку с override; профиль рабочего контура задаёт только `.env` сервера (`prod` / `prod,keycloak`) |
+| ❌ `make restart`, `make apply-config`, `make logs`, `make ps`, `make down` | Локальные цепочки `-f …override.yaml` с профилями local-tools/monitoring/load; на сервере управлять контуром командами из §3.2 |
+| ❌ `make e2e-*`, `make load`, `make load-smoke`, `make obs-*`, `make migrate`, `make db-seed`, `make openapi` | Dev-инструменты: сидируют тестовые данные, тратят рейт-лимиты, требуют портов на хост; миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`) |
 
 ### 3.4 Ручной деплой и обновление образа
 
