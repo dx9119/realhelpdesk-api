@@ -189,20 +189,25 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 ### E2E-тесты
 
 Шелл-сценарии в `scripts/e2e-*.sh`, ходят в реальный стек по
-`https://localhost:8443` (нужен `make up`). Каждый сценарий автоматически
-переводит приложение на нужный профиль аутентификации и сбрасывает
-in-memory рейт-лимиты.
+`https://localhost:8443` (нужен `make up`). Контуры аутентификации два:
+**Keycloak** (рекомендуемый, `make e2e-all`) и внутренний JWT
+(`make e2e-jwt-in-app`, автономные инсталляции). Каждый сценарий автоматически
+переводит приложение на нужный профиль и сбрасывает in-memory рейт-лимиты.
 
 | Команда | Сценарий |
 |---|---|
-| `make e2e-portal-access` | права на портал (роли operator/user) |
-| `make e2e-ratelimit` | отклонения по rate-limit |
+| `make e2e-all` | Keycloak-контур целиком: вход, порталы, уведомления |
+| `make e2e-keycloak` | то же отдельной целью (агрегатор Keycloak-контура) |
+| `make e2e-keycloak-auth` | вход через Keycloak (профиль `dev,keycloak`) |
+| `make e2e-portal-access-kc` | порталы через Keycloak (Bearer, CRUD) |
+| `make e2e-notifications-kc` | уведомления через Keycloak (Bearer) |
+| `make e2e-jwt-in-app` | внутренний JWT-контур целиком (cookie, профиль `dev`) |
+| `make e2e-portal-access` | права на портал (роли operator/user; JWT-контур) |
 | `make e2e-jwt` | полный JWT-поток: register → login → refresh → logout |
-| `make e2e-notifications` | in-app оповещения (long polling) |
-| `make e2e-portal-transfer` | передача владения порталом |
-| `make e2e-token-cleanup` | очистка отозванных/протухших refresh-токенов |
-| `make e2e-keycloak` | вход через Keycloak (профиль `dev,keycloak`) |
-| `make e2e-all` | все сценарии подряд (лимиты сбрасываются перед каждым) |
+| `make e2e-notifications` | in-app оповещения (long polling; JWT-контур) |
+| `make e2e-portal-transfer` | передача владения порталом (JWT-контур) |
+| `make e2e-token-cleanup` | очистка refresh-токенов по cron (JWT-контур) |
+| `make e2e-ratelimit` | отклонения по rate-limit (ручной прогон, вне `e2e-all`) |
 | `make e2e-reset-limits` | сбросить in-memory рейт-лимиты вручную (dev-эндпоинт) |
 
 Подробности, список сценариев и нагрузочное тестирование (k6) —
@@ -429,11 +434,13 @@ Makefile, поэтому запускать их напрямую не след�
 
 | Скрипт | Проверяет |
 |---|---|
-| `e2e-portal-access.sh` | разграничение прав на портал между `operator` и `user` |
+| `e2e-portal-access.sh` | разграничение прав на портал между `operator` и `user` (JWT-контур) |
 | `e2e-jwt-flow.sh` | полный жизненный цикл внутреннего JWT: регистрация, подтверждение email, вход, refresh, выход |
 | `e2e-notifications.sh` | доставку in-app оповещений long polling (повторы — только под `E2E_REPEATS=1`) |
 | `e2e-portal-transfer.sh` | передачу владения порталом и историю передач |
 | `e2e-token-cleanup.sh` | фоновое расписание очистки refresh-токенов: занижает сроки JWT и cron инлайном, пересоздаёт `app`, по завершении возвращает штатный конфиг (`infrastructure/.env` не меняется) |
 | `e2e-keycloak.sh` | вход через Keycloak: realm, обмен кода на токены, работу профиля `dev,keycloak` |
+| `e2e-portal-access-kc.sh` | порталы через Bearer-токен Keycloak (CRUD) |
+| `e2e-notifications-kc.sh` | уведомления через Bearer-токен Keycloak |
 | `e2e-ratelimit.sh` | бакеты рейт-лимитов, `429` и `Retry-After`; в `e2e-all` не входит — логика покрыта `RateLimitServiceTest` |
 
