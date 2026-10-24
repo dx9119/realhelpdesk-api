@@ -40,7 +40,7 @@ public class StaticProperties {
     }
 
     /**
-     * Убирает пробелы и хвостовые слэши: {@code https://cdn.example.com/} и {@code cdn.example.com} склеиваются с путём
+     * Убирает пробелы и хвостовые слэши: {@code http://cdn.example.com/} и {@code cdn.example.com} склеиваются с путём
      * без «//».
      */
     public void setBaseUrl(String baseUrl) {

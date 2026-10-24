@@ -19,6 +19,6 @@ services:
       # Дефолт рабочего контура — prod (в базовом файле dev,keycloak): этот
       # оверлей подключается только make prod-up, и забытый на сервере
       # SPRING_PROFILES_ACTIVE не должен поднимать dev-режим (отладочные логи,
-      # самоподписанный keystore, выключенная капча). Внешний Keycloak — явно:
+      # выключенная капча). Внешний Keycloak — явно:
       # SPRING_PROFILES_ACTIVE=prod,keycloak в infrastructure/.env сервера.
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-prod}"

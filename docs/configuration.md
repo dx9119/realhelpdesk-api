@@ -4,7 +4,7 @@
 `${VAR:default}`: несекретные настройки (пороги рейт-лимитов, размеры батчей
 очистки токенов, таймауты SMTP, капча, ключи наблюдаемости) уже имеют значения
 в коде. Без дефолта остались только обязательные переменные: секреты
-(`JWT_SECRET`, `DB_PASSWORD`, `CAPTCHA_HMAC_SECRET`, `KEY_STORE_PASS`,
+(`JWT_SECRET`, `DB_PASSWORD`, `CAPTCHA_HMAC_SECRET`,
 `MINIO_ROOT_USER/PASSWORD`, `METRICS_PASSWORD`, `MAIL_PASSWORD`) и специфичные
 для среды хосты/URL (`MAIL_HOST`, `CORS_ALLOWED_ORIGINS`, `DB_URL`,
 `MINIO_ENDPOINT`, `JWT_ISSUER/AUDIENCE`, `FRONT_DOMAIN`, `MAIL_FROM/NOTIFY`,
@@ -23,7 +23,7 @@
 
 Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,
-`KEY_STORE_PASS`, `MAIL_PASSWORD` (только для внешнего SMTP),
+`MAIL_PASSWORD` (только для внешнего SMTP),
 `KEYCLOAK_ADMIN_PASSWORD` (если стенд Keycloak доступен не только вам),
 `KEYCLOAK_DB_PASSWORD` (пароль отдельного кластера PostgreSQL для Keycloak,
 сервис `keycloak-postgres`).
@@ -119,7 +119,7 @@ Compose сравнивает конфигурацию контейнера: пр
 (см. [`authentication.md`](authentication.md)).
 
 `ProdPreflightValidator` останавливает старт рабочего контура с отладочной
-конфигурацией: выключенная капча, localhost в CORS, самоподписанный keystore,
+конфигурацией: выключенная капча, localhost в CORS,
 почта на локальном SMTP.
 
 ### Запуск из IDEA
@@ -129,7 +129,7 @@ Compose сравнивает конфигурацию контейнера: пр
 2. Открыть проект в IntelliJ IDEA (2025.2+): конфигурация
    `RealHelpDeskApplication` (`.run/RealHelpDeskApplication.run.xml`)
    настроена — запуск через Maven (`spring-boot:run`, профили `dev,host`),
-   путь к `infrastructure/.env`, инлайн-переменные `SSL_ENABLED=false`,
+   путь к `infrastructure/.env`, инлайн-переменная
    `MINIO_ENDPOINT=http://127.0.0.1:9000` и дефолты compose-интерполяции
    `OTLP_TRACING_ENDPOINT` / `TRUST_PROXY_HEADERS` / `CLIENT_IP_FORWARDED_INDEX`.
 3. Debug: приложение стартует за несколько секунд, подключаясь к

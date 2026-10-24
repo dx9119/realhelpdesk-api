@@ -25,9 +25,8 @@ make env
 | `METRICS_PASSWORD` | пароль сервисной учётки скрейпа метрик |
 | `KEYCLOAK_DB_PASSWORD` | пароль отдельного кластера PostgreSQL для Keycloak |
 
-`KEY_STORE_PASS` в шаблоне уже имеет локальное значение; `MAIL_PASSWORD`
-нужен только для внешнего SMTP, `KEYCLOAK_ADMIN_PASSWORD` — только если
-стенд Keycloak доступен не только вам.
+`MAIL_PASSWORD` нужен только для внешнего SMTP, `KEYCLOAK_ADMIN_PASSWORD` —
+только если стенд Keycloak доступен не только вам.
 
 `make env` генерирует все перечисленные значения автоматически — руками их
 заполнять не нужно, если стенд локальный.
@@ -55,8 +54,8 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 
 | Сервис | Адрес | Креды / заметки |
 |---|---|---|
-| API | `https://localhost:8443` | самоподписанный keystore генерируется при старте app |
-| Swagger | `https://localhost:8443/swagger-ui.html` | |
+| API | `http://localhost:8080` | |
+| Swagger | `http://localhost:8080/swagger-ui.html` | |
 | Actuator health | `http://localhost:8081/actuator/health` | управляющий порт, HTTP |
 | Prometheus-скрейп | `http://localhost:8081/actuator/prometheus` | HTTP Basic: `METRICS_USER`/`METRICS_PASSWORD` |
 | PostgreSQL | `127.0.0.1:5432` | `user`/`desk` (override публикует порт только на loopback) |
@@ -75,7 +74,7 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
     http://localhost:8180/realms/realhelpdesk/protocol/openid-connect/token \
     -d grant_type=password -d client_id=realhelpdesk-api \
     -d username=user@example.com -d password=user-pass | jq -r .access_token)
-  curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/users/profile
+  curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/users/profile
   ```
 
 - **Внутренний JWT** (после `make dev-profile-local`): зарегистрировать
@@ -98,7 +97,7 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 | Перезапустить только app (быстрый цикл) | `make dev-restart` |
 | Применить изменения `.env` к запущенному стеку | `make dev-apply-config` |
 | Логи app / статус контейнеров | `make dev-logs` / `make dev-ps` |
-| Shell внутри контейнера app (осмотреть ФС, keystore, дампы) | `make dev-shell` |
+| Shell внутри контейнера app (осмотреть ФС, дампы) | `make dev-shell` |
 | Остановить стек | `make dev-down` |
 | Полная очистка (с удалением томов) | `make dev-down-volumes` |
 
@@ -141,7 +140,7 @@ make run-local  # spring-boot:run на хосте (нужен JDK 25+)
 JVM hot-swap меняет тела методов без рестарта.
 
 Профиль `host` (`application-host.properties`) переводит адреса на loopback
-(`127.0.0.1:5432`, `9000`, `25`), выключает SSL и поднимает infra через
+(`127.0.0.1:5432`, `9000`, `25`) и поднимает infra через
 spring-boot-docker-compose. OS-env из `.env` перекрывает профильные файлы:
 run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://127.0.0.1:9000` и
 дефолты `OTLP_TRACING_ENDPOINT`/`TRUST_PROXY_HEADERS`/`CLIENT_IP_FORWARDED_INDEX`.
@@ -260,7 +259,6 @@ Push в main деплой **не запускает**: CI при нём толь
 
 - капча включена;
 - CORS настроен строго (без localhost-допусков);
-- keystore самоподписанный отвергается;
 - SMTP доступен;
 - миграции применены;
 - `ddl-auto=validate` не может быть выключен env'ом.
@@ -353,7 +351,7 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 ### E2E-тесты
 
 Шелл-сценарии в `scripts/e2e-*.sh`, ходят в реальный стек по
-`https://localhost:8443` (нужен `make dev-up`). Контуры аутентификации два:
+`http://localhost:8080` (нужен `make dev-up`). Контуры аутентификации два:
 **Keycloak** (рекомендуемый, `make e2e-all`) и внутренний JWT
 (`make e2e-jwt-in-app`, автономные инсталляции). Каждый сценарий автоматически
 переводит приложение на нужный профиль и сбрасывает in-memory рейт-лимиты.
@@ -446,7 +444,7 @@ make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (ну�
 
 | Скрипт | Назначение | Вызывается из |
 |---|---|---|
-| `entrypoint.sh` | Точка входа контейнера: генерирует keystore при старте (если не смонтирован извне) и запускает JVM. Пароль не попадает в слои образа и `docker history`, смена пароля не требует пересборки | `Dockerfile` (`ENTRYPOINT`) |
+| `entrypoint.sh` | Точка входа контейнера: собирает JVM-опции из env (память, дампы, JFR, JMX) и запускает приложение | `Dockerfile` (`ENTRYPOINT`) |
 | `init-secrets.sh` | Создаёт `infrastructure/.env` из шаблона (если файла нет) и заполняет пустые секреты случайными значениями. Существующий `.env` не меняет — только предупреждает о ключах, которых в нём нет | `make env` |
 | `check-image.sh` | Гигиена собранного образа: нет ли секретов в слоях, лишней ФС на пути к jar, цел ли сам jar | `make check-image` |
 | `backup.sh` | `pg_dump -Fc` + `mc mirror` бакета MinIO в `./backups/`, ротация старше `BACKUP_RETENTION_DAYS` (14) | `make prod-backup` |
@@ -455,7 +453,7 @@ make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (ну�
 
 | Скрипт | Назначение | Вызывается из |
 |---|---|---|
-| `run-local.sh` | CLI-эквивалент run-конфига IDEA (§2.3): подгружает `.env`, выключает SSL, переводит адреса на loopback и запускает `spring-boot:run` против dockerized-инфры | `make run-local` |
+| `run-local.sh` | CLI-эквивалент run-конфига IDEA (§2.3): подгружает `.env`, переводит адреса на loopback и запускает `spring-boot:run` против dockerized-инфры | `make run-local` |
 
 ### `scripts/load/` — нагрузочное тестирование (k6)
 
