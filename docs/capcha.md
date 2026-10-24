@@ -111,12 +111,13 @@ challenge и токена плюс минута).
 
 ## Параметры
 
-Все значения — переменные окружения из `infrastructure/.env`
-(схема — `captcha.*` в `application.properties`).
+Дефолты заданы в схеме `captcha.*` в `application.properties`
+(`${CAPTCHA_…:default}`); переопределение для среды — переменные окружения
+из `infrastructure/.env`.
 
 | Переменная | Назначение | Диапазон / дефолт |
 |---|---|---|
-| `CAPTCHA_ENABLED` | Включение проверки токена; `false` — fail-open | `false` в dev, `true` обязателен в prod |
+| `CAPTCHA_ENABLED` | Включение проверки токена; `false` — fail-open | дефолт `false`; в prod — `true` (требование preflight) |
 | `CAPTCHA_HMAC_SECRET` | Секрет подписи challenge и токенов | ≥ 32 байт, генерируется `make env` |
 | `CAPTCHA_POW_DIFFICULTY` | Число ведущих нулевых бит SHA-256 | 1..26, дефолт 18 |
 | `CAPTCHA_CHALLENGE_TTL_SECONDS` | Срок жизни задания | дефолт 300 |

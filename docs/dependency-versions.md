@@ -109,6 +109,9 @@
 | maven-surefire / failsafe plugin | 3.5.4 | Unit-тесты (`*Test`) / интеграционные (`*IT`) |
 | Spotless | 2.44.5 | Единое форматирование (4 пробела, line length 140, порядок импортов) |
 | maven-checkstyle-plugin + Checkstyle | 3.6.0 / 10.26.1 | Нейминг, импорты, дизайн; ошибка валит сборку на этапе `validate` |
+| SpotBugs (plugin + движок) | 4.9.6.0 / 4.9.6 | Статический анализ байткода (фаза `verify`, `spotbugs:check`) |
+| ArchUnit | 1.4.2 | Контракт слоёв (controller/feature/domain/core) как юнит-тест (`ArchitectureTest`) |
+| JaCoCo | 0.8.14 | Покрытие в `mvn verify`; порог LINE ≥ 65%, BRANCH ≥ 55% |
 | liquibase-maven-plugin | 5.0.3 | Миграции без контейнера приложения (`make migrate`) |
 | spring-boot-maven-plugin | 4.1.1 | Fat-jar, фиксация main-class |
 | Docker (multi-stage) | `maven:3.9.16-eclipse-temurin-25-noble` → `eclipse-temurin:25-jre-noble` | Сборка в контейнере и компактный рантайм-образ |

@@ -238,7 +238,8 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
 | Тест | Контракт |
 |---|---|
 | `LiquibaseChangelogGuardTest` | DML только в `seed/` (`context="seed"`); `changes/` и `sql/` — чистый DDL: миграция с `DB_MIGRATIONS_CONTEXTS=schema` не внесёт данных |
-| `ApplicationConfigSchemaTest` | `application*.properties` — только обязательные `${VAR}`; значения — в `.env.dev.example`/`.env.prod.example` и `services.app.environment`; `ddl-auto` закреплён как `validate`, `create-drop` в prod-конфигах запрещён |
+| `ArchitectureTest` | Слои (ArchUnit): контроллеры не трогают репозитории и entity, сервисы — контроллеры, `domain` не зависит от `feature`; запреты `java.util.Date`/`java.sql.*` вне допустимых мест |
+| `ApplicationConfigSchemaTest` | `application*.properties` — схема `${VAR}` / `${VAR:default}`: обязательные переменные (секреты, хосты) объявлены в `.env.dev.example`/`.env.prod.example` и `services.app.environment`; `ddl-auto` закреплён как `validate`, `create-drop` в prod-конфигах запрещён |
 | `ObservabilityRunbookGuardTest` | Биекция алертов Mimir и `docs/runbooks/*.md`; `overview.md` ссылается на каждый runbook; диагностические curl-команды исполняемы (PromQL/LogQL — только через `-G --data-urlencode`) |
 | `OpenApiDocumentationGuardTest` | Спека в prod выключена; security-scheme описан; реальные статусы контроллеров (201/202/204/206/416) задокументированы `@ApiResponse`; контракт `schema-contract.json` полон (описание + пример у каждой схемы) |
 | `CreatedAtPrePersistTest` | `@PrePersist` заполняет `createdAt` у всех сущностей и не перезаписывает заданный |
@@ -360,9 +361,8 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
 - **Cookie jar** — явная per-VU jar (k6 сбрасывает встроенную между
   итерациями): access-token из логина живёт между витками, re-login
   происходит только по 401.
-- **Капча** выключена локально (`CAPTCHA_ENABLED=false` в
-  `infrastructure/.env`, дефолт шаблона) — иначе регистрация/логин под
-  нагрузкой не пройдут.
+- **Капча** выключена локально (дефолт `CAPTCHA_ENABLED:false` в
+  `application.properties`) — иначе регистрация/логин под нагрузкой не пройдут.
 
 ### Пороги
 

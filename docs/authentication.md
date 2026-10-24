@@ -104,9 +104,11 @@ realm-роли `ROLE_USER`/`ROLE_OPERATOR` повышают роль в БД.
 
 ## Капча (Proof-of-Work + эмодзи-эскалация)
 
-Локально выключена (`CAPTCHA_ENABLED=false` — дефолт шаблона), в рабочем
-контуре включена обязательно (prod-preflight валит старт без неё).
-Двухуровневая схема вместо текстовой картинки (её обходят OCR/LLM):
+Локально выключена (дефолт `CAPTCHA_ENABLED:false` в схеме
+`application.properties`), в рабочем контуре включена обязательно
+(`CAPTCHA_ENABLED=true` в `.env` сервера; без него старт валит
+prod-preflight). Двухуровневая схема вместо текстовой картинки
+(её обходят OCR/LLM):
 
 1. `POST /api/v1/captcha/challenge { action }` отдаёт подписанное задание:
    базовая сложность PoW — `CAPTCHA_POW_DIFFICULTY` ведущих нулевых бит;

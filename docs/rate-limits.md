@@ -4,8 +4,10 @@
 `Retry-After`. Счётчики хранятся в памяти процесса и сбрасываются при
 рестарте приложения.
 
-Пороги заданы в `infrastructure/.env` парами
-`RATE_LIMIT_<KEY>_REQUESTS` / `RATE_LIMIT_<KEY>_WINDOW_SECONDS`.
+Пороги заданы в схеме `application.properties` (`ratelimit.limits.*`) дефолтами
+`${RATE_LIMIT_<KEY>_REQUESTS:…}` / `${RATE_LIMIT_<KEY>_WINDOW_SECONDS:…}`;
+переопределение для среды — парами `RATE_LIMIT_<KEY>_REQUESTS` /
+`RATE_LIMIT_<KEY>_WINDOW_SECONDS` в `infrastructure/.env`.
 
 | Ключ | Эндпоинт | Лимит |
 |---|---|---|
@@ -25,7 +27,9 @@
 ## Как добавить лимит
 
 1. Поставьте `@RateLimit(key = "...")` на метод контроллера.
-2. Добавьте два порога в `infrastructure/.env`.
+2. Добавьте порог в схему: `ratelimit.limits.<key>.requests` / `.window-seconds`
+   с дефолтами `${RATE_LIMIT_<KEY>_…:…}` в `application.properties`
+   (при необходимости — переопределение в `infrastructure/.env`).
 
 ## Работа за прокси
 
