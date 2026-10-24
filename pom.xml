@@ -14,7 +14,7 @@
 
     <groupId>com.ukhanov</groupId>
     <artifactId>realhelpdesk</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>RealHelpDesk</name>
     <description>A REST API for building an application management system or an internal request processing system.</description>
 
@@ -28,46 +28,28 @@
         <spotless-maven-plugin.version>2.44.5</spotless-maven-plugin.version>
         <greenmail.version>2.1.0</greenmail.version>
         <minio.version>8.6.0</minio.version>
-        <!-- JVM-вариант okhttp (KMP-корень okhttp:5.x пустой для Maven — см. exclusion у minio) -->
         <okhttp.version>5.1.0</okhttp.version>
         <mapstruct.version>1.6.3</mapstruct.version>
-        <!-- Безопасность (trivy в CI: CRITICAL/HIGH, ignore-unfixed): патч-версии
-             поверх дефолтов Spring Boot 4.1.1 — tomcat 11.0.24→11.0.25,
-             jackson 2.21.5→2.21.7 (jackson-2-bom), tools.jackson 3.1.5→3.1.7 (jackson-bom).
-             Имена свойств — из spring-boot-dependencies (parent). -->
+        <!-- Патч-версии поверх дефолтов Boot 4.1.1 для прохождения Trivy в CI -->
         <tomcat.version>11.0.25</tomcat.version>
         <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
         <jackson-bom.version>3.1.7</jackson-bom.version>
-        <!-- bcprov-jdk18on 1.85 — требование trivy; minio 8.6.0 тянет 1.81 (см. dependencyManagement) -->
         <bouncycastle.version>1.85</bouncycastle.version>
-        <!-- springdoc 3.x — ветка под Spring Boot 4 / Spring Framework 7 -->
         <springdoc.version>3.1.1</springdoc.version>
-        <!-- lombok-mapstruct-binding: без него Lombok 1.18.16+ «заглушает» MapStruct,
-             и генерация XxxMapperImpl перестаёт видеть геттеры/сеттеры DTO. -->
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-        <!-- opentelemetry-instrumentation выравнивается с opentelemetry-bom из Spring Boot
-             (4.1.1 держит otel 1.62.0 — jdbc 2.28.1-alpha собран именно под эту версию API). -->
+        <!-- Выровнено с opentelemetry-bom 1.62.0 из Spring Boot -->
         <opentelemetry-instrumentation.version>2.28.1-alpha</opentelemetry-instrumentation.version>
-        <!-- ArchUnit: контракт слоёв (controller/feature/domain/core) как обычный юнит-тест —
-             агент видит нарушение архитектуры сразу на `mvn test`, а не на ревью. -->
         <archunit.version>1.4.2</archunit.version>
-        <!-- SpotBugs: плагин и движок анализа версионируются отдельно. -->
         <spotbugs-maven-plugin.version>4.9.6.0</spotbugs-maven-plugin.version>
         <spotbugs.version>4.9.6</spotbugs.version>
-        <!-- JaCoCo 0.8.14 понимает class-файлы Java 25; порог — защита от
-             «тестов-заглушек» и непокрытых веток в новой логике. -->
         <jacoco.version>0.8.14</jacoco.version>
-        <!-- Позднее подстановление для инструментов (JaCoCo и подобных): агент
-             Mockito дописывается в argLine самих плагинов после @{argLine}, так
-             инструмент может добавить свой агент, не затирая Mockito. Свойство
-             объявлено всегда (пустым), иначе @{argLine} не резолвится. -->
+        <!-- Пустое свойство для поздней подстановки @{argLine} (совместимость JaCoCo + Mockito agent) -->
         <argLine/>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Транзитивная BouncyCastle (minio 8.6.0 → 1.81) — поднимаем до 1.85:
-                 в 1.78–1.81 закрытые CVE уровня CRITICAL/HIGH, trivy валит сборку. -->
+            <!-- Переопределение транзитивной зависимости из minio (1.81) из-за CVE -->
             <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk18on</artifactId>
@@ -78,13 +60,10 @@
 
     <dependencies>
 
-        <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
-        <!-- Метрики Hibernate: hibernate.*-гейджи без hibernate-micrometer не регистрируются —
-             HibernateMetricsAutoConfiguration в Boot 4 требует org.hibernate.orm.micrometer.HibernateMetrics с classpath. -->
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-micrometer</artifactId>
@@ -110,39 +89,26 @@
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
-        <!-- PostgreSQL -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
-
-        <!-- Liquibase: миграции схемы в src/main/resources/db/changelog.
-             Hibernate в режиме validate сверяет entity с тем, что создала миграция. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-liquibase</artifactId>
         </dependency>
-
-        <!-- OpenAPI: спека собирается из контроллеров и DTO (springdoc), поэтому контракт не расходится
-             с кодом; UI — /swagger-ui.html, спека — /v3/api-docs. См. Makefile: openapi, openapi-types. -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
 
-        <!-- MinIO: файлы вложений заявок (метаданные — в БД, сами файлы — в бакете) -->
+        <!-- Исключаем пустую KMP-обёртку okhttp:5.x и подключаем okhttp-jvm напрямую -->
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
             <version>${minio.version}</version>
-            <!-- minio 8.6.0 объявляет com.squareup.okhttp3:okhttp:5.1.0, но у 5.x
-                 корневой артефакт — пустая KMP-обёртка (767 байт, без классов):
-                 Maven не умеет в Gradle-варианты и не подхватывает okhttp-jvm,
-                 компиляция падает на «class file for okhttp3.HttpUrl not found»
-                 (в Gradle вариант выбирается автоматически). Исключаем обёртку,
-                 JVM-артефакт подключаем ниже напрямую. -->
             <exclusions>
                 <exclusion>
                     <groupId>com.squareup.okhttp3</groupId>
@@ -150,22 +116,17 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- JVM-вариант okhttp 5.x (см. exclusion выше): классы okhttp3.* для minio
-             и для компиляции MinioClientConfig -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp-jvm</artifactId>
             <version>${okhttp.version}</version>
         </dependency>
 
-        <!-- Caffeine: хранилище одноразовых id капчи (максимальный размер + TTL,
-             версия управляется BOM Spring Boot) -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
 
-        <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -184,10 +145,6 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Observability: health-пробы (liveness/readiness) для оркестрации и
-             метрики Hikari/HTTP/JVM в Prometheus.
-             /actuator/health в WHITE_LIST_URLS, /actuator/prometheus остаётся
-             за аутентификацией — для внутреннего скрейпа. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
@@ -196,63 +153,44 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
-        <!-- Трассировка SQL: обёртка DataSource даёт спаны db.client.query на каждый
-             JDBC-запрос. Версия выровнена с opentelemetry-bom из Spring Boot (см. свойство выше). -->
         <dependency>
             <groupId>io.opentelemetry.instrumentation</groupId>
             <artifactId>opentelemetry-jdbc</artifactId>
             <version>${opentelemetry-instrumentation.version}</version>
         </dependency>
-        <!-- Распределённая трассировка OpenTelemetry: стартер тянет micrometer-tracing-bridge-otel,
-             opentelemetry-sdk/exporter-otlp и авто-конфигурацию sampling/OTLP-endpoint/resource-attributes. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-opentelemetry</artifactId>
         </dependency>
 
-        <!-- Development-time: при хостовом запуске (профиль host, IDEA/CLI) модуль
-             сам поднимает/подхватывает инфру по spring.docker.compose.*
-             (см. application-host.properties). optional — чтобы не тянуться
-             транзитивно; spring-boot-maven-plugin исключает модуль из fat-jar
-             по умолчанию, поэтому в production-образе его нет вовсе. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-docker-compose</artifactId>
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
-
-        <!-- Hibernate Validator -->
         <dependency>
             <groupId>org.hibernate.validator</groupId>
             <artifactId>hibernate-validator</artifactId>
             <version>${hibernate.validator.version}</version>
         </dependency>
-
-        <!-- MapStruct: контракты маппинга entity/DTO — интерфейсы @Mapper,
-             реализации (XxxMapperImpl) генерируются на этапе компиляции.
-             Сам процессор подключён в maven-compiler-plugin ниже. -->
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
             <version>${mapstruct.version}</version>
         </dependency>
-
-        <!-- Lombok: геттеры/сеттеры/конструкторы/логгеры генерируются на этапе компиляции.
-             provided — в рантайм-класспейт не попадает; версию задаёт spring-boot-starter-parent. -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
 
-        <!-- TEST DEPENDENCIES -->
+        <!-- Тесты -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- TestObservationRegistry / micrometer-tracing-test: проверка наблюдений и тегов -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-opentelemetry-test</artifactId>
@@ -263,42 +201,28 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- ArchUnit: архитектурные инварианты (слои, зависимости) проверяются
-             обычным unit-тестом — нарушение видно на `mvn test`, а не на ревью. -->
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
             <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
-
-        <!-- H2: in-memory БД для JPA-слайс-тестов спецификаций поиска -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- @DataJpaTest: JPA-слайс (Boot 4 вынес слайсы в отдельные модули) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- GreenMail: in-memory SMTP-сервер. Только для интеграционных тестов (*IT, failsafe):
-             в проде почта уходит во внешний SMTP (MAIL_HOST), GreenMail в рантайм не попадает. -->
         <dependency>
             <groupId>com.icegreen</groupId>
             <artifactId>greenmail</artifactId>
             <version>${greenmail.version}</version>
             <scope>test</scope>
         </dependency>
-
-        <!-- Testcontainers: PostgreSQL 18 для *IT (failsafe). Unit-тесты остаются на H2;
-             IT проверяют миграции и SQL на реальном движке, как в проде. -->
-        <!-- Testcontainers 2.x: артефакты переименованы (testcontainers-*) -->
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-postgresql</artifactId>
@@ -309,25 +233,17 @@
             <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- @ServiceConnection: подключение IT-контекста к контейнеру без ручного
-             @DynamicPropertySource — Boot сам публикует datasource из контейнера. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
             <scope>test</scope>
         </dependency>
 
-        <!-- Mockito приходит транзитивно из spring-boot-starter-test: явные
-             зависимости дублировали бы версию и расходились с BOM. -->
-
     </dependencies>
 
     <build>
         <plugins>
 
-            <!-- Enforcer: сборка на чужой JDK падает сразу в validate, а не на
-                 компиляции с невнятной ошибкой (release фиксирует API, но не
-                 сам рантайм Maven'а). -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
@@ -343,8 +259,6 @@
                             <rules>
                                 <requireProperty>
                                     <property>java.version</property>
-                                    <!-- java.version — версия рантайма Maven'а (25.0.4.1), а не
-                                         release из pom: сверяем мажор, иначе правило пропустит JDK 26+. -->
                                     <regex>^25(\.|$).*</regex>
                                     <regexMessage>Сборка идёт только на JDK 25 (pom: java.version=25).</regexMessage>
                                 </requireProperty>
@@ -354,29 +268,17 @@
                 </executions>
             </plugin>
 
-            <!-- Java Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <!-- release вместо пары source/target: фиксирует и уровень
-                         языка, и видимость API стандартной библиотеки — иначе
-                         компилятор с хостового JDK новее целевого пропустит
-                         вызовы API, которых нет в Java 25. -->
                     <release>${java.version}</release>
-                    <!-- Предупреждения — ошибки: deprecated и unchecked API не должны
-                         накапливаться незаметно (тесты компилируются тем же плагином). -->
                     <compilerArgs>
                         <arg>-Werror</arg>
                         <arg>-Xlint:deprecation</arg>
                         <arg>-Xlint:unchecked</arg>
                     </compilerArgs>
-                    <!-- Аннотационные процессоры только здесь (порядок важен):
-                         mapstruct-processor генерирует XxxMapperImpl из интерфейсов @Mapper;
-                         lombok генерирует геттеры/сеттеры/конструкторы/логгеры;
-                         lombok-mapstruct-binding «примиряет» их: без него Lombok 1.18.16+
-                         обрабатывает класс раньше MapStruct, и маппер не видит сгенерированные
-                         аксессоры DTO. -->
+                    <!-- Порядок процессоров важен для генерации геттеров Lombok до запуска MapStruct -->
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.mapstruct</groupId>
@@ -397,7 +299,6 @@
                 </configuration>
             </plugin>
 
-            <!-- Spring Boot -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -406,9 +307,6 @@
                 </configuration>
             </plugin>
 
-            <!-- Liquibase CLI для ручных/чистых миграций без контейнера
-                 (make migrate); приложение применяет тот же changelog при
-                 старте. Версию задаёт Boot parent. -->
             <plugin>
                 <groupId>org.liquibase</groupId>
                 <artifactId>liquibase-maven-plugin</artifactId>
@@ -418,24 +316,19 @@
                 </configuration>
             </plugin>
 
-            <!-- Surefire: юнит-тесты. Агент Mockito — в @{argLine}: свойство
-                 подставляется поздно, поэтому инструменты (JaCoCo) могут дописать
-                 свой агент, не затирая Mockito. -->
+            <!-- Юнит-тесты (интеграционные *IT вынесены в failsafe) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
                     <argLine>@{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</argLine>
-                    <!-- Интеграционные тесты (*IT) идут только через failsafe: GreenMail (in-memory SMTP)
-                         нужен именно им, юнит-прогон его не поднимает -->
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
 
-            <!-- Failsafe: интеграционные тесты *IT (реальный SMTP через GreenMail) + тот же agent -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
@@ -453,7 +346,6 @@
                 </executions>
             </plugin>
 
-            <!-- Spotless: единое форматирование (4 пробела, line length 120, порядок импортов) -->
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
@@ -472,9 +364,7 @@
                     </java>
                     <lineEndings>UNIX</lineEndings>
                     <encoding>UTF-8</encoding>
-                    <!-- Имя параметра — checkSkip (applySkip у цели apply), общего skip у плагина нет.
-                         Литерал вместо ${...}: -Dspotless.check.skip=true из CLI не переопределяет
-                         значение, заданное прямо в configuration. -->
+                    <!-- Задано литералом, чтобы блокировать обход проверки через -Dspotless.check.skip=true -->
                     <checkSkip>false</checkSkip>
                 </configuration>
                 <executions>
@@ -488,7 +378,6 @@
                 </executions>
             </plugin>
 
-            <!-- Checkstyle: нейминг, импорты, дизайн, пробелы (форматирование контролирует Spotless) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
@@ -502,8 +391,6 @@
                 </dependencies>
                 <configuration>
                     <configLocation>config/checkstyle/checkstyle.xml</configLocation>
-                    <!-- Подавления подключаются через SuppressionFilter конфига;
-                         путь передаётся плагином в это свойство. -->
                     <suppressionsLocation>config/checkstyle/suppressions.xml</suppressionsLocation>
                     <consoleOutput>true</consoleOutput>
                     <failOnViolation>true</failOnViolation>
@@ -513,8 +400,7 @@
                         <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
                         <sourceDirectory>${project.build.testSourceDirectory}</sourceDirectory>
                     </sourceDirectories>
-                    <!-- Литерал вместо ${...}: системное свойство из CLI (-Dcheckstyle.skip=true)
-                         не переопределяет значение, заданное прямо в configuration. -->
+                    <!-- Задано литералом, чтобы блокировать обход проверки через -Dcheckstyle.skip=true -->
                     <skip>false</skip>
                 </configuration>
                 <executions>
@@ -528,10 +414,6 @@
                 </executions>
             </plugin>
 
-            <!-- SpotBugs: байткод-анализ после компиляции. Checkstyle видит только
-                 AST одного файла, SpotBugs — реальные баги (NPE, забытый return,
-                 неверные equals/коллекции). Запуск на process-classes: ошибка
-                 всплывает до тестов; High-порог — без шума про стиль. -->
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
@@ -560,10 +442,6 @@
                 </executions>
             </plugin>
 
-            <!-- JaCoCo: агент на initialize, отчёт и проверка на verify.
-                 Порог BUNDLE (LINE 65%, BRANCH 55%) — минимум, ниже которого
-                 новая фича не может «проехать» без тестов. Сгенерированные
-                 MapStruct-реализации из покрытия исключены. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>

@@ -1,7 +1,7 @@
 # Деплой на VPS по SSH: тег `v*` или ручной запуск (workflow_dispatch).
 # Порядок шагов:
-#   1) записывает IMAGE_TAG в серверный infrastructure/.env;
-#   2) docker compose pull app + make prod-up (без сборки);
+#   1) записывает IMAGE_TAG в серверный infrastructure/.env (для тега — его имя, v1.0.0);
+#   2) docker compose pull app (с ожиданием: CI публикует v-тег параллельно) + make prod-up;
 #   3) ждёт до 90 секунд 200 OK от http://127.0.0.1:8081/actuator/health;
 #   4) при провале healthcheck — авто-откат на предыдущий IMAGE_TAG.
 
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Тег образа из ghcr.io (sha-<git_sha> или latest)"
+        description: "Тег образа из ghcr.io (v-тег, sha-<git_sha> или latest)"
         required: true
         default: latest
 
@@ -40,7 +40,8 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "value=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            # Релизный тег: образ публикуется под тем же именем (v1.0.0)
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Подключиться к VPS и задеплоить
@@ -69,9 +70,21 @@ jobs:
               printf '\nIMAGE_TAG=%s\n' "$NEW_TAG" >> "$ENV_FILE"
             fi
 
-            echo "==> pull + prod-up"
-            docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml \
-              --profile infra --profile app pull app
+            echo "==> pull + prod-up (pull ждёт появления тега: CI публикует образ параллельно)"
+            PULLED=0
+            for i in $(seq 1 30); do
+              if docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml \
+                --profile infra --profile app pull app; then
+                PULLED=1
+                break
+              fi
+              echo "образ $NEW_TAG ещё не в ghcr.io, ждём... ($i/30)"
+              sleep 30
+            done
+            if [ "$PULLED" != "1" ]; then
+              echo "==> Образ $NEW_TAG не появился в ghcr.io за 15 минут — CI не успел/упал"
+              exit 1
+            fi
             make prod-up
 
             echo "==> Health-gate: ждём 200 OK от /actuator/health (до 90 сек)"

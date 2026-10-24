@@ -5,7 +5,6 @@ MVN ?= ./mvnw
 IMAGE ?= realhelpdesk:latest
 # Образ для проверок CI (hadolint/trivy job в .github/workflows/ci.yml)
 CI_IMAGE ?= realhelpdesk:ci
-APP_JAR ?= target/realhelpdesk-0.0.1-SNAPSHOT.jar
 E2E_DIR ?= scripts
 
 # Ревизия git для LABEL образа (org.opencontainers.image.revision)

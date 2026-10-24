@@ -26,8 +26,8 @@ public class OpenApiConfiguration {
     @Bean
     public OpenAPI realHelpDeskOpenAPI() {
         return new OpenAPI().info(new Info().title("RealHelpDesk API")
-                // 0.0.1-SNAPSHOT — как в pom.xml и в дефолте OTEL_SERVICE_VERSION (.env.dev.example)
-                .version("0.0.1-SNAPSHOT")
+                // 1.0.0 — как в pom.xml и в дефолте OTEL_SERVICE_VERSION (схема application.properties)
+                .version("1.0.0")
                 .description(
                         """
                                 REST API системы управления заявками, базовый URL — /api/v1.

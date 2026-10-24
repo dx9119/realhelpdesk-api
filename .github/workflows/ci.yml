@@ -6,6 +6,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # Тег v* — релизный прогон: тот же набор job'ов + публикация образа под именем тега
+    tags: ["v*"]
   pull_request:
 
 env:
@@ -43,22 +45,27 @@ jobs:
       - name: gitleaks
         run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 detect --source /repo --redact --verbose
 
-      # Пуш в ghcr.io — только при пуше в main (не на PR)
+      # Пуш в ghcr.io — при пуше в main или релизном теге v* (не на PR)
       - name: Login to ghcr.io
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Теги и пуш образа (sha-<git_sha> + latest)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Теги и пуш образа (sha-<git_sha> + latest; для тега v* — ещё и v<версия>)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         run: |
           IMAGE="${REGISTRY}/${IMAGE_NAME}"
           docker tag realhelpdesk:ci "${IMAGE}:sha-${GITHUB_SHA}"
           docker tag realhelpdesk:ci "${IMAGE}:latest"
           docker push "${IMAGE}:sha-${GITHUB_SHA}"
           docker push "${IMAGE}:latest"
+          # Релизный тег публикует образ и под своим именем (v1.0.0) — его разворачивает deploy.yml
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            docker tag realhelpdesk:ci "${IMAGE}:${GITHUB_REF_NAME}"
+            docker push "${IMAGE}:${GITHUB_REF_NAME}"
+          fi
 
   e2e:
     name: E2E на compose-стеке

@@ -208,8 +208,8 @@ run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://12
 # На сервере:
 cd /opt/realhelpdesk
 
-# 1. Синхронизировать IMAGE_TAG в .env
-echo "IMAGE_TAG=sha-abc123" >> infrastructure/.env
+# 1. Синхронизировать IMAGE_TAG в .env (v-тег релиза или sha-<git_sha>)
+echo "IMAGE_TAG=v1.0.0" >> infrastructure/.env
 
 # 2. Pull нового образа
 docker compose -f infrastructure/docker-compose.yaml \
@@ -227,10 +227,11 @@ curl -sf http://127.0.0.1:8081/actuator/health
 
 ```
 git tag v1.2.3
+  └─► CI (ci.yml) публикует образ с тегом v1.2.3 (и sha-<git_sha>, latest)
   └─► GitHub Actions (deploy.yml)
        └─► SSH на VPS (concurrency: deploy-production)
-            └─► Записать IMAGE_TAG в .env (sed, предыдущий тег запоминается)
-            └─► docker compose pull app
+            └─► Записать IMAGE_TAG=<имя тега> в .env (sed, предыдущий запоминается)
+            └─► docker compose pull app (ждёт появления тега в ghcr.io)
             └─► make prod-up
             └─► Health-gate (до 90 сек, 18×5 сек /actuator/health)
                  ├─► OK → деплой завершён
@@ -238,7 +239,7 @@ git tag v1.2.3
 ```
 
 **Триггеры:**
-- Пуш тега `v*` — автоматически (`IMAGE_TAG=sha-<git_sha>`)
+- Пуш тега `v*` — автоматически (`IMAGE_TAG=<имя тега>`, например `v1.0.0`)
 - `workflow_dispatch` — ручной запуск с полем `image_tag`
 
 Секреты environment `production`: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
