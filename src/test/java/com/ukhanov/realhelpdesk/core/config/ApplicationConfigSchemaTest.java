@@ -90,7 +90,7 @@ class ApplicationConfigSchemaTest {
             "management.metrics.enable.hibernate.collections", "management.metrics.enable.spring.security.filterchains",
             "management.metrics.enable.spring.security.http.secured.requests",
             "management.metrics.enable.spring.security.authorizations",
-            "management.metrics.enable.spring.data.repository", "management.server.ssl.enabled",
+            "management.metrics.enable.spring.data.repository",
             "observability.prometheus.auth.enabled",
             // Почта: health-группа вне readiness (таймауты SMTP — env-управляемые ключи схемы)
             "management.endpoint.health.group.smtp.include");
@@ -130,7 +130,7 @@ class ApplicationConfigSchemaTest {
      */
     private static final Set<String> ENV_EXAMPLE_SECRET_KEYS = Set.of("JWT_SECRET", "CAPTCHA_HMAC_SECRET",
             "DB_PASSWORD", "MAIL_PASSWORD",
-            "KEY_STORE_PASS", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD");
+            "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD");
 
     /**
      * Секреты локального Keycloak: только dev-шаблон — в рабочем контуре Keycloak внешний и его креды в compose не

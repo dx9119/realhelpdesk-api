@@ -1,25 +1,12 @@
 package com.ukhanov.realhelpdesk.core.config;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
-
-import javax.naming.InvalidNameException;
-import javax.naming.ldap.LdapName;
-import javax.naming.ldap.Rdn;
 
 import jakarta.annotation.PostConstruct;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
-import org.springframework.core.io.DefaultResourceLoader;
-import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.PlaceholderResolutionException;
 
@@ -29,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Prod-preflight: при профиле {@code prod} старт валится, если рабочий контур собран с отладочными значениями —
  * выключенная капча, {@code SameSite=None} без домена cookie, {@code localhost} в CORS, отключённые миграции или их
- * seed-контекст, самоподписанный keystore {@code CN=localhost} или почта, наведённая на локальный SMTP dev-стека. Приём
+ * seed-контекст, почта, наведённая на локальный SMTP dev-стека. Приём
  * повторяет закрепление {@code ddl-auto=validate}: опасная конфигурация не может «тихо» доехать до прода.
  *
  * <p>
@@ -92,15 +79,13 @@ public class ProdPreflightValidator {
 
         checkMail(violations);
 
-        checkKeystoreCommonName(violations);
-
         if (!violations.isEmpty()) {
             throw new IllegalStateException(
                     "Prod-preflight: рабочий контур запущен с небезопасной конфигурацией:\n - "
                             + String.join("\n - ", violations));
         }
         logger.info(
-                "Prod-preflight пройден: капча включена, миграции обязательны, keystore не самоподписанный, "
+                "Prod-preflight пройден: капча включена, миграции обязательны, "
                         + "почта на внешнем SMTP");
     }
 
@@ -213,55 +198,5 @@ public class ProdPreflightValidator {
         } catch (NumberFormatException e) {
             return false;
         }
-    }
-
-    /** Самоподписанный keystore {@code CN=localhost} генерирует entrypoint для отладки — в проде он недопустим. */
-    private void checkKeystoreCommonName(List<String> violations) {
-        String location = env.getProperty("server.ssl.key-store", "");
-        String alias = env.getProperty("server.ssl.key-alias", "");
-        String password = env.getProperty("server.ssl.key-store-password", "");
-        String type = env.getProperty("server.ssl.key-store-type", "PKCS12");
-
-        if (location.isBlank() || alias.isBlank() || password.isBlank()) {
-            violations.add("server.ssl.key-store/key-alias/key-store-password не заданы — TLS не настроен");
-            return;
-        }
-
-        try {
-            Resource resource = new DefaultResourceLoader().getResource(location);
-            try (InputStream in = resource.getInputStream()) {
-                KeyStore keyStore = KeyStore.getInstance(type);
-                keyStore.load(in, password.toCharArray());
-
-                if (!keyStore.containsAlias(alias)) {
-                    violations.add("в keystore " + location + " нет алиаса '" + alias + "'");
-                    return;
-                }
-
-                String commonName = commonNameOf(keyStore.getCertificate(alias));
-                if (LOCALHOST.equalsIgnoreCase(commonName)) {
-                    violations.add(
-                            "keystore " + location
-                                    + " выпущен на CN=localhost (самоподпись entrypoint) — смонтируйте "
-                                    + "реальный сертификат");
-                }
-            }
-        } catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException
-                | InvalidNameException e) {
-            violations.add("keystore " + location + " не читается: " + e.getMessage());
-        }
-    }
-
-    private String commonNameOf(java.security.cert.Certificate certificate) throws InvalidNameException {
-        if (!(certificate instanceof X509Certificate x509)) {
-            return null;
-        }
-        LdapName subject = new LdapName(x509.getSubjectX500Principal().getName());
-        for (Rdn rdn : subject.getRdns()) {
-            if ("CN".equalsIgnoreCase(rdn.getType())) {
-                return String.valueOf(rdn.getValue());
-            }
-        }
-        return null;
     }
 }

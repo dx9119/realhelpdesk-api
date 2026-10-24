@@ -27,8 +27,8 @@ import io.micrometer.core.instrument.MeterRegistry;
  *
  * <p>
  * Приложение поднимается с {@code spring.profiles.active=test} (профиль
- * {@code src/test/resources/application-test.properties}): prod-preflight требует боевого keystore и включённых
- * миграций, а контекст тестам нужен без инфраструктуры.
+ * {@code src/test/resources/application-test.properties}): prod-preflight требует
+ * включённых миграций, а контекст тестам нужен без инфраструктуры.
  * </p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "spring.profiles.active=test")
