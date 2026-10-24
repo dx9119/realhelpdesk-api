@@ -59,7 +59,7 @@
 - **Deny-списки** — шумные/вводящие в заблуждение биндеры отключены свойствами
   `management.metrics.enable.*` (томкат-сессии без сессий, Hibernate-кэш без L2, диски хоста);
   актуальный список и обоснования — [metrics.md](metrics.md).
-- **Бюджет** — цель ≤ 3000 series на инстанс; после шага 10 — 56 семейств / 92 series в покое.
+- **Бюджет** — цель ≤ 3000 series на инстанс; в покое — 56 семейств / 92 series.
 
 ## Как отлаживать по traceId
 
@@ -95,8 +95,8 @@ severity/summary/description/runbook_url; их оценивает ruler Mimir). 
 docker run --rm -v $PWD/infrastructure/observability/mimir/rules/anonymous/realhelpdesk.yml:/alerts.yml:ro \
   --entrypoint promtool prom/prometheus:v3.15.0 check rules /alerts.yml
 # перечитать правила после правок — или make obs-reload
-docker compose -f infrastructure/docker-compose.yaml \
-  --profile infra --profile dev --profile app --profile monitoring restart mimir
+docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.obs.yaml \
+  --profile infra --profile local-tools --profile app --profile monitoring restart mimir
 # текущие состояния алертов — или make obs-alerts
 curl -s localhost:9090/prometheus/api/v1/alerts
 ```
@@ -104,32 +104,7 @@ curl -s localhost:9090/prometheus/api/v1/alerts
 Алгоритм: сработал алерт → открыть runbook → выполнить диагностические шаги → устранить причину →
 закрыть инцидент с заметкой в runbook, если шагов не хватило.
 
-## Итоги внедрения
-
-### Что внедрено
-
-- Management-порт 8081 с Basic-скрейпом; бизнес-метрики (заявки, вложения, письма, аутентификация),
-  SLO-бакеты TTFR/решения, gauge открытых заявок; защита кардинальности (155 → 56 семейств).
-- Observation-конвенции HTTP, трейсы сервисного слоя (`ticket.*`, `mail.send`, `attachment.*`),
-  Micrometer Tracing + OTel-мост, маскирование ПДн в логах, колонки `traceId`/`spanId`.
-- Полный стек `make obs-up`: Mimir, Tempo, OTel Collector, Loki, Alloy;
-  8 алертов, 8 runbooks, 3 SLO.
-- Тесты: `HttpObservabilityIT`, `DbObservabilityIT`, `ObservabilityConfigurationTest`,
-  `ActuatorSecurityIT`, `LogCorrelationAndMaskingIT`, `ObservabilityContextIT`,
-  `ObservabilityRunbookGuardTest`, `TracingSmokeIT`; всего 675 (`mvn verify`), юнит-часть — 634 (`mvn test`).
-- Финальные испытания на живом стеке: load-smoke k6 (317 запросов, 100% checks, все пороги
-  в допуске), бизнес-метрики в Mimir (Prometheus-совместимый API) после трафика, сквозная цепочка
-  лог → Loki → Tempo по traceId (6 спанов на запрос), 8/8 правил алертов загружены.
-
-### Что осознанно не внедрено
-
-- **Exemplars** — переход «метрика → конкретный trace» идёт через Tempo serviceMap и логи.
-- **Tail sampling** — включён как прод-пример (`otel-collector/config-prod.yaml`), локально
-  probability-сэмплинг.
-- **JSON-логи** — внедрены для всех профилей кроме `dev` (`StructuredLogEncoder`, ECS); dev-стек (его скрейпит Alloy) остаётся на читаемом текстовом паттерне с колонками `traceId`/`spanId`.
-- **Профилирование** (JFR/async-profiler) и **burn-rate алерты по SLO** — не внедрялись.
-
-### Известные ограничения (совместимость с Boot 4)
+## Известные ограничения (совместимость с Boot 4)
 
 - Пул БД экспортируется как `jdbc_connections_*` (тег `name="dataSource"`); `hikaricp_*` и метрики
   pending/timeout в этом контуре отсутствуют — алерт DatabasePoolSaturation использует насыщение.
@@ -147,16 +122,3 @@ curl -s localhost:9090/prometheus/api/v1/alerts
 - PrometheusNaming срезает суффикс `.created` у meter-имён (OpenMetrics резервирует `_created`):
   бизнес-счётчик `tickets.created` экспортируется как `tickets_total`, не `tickets_created_total`
   (см. [metrics.md](metrics.md)).
-
-### Рекомендации на следующий этап
-
-1. **Tail sampling в прод-оверлее** — подключить `infrastructure/observability/otel-collector/config-prod.yaml`
-   монтированием поверх `config.yaml`: ошибки и трейсы > 1 s целиком, остальное 10%.
-2. **Exemplars** — после стабилизации OTel-моста: `publishPercentileHistogram` + exemplars на
-   `http.server.requests`, переход «метрика → trace» из Mimir.
-3. **Профилирование** — JFR в контейнере (`-XX:StartFlightRecording`) для CPU/alloc, async-profiler
-   для flame graphs на инцидентах высокой латентности.
-4. **Burn-rate алерты по SLO** — многоволновые (fast/slow burn) вместо простых порогов
-   `ApiHighLatencyP99`; recording rules для error budget.
-5. **Аннотации деплоев** — запрос к Mimir или метрике `process.uptime`
-   (рестарт = deploy) для корреляции регрессий с релизами.

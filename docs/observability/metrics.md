@@ -15,7 +15,7 @@
 | `attachments.uploaded` | Counter | `content_type` (группа MIME) | Загруженные вложения по группе типа содержимого |
 | `attachments.size` | DistributionSummary, `baseUnit=bytes` | `content_type` (группа MIME) | Суммарный размер загруженных вложений |
 | `mail.sent` | Counter | `type` (enum `NotificationEvent`), `result` (`success`/`failure`) | Фактические попытки отправки письма |
-| `auth.attempts` | Counter | `type`, `result` | Попытки аутентификации (шаг 4, `AuthMetrics`) |
+| `auth.attempts` | Counter | `type`, `result` | Попытки аутентификации (`AuthMetrics`) |
 
 Экспортируемые имена в Prometheus: `tickets_total` (Micrometer-имя `tickets.created`: конвенция
 PrometheusNaming срезает суффикс `.created` — OpenMetrics резервирует `_created` вспомогательной
@@ -58,9 +58,9 @@ PrometheusNaming срезает суффикс `.created` — OpenMetrics рез
   конвенция добавила бы его к имени (`tickets_created_events_total`), исказив канонические имена из плана, а счётчик событий безразмерен.
   Description заполнен у каждой метрики.
 
-## Защита от кардинальности (шаг 10)
+## Защита от кардинальности
 
-Список отключений согласован по замеру `/actuator/prometheus` (155 семейств / 1422 series до шага 10; цель — до 3000 series на инстанс).
+Список отключений согласован по замеру `/actuator/prometheus` (цель — ≤ 3000 series на инстанс).
 
 **MeterFilter'ы** (`ObservabilityConfiguration`):
 
@@ -82,14 +82,14 @@ PrometheusNaming срезает суффикс `.created` — OpenMetrics рез
 | `spring.security.http.secured.requests=false`, `spring.security.authorizations=false` | Дублируют `http.server.requests` (uri, status, role) |
 | `spring.data.repository=false` | Таймеры по каждому методу репозитория дублируют `hibernate.query.executions` |
 
-**Сохранены**: `http.server.requests` (гистограмма + SLO), `auth.attempts`, бизнес-метрики шага 8, `mail.*`, `ticket.create`,
+**Сохранены**: `http.server.requests` (гистограмма + SLO), `auth.attempts`, бизнес-метрики, `mail.*`, `ticket.create`,
 `hibernate.query.executions/statements/transactions`, `jdbc.connections`, `jvm.gc/memory/threads`, `logback_events` (рост ошибок),
 `process`/`system`, `executor.*`, `tasks.scheduled.*`.
 
 **Пул планировщика.** Boot автоматически биндит `ThreadPoolTaskScheduler` как `executor.*{name=taskScheduler}` — отдельный биндер не нужен.
 
-**Замер после шага 10** (холодый старт, без трафика): 56 семейств / 92 series; `executor_*` присутствуют, отключённые семейства в скрейпе
-отсутствуют. Прогон `user_journey` (2 VU, 1 минута, 317 запросов) добавляет HTTP/business-метрики — суммарно порядка 120–150 series.
+**Замер холодого старта** (без трафика): 56 семейств / 92 series; `executor_*` присутствуют, отключённые семейства в скрейпе
+отсутствуют. Прогон `user_journey` под нагрузкой добавляет HTTP/business-метрики — суммарно порядка 120–150 series.
 
 **Тесты**: `ObservabilityConfigurationTest` (deny/ignoreTags/потолок uri на SimpleMeterRegistry), `HttpObservabilityIT`
 (отключённые метрики отсутствуют, `executor.*{name=taskScheduler}` привязан, серия запросов с разными ID не растит число uri-значений).
