@@ -152,7 +152,7 @@ public class AuthController {
     private ResponseCookie accessCookie(String value, Duration maxAge) {
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(ACCESS_COOKIE, value)
                 .httpOnly(true)
-                .secure(true)
+                .secure(false)
                 .path("/")
                 .maxAge(maxAge)
                 .sameSite(jwtProperties.getCookie().getSameSite().getValue());
@@ -162,7 +162,7 @@ public class AuthController {
     private ResponseCookie refreshCookie(String value, Duration maxAge) {
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(REFRESH_COOKIE, value)
                 .httpOnly(true)
-                .secure(true)
+                .secure(false)
                 .path(REFRESH_COOKIE_PATH)
                 .maxAge(maxAge)
                 .sameSite(jwtProperties.getCookie().getSameSite().getValue());
