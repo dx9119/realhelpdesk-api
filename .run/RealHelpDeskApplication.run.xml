@@ -77,13 +77,13 @@
               <entry key="METRICS_PASSWORD" value="56cc342c92a6bcff65ea199f0ff4a9b11532bd5b0bc4cb9c4ea5cc37a8013f1a" />
               <entry key="METRICS_USER" value="prometheus" />
               <entry key="MINIO_BUCKET" value="realhelpdesk-attachments" />
-              <entry key="MINIO_ENDPOINT" value="http://minio:9000" />
+              <entry key="MINIO_ENDPOINT" value="http://127.0.0.1:9000" />
               <entry key="MINIO_ROOT_PASSWORD" value="5f092d6b9a468373b6f7282f8eb2c61076b2f5ec4af2d62c9ce26d30dd1e8f63" />
               <entry key="MINIO_ROOT_USER" value="minioadmin" />
               <entry key="MULTIPART_MAX_FILE_SIZE" value="20MB" />
               <entry key="MULTIPART_MAX_REQUEST_SIZE" value="25MB" />
               <entry key="OTEL_SERVICE_VERSION" value="1.0.0" />
-              <entry key="OTLP_TRACING_ENDPOINT" value="http://otel-collector:4318/v1/traces" />
+              <entry key="OTLP_TRACING_ENDPOINT" value="http://localhost:4317" />
               <entry key="RATE_LIMIT_AUTH_ACCESS_TOKEN_REQUESTS" value="30" />
               <entry key="RATE_LIMIT_AUTH_ACCESS_TOKEN_WINDOW_SECONDS" value="300" />
               <entry key="RATE_LIMIT_AUTH_LOGIN_REQUESTS" value="10" />
@@ -111,7 +111,7 @@
               <entry key="SERVER_PORT" value="8080" />
               <entry key="SMTP_AUTH" value="false" />
               <entry key="SMTP_STARTTLS" value="false" />
-              <entry key="SPRING_PROFILES_ACTIVE" value="dev" />
+              <entry key="SPRING_PROFILES_ACTIVE" value="dev,host" />
               <entry key="STATIC_BASE_URL" value="" />
               <entry key="STATIC_CACHE_CONTROL" value="private, no-store" />
               <entry key="TRACING_SAMPLING_PROBABILITY" value="1.0" />
