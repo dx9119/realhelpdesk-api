@@ -129,9 +129,10 @@ Compose сравнивает конфигурацию контейнера: пр
 2. Открыть проект в IntelliJ IDEA (2025.2+): конфигурация
    `RealHelpDeskApplication` (`.run/RealHelpDeskApplication.run.xml`)
    настроена — запуск через Maven (`spring-boot:run`, профили `dev,host`),
-   путь к `infrastructure/.env`, инлайн-переменная
-   `MINIO_ENDPOINT=http://127.0.0.1:9000` и дефолты compose-интерполяции
-   `OTLP_TRACING_ENDPOINT` / `TRUST_PROXY_HEADERS` / `CLIENT_IP_FORWARDED_INDEX`.
+   env — снапшот значений из `infrastructure/.env` (правки `.env`
+   не подхватываются, обновляйте env-карту run-конфига) с инлайн-переменными
+   `MINIO_ENDPOINT=http://127.0.0.1:9000` и
+   `OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces`.
 3. Debug: приложение стартует за несколько секунд, подключаясь к
    `127.0.0.1:5432`/`9000`/`25`.
 

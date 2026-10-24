@@ -111,9 +111,11 @@ make dev-up-deps   # один раз: поднять infra + local-tools
 
 В IntelliJ IDEA (2025.2+) конфигурация `RealHelpDeskApplication`
 (`.run/RealHelpDeskApplication.run.xml`) уже настроена: запуск через Maven
-(`spring-boot:run`, профили `dev,host`, env из `infrastructure/.env` и
-инлайн-переменные) — фазы validate не обходятся IDE-сборкой. Кнопка Debug —
-приложение стартует за несколько секунд против
+(`spring-boot:run`, профили `dev,host`) — фазы validate не обходятся
+IDE-сборкой. Env run-конфига — снапшот значений из `infrastructure/.env`
+с инлайн-оверрайдами, а не ссылка на файл: правки `.env` запуском из IDEA
+не подхватываются — обновляйте env-карту. Кнопка Debug — приложение
+стартует за несколько секунд против
 `127.0.0.1:5432`/`9000`/`25`. Альтернатива без IDEA: `make run-local`.
 
 #### Inner loop: правка Java-кода
@@ -141,9 +143,12 @@ JVM hot-swap меняет тела методов без рестарта.
 
 Профиль `host` (`application-host.properties`) переводит адреса на loopback
 (`127.0.0.1:5432`, `9000`, `25`) и поднимает infra через
-spring-boot-docker-compose. OS-env из `.env` перекрывает профильные файлы:
-run-конфиги инлайном добавляют `MINIO_ENDPOINT=http://127.0.0.1:9000` и
-дефолты `OTLP_TRACING_ENDPOINT`/`TRUST_PROXY_HEADERS`/`CLIENT_IP_FORWARDED_INDEX`.
+spring-boot-docker-compose. OS-env перекрывает профильные файлы: оба
+run-конфига инлайном задают `MINIO_ENDPOINT=http://127.0.0.1:9000` и
+`OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces`;
+`TRUST_PROXY_HEADERS`/`CLIENT_IP_FORWARDED_INDEX` в `make run-local`
+экспортируются явно, в IDEA берутся из дефолтов схемы (`false`/`0` в
+`application.properties`).
 
 На хосту контур Keycloak не включён: при необходимости задайте
 `KC_JWK_SET_URI=http://127.0.0.1:8180/realms/realhelpdesk/protocol/openid-connect/certs`
