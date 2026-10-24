@@ -11,6 +11,11 @@ bin/
 *.ipr
 .DS_Store
 
+# Внутренние файлы AI-агентов (планы сессий, локальные артефакты) — не для репозитория
+.zcode/
+.claude/
+CLAUDE.md.local
+
 # Файлы сборки Maven
 # Maven Wrapper (mvnw, mvnw.cmd, .mvn/wrapper/) — коммитятся: гарантирует
 # одинаковую версию Maven в CI и на хостах разработчиков
