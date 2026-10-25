@@ -118,6 +118,39 @@ Compose сравнивает конфигурацию контейнера: пр
 самостоятельный профиль. Без него работает внутренний JWT-контур приложения
 (см. [`authentication.md`](authentication.md)).
 
+Профиль `host` — надстройка над `dev`, не самостоятельный профиль.
+Всегда используется как `dev,host` (IDEA, `make run-local`,
+`scripts/dev/run-local.sh`). Не активируется в контейнере:
+`spring-boot-docker-compose` исключён из prod-jar, а внутри compose
+контейнер ходит по hostname (`postgres`, `minio`, `smtp`), а не на
+`127.0.0.1`.
+
+Зачем нужен: при хостовом запуске приложение работает вне Docker, но
+инфраструктура — в контейнерах. По умолчанию `infrastructure/.env`
+содержит compose-имена (`jdbc:postgresql://postgres:5432`,
+`minio.endpoint=http://minio:9000`, `MAIL_HOST=smtp`) — из хоста они
+недоступны. Профиль `host` переопределяет адреса на `127.0.0.1` с
+опубликованными портами:
+
+| Сервис | В `.env` (compose-сеть) | В `host` (loopback) | Порт |
+|---|---|---|---|
+| PostgreSQL | `jdbc:postgresql://postgres:5432/desk` | `jdbc:postgresql://127.0.0.1:5432/desk` | `5432` |
+| MinIO | `http://minio:9000` | `http://127.0.0.1:9000` | `9000` |
+| SMTP (smtp4dev) | `smtp` | `127.0.0.1` | `25` |
+
+Keycloak: `KC_JWK_SET_URI` из `.env` указывает на `keycloak:8080` —
+переопределить его в `application-host.properties` нельзя, так как
+переменная окружения хоста имеет приоритет над profile-файлами. Для
+запуска Keycloak с хоста задайте `KC_JWK_SET_URI=http://127.0.0.1:8180/...`
+в env-переменной запуска (IDEA или `run-local.sh`).
+
+spring-boot-docker-compose: при старте с профилем `host` модуль
+автоматически поднимает стек из `docker-compose.host.yaml`
+(profiles `infra,local-tools`, `lifecycle-management=start-only`).
+Стек не останавливается вместе с приложением — им дальше пользуются
+`make` и e2e-сценарии. Модуль не попадает в prod-jar, в тестах и
+контейнере профиль `host` не активен.
+
 `ProdPreflightValidator` останавливает старт рабочего контура с отладочной
 конфигурацией: выключенная капча, localhost в CORS,
 почта на локальном SMTP.
