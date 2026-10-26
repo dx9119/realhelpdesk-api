@@ -53,6 +53,12 @@ public enum EmailTemplateId {
     NOTIFICATION_REPEAT("mail/notification-repeat", "[Напоминание] {title}",
             Set.of("title", "ticketId", "portalId"));
 
+    /** Шаблоны, требующие plain-части для e2e-скриптов, читающих код из PlainText smtp4dev. */
+    private static final Set<EmailTemplateId> PLAIN_REQUIRED = Set.of(
+            REGISTRATION_LINK,
+            REGISTRATION_CODE,
+            PASSWORD_RESET);
+
     /** Предел длины темы письма: длинные заголовки уведомлений не должны ломать заголовок в клиенте. */
     static final int SUBJECT_MAX_LENGTH = 78;
 
@@ -78,6 +84,18 @@ public enum EmailTemplateId {
     /** Ключи модели, без которых тема собрана не будет — контракт для вызывающих сервисов и тестов. */
     public Set<String> requiredModelKeys() {
         return requiredModelKeys;
+    }
+
+    /**
+     * Нужно ли к письму добавлять {@code text/plain}-часть (multipart/alternative).
+     *
+     * <p>
+     * Касается только писем с кодом/токеном: e2e-скрипты читают код из {@code /api/Messages/{id}/PlainText} smtp4dev, и
+     * в письме без plain-части регулярка ничего не найдёт. Плюс это деградация в клиентах с выключенным HTML.
+     * </p>
+     */
+    public boolean needsPlainPart() {
+        return PLAIN_REQUIRED.contains(this);
     }
 
     /**

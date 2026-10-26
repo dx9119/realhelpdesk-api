@@ -10,7 +10,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.MailException;
@@ -240,6 +242,12 @@ public class EmailDeliveryService {
      * {@code Content-Transfer-Encoding} вручную не проставляется: {@code saveChanges} при отправке пересчитывает его
      * сам, а ручная установка дала бы расхождение заголовка с фактическим байтовым представлением.
      * </p>
+     *
+     * <p>
+     * Письма с кодом/токеном уходят {@code multipart/alternative}: код остаётся в {@code text/plain}, поэтому его
+     * читают клиенты с выключенным HTML и e2e-скрипты через {@code /api/Messages/{id}/PlainText} smtp4dev. Остальные
+     * письма — одиночная {@code text/html}-часть: пустая plain-обёртка добавляла бы в письмо мусор.
+     * </p>
      */
     private EmailLog deliver(String recipient, EmailContent content, EmailTemplateId template,
             NotificationEvent sourceEvent, Long userId)
@@ -260,7 +268,16 @@ public class EmailDeliveryService {
             helper.setFrom(emailProperties.getFrom(), FROM_PERSONAL);
             helper.setTo(recipient);
             helper.setSubject(content.subject());
-            helper.setText(content.html(), true);
+            if (content.hasPlainPart()) {
+                // multipart/alternative верхнего уровня: multipart/mixed от MimeMessageHelper smtp4dev отдаёт как
+                // отдельный тип, а клиенты с выключенным HTML и e2e-скрипты читают первую текстовую часть
+                MimeMultipart alternative = new MimeMultipart("alternative");
+                alternative.addBodyPart(textPart(content.plain(), "text/plain; charset=UTF-8"));
+                alternative.addBodyPart(textPart(content.html(), "text/html; charset=UTF-8"));
+                mimeMessage.setContent(alternative);
+            } else {
+                helper.setText(content.html(), true);
+            }
 
             mailSender.send(mimeMessage);
             businessMetrics.mailSent(sourceEvent, true);
@@ -282,6 +299,13 @@ public class EmailDeliveryService {
             observation.lowCardinalityKeyValue("outcome", "error").stop();
             throw e;
         }
+    }
+
+    /** Создаёт {@code MimeBodyPart} с текстом и заданным {@code Content-Type}. */
+    private static MimeBodyPart textPart(String text, String contentType) throws MessagingException {
+        MimeBodyPart part = new MimeBodyPart();
+        part.setContent(text, contentType);
+        return part;
     }
 
 }

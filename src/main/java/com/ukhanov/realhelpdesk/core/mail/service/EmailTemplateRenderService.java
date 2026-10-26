@@ -60,7 +60,29 @@ public class EmailTemplateRenderService {
             logger.error("Не удалось отрендерить шаблон письма {}", template.name());
             throw new EmailTemplateRenderException("Не удалось собрать письмо", e);
         }
-        return new EmailContent(subject, html);
+        return new EmailContent(subject, html, plainFallback(template, values));
+    }
+
+    /**
+     * Plain-деградация для писем с кодом/токеном: письмо уходит {@code multipart/alternative}, и код остаётся читаемым
+     * в клиентах с выключенным HTML. Это техническая строка, а не текст письма: формулировки живут только в
+     * HTML-шаблоне.
+     *
+     * <p>
+     * Для сброса пароля печатается полная ссылка с {@code ?code=...} — e2e-скрипты извлекают код именно по этому
+     * формату. Остальные письма-подтверждения отдают сам код: {@code REGISTRATION_LINK} хранит его в {@code token}.
+     * </p>
+     */
+    private String plainFallback(EmailTemplateId template, Map<String, Object> values) {
+        if (!template.needsPlainPart()) {
+            return null;
+        }
+        String code = String.valueOf(values.get(template == EmailTemplateId.REGISTRATION_LINK ? "token" : "code"));
+        if (template == EmailTemplateId.PASSWORD_RESET) {
+            return "Сброс пароля в «" + values.get("projectName") + "\": " + values.get("baseUrl")
+                    + "/pass-reset?code=" + code;
+        }
+        return "Код подтверждения в «" + values.get("projectName") + "\": " + code;
     }
 
     /** Общие значения поверх переданной модели: вызывающий передаёт только содержательные параметры. */
@@ -96,7 +118,16 @@ public class EmailTemplateRenderService {
         }
     }
 
-    /** Тема и HTML-тело готового письма. */
-    public record EmailContent(String subject, String html) {
+    /**
+     * Готовое письмо: тема, HTML-тело и необязательная plain-деградация.
+     *
+     * @param plain
+     *            plain-часть для {@code multipart/alternative} либо {@code null} — тогда письмо уходит только HTML
+     */
+    public record EmailContent(String subject, String html, String plain) {
+
+        public boolean hasPlainPart() {
+            return plain != null && !plain.isBlank();
+        }
     }
 }

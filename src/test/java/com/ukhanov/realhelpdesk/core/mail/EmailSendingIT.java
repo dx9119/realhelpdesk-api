@@ -10,6 +10,7 @@ import java.util.Map;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import jakarta.persistence.EntityManager;
 
 import org.junit.jupiter.api.AfterAll;
@@ -223,6 +224,26 @@ class EmailSendingIT extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("Сброс пароля уходит multipart/alternative: ссылка с кодом читаема в plain-части")
+    void sendEmail_passwordReset_deliversMultipartAlternativeWithResetLink() throws Exception {
+
+        // given
+        // when
+        emailDeliveryService.sendEmail(RECIPIENT, EmailTemplateId.PASSWORD_RESET,
+                Map.of("code", "1234567890123456"), NotificationEvent.RECOVERY_PASSWORD);
+
+        // then
+        assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
+        MimeMessage message = greenMail.getReceivedMessages()[0];
+
+        assertThat(message.getHeader("Content-Type", null)).contains("multipart/alternative");
+        assertThat(message.isMimeType("multipart/*")).isTrue();
+        // e2e-скрипт извлекает код сброса по формату code=<цифры> из PlainText
+        assertThat(plainPartOf(message)).contains("code=1234567890123456").doesNotContain("<");
+        assertThat(htmlPartOf(message)).contains("<!DOCTYPE html>").contains("/pass-reset?code=1234567890123456");
+    }
+
     // ────────────────────────────────────────────────
     // Подтверждение адреса реальным пользователем
     // ────────────────────────────────────────────────
@@ -279,8 +300,9 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
         assertThat(message.getSubject()).isEqualTo("Код подтверждения");
-        assertThat(message.getHeader("Content-Type", null)).contains("text/html");
+        assertThat(message.getHeader("Content-Type", null)).contains("multipart/alternative");
         assertThat(contentOf(message)).contains("424242");
+        assertThat(plainPartOf(message)).contains("424242").doesNotContain("<");
     }
 
     // ────────────────────────────────────────────────
@@ -317,6 +339,39 @@ class EmailSendingIT extends AbstractIntegrationTest {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         message.writeTo(buffer);
         return buffer.toString(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Первая текстовая часть письма — ровно то, что smtp4dev отдаёт по {@code /api/Messages/{id}/PlainText}: оттуда
+     * e2e-скрипты вытаскивают код подтверждения регуляркой.
+     */
+    private static String plainPartOf(MimeMessage message) throws IOException, MessagingException {
+        Object content = message.getContent();
+        if (content instanceof MimeMultipart multipart) {
+            for (int i = 0; i < multipart.getCount(); i++) {
+                String contentType = multipart.getBodyPart(i).getContentType();
+                if (contentType.startsWith("text/plain")) {
+                    return (String) multipart.getBodyPart(i).getContent();
+                }
+            }
+            throw new AssertionError("В письме нет text/plain-части");
+        }
+        return (String) content;
+    }
+
+    /** HTML-часть {@code multipart/alternative} — вёрстка письма. */
+    private static String htmlPartOf(MimeMessage message) throws IOException, MessagingException {
+        Object content = message.getContent();
+        if (content instanceof MimeMultipart multipart) {
+            for (int i = 0; i < multipart.getCount(); i++) {
+                String contentType = multipart.getBodyPart(i).getContentType();
+                if (contentType.startsWith("text/html")) {
+                    return (String) multipart.getBodyPart(i).getContent();
+                }
+            }
+            throw new AssertionError("В письме нет text/html-части");
+        }
+        return (String) content;
     }
 
     @TestConfiguration

@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import jakarta.mail.BodyPart;
+import jakarta.mail.Multipart;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
@@ -382,7 +384,7 @@ class EmailDeliveryServiceTest {
     // ────────────────────────────────────────────────
 
     @Test
-    @DisplayName("Код подтверждения уходит текущему пользователю: тема из enum, код в HTML-теле")
+    @DisplayName("Код подтверждения уходит multipart/alternative: код читаем в plain- и в HTML-части")
     void sendConfirmCode_currentUserWithToken_sendsCodeFromTemplate() throws Exception {
 
         // given
@@ -396,8 +398,15 @@ class EmailDeliveryServiceTest {
         // then
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
         assertThat(message.getSubject()).isEqualTo("Код подтверждения");
-        assertThat(message.getHeader("Content-Type", null)).contains("text/html").contains("charset=UTF-8");
-        assertThat((String) message.getContent()).contains("987654");
+        // charset у контейнера multipart не указывается — он declared в каждой части
+        assertThat(message.getHeader("Content-Type", null)).contains("multipart/alternative");
+        // e2e читают код из plain-части smtp4dev, поэтому первой идёт именно она
+        List<MailPart> parts = textPartsOf(message);
+        assertThat(parts).hasSize(2);
+        assertThat(parts.get(0).contentType()).contains("text/plain").contains("charset=UTF-8");
+        assertThat(parts.get(0).text()).contains("987654").doesNotContain("<");
+        assertThat(parts.get(1).contentType()).contains("text/html").contains("charset=UTF-8");
+        assertThat(parts.get(1).text()).contains("<!DOCTYPE html>").contains("987654");
 
         verify(emailLogService).add(argThat((EmailLog log) -> RECIPIENT.equals(log.getRecipient())
                 && log.getNotificationEvent() == NotificationEvent.NEW_SYSTEM_MESSAGE));
@@ -425,6 +434,32 @@ class EmailDeliveryServiceTest {
             recipients.add(message.getAllRecipients()[0].toString());
         }
         return recipients;
+    }
+
+    /**
+     * Текстовые части письма в порядке следования в MIME вместе с их {@code Content-Type}: для
+     * {@code multipart/alternative} это plain затем html. Порядок важен для e2e — smtp4dev отдаёт {@code /PlainText} по
+     * первой текстовой части.
+     */
+    private static List<MailPart> textPartsOf(MimeMessage message) throws Exception {
+        List<MailPart> parts = new ArrayList<>();
+        collectTextParts(message.getContent(), message.getHeader("Content-Type", null), parts);
+        return parts;
+    }
+
+    private static void collectTextParts(Object content, String contentType, List<MailPart> parts) throws Exception {
+        if (content instanceof String text) {
+            parts.add(new MailPart(text, contentType == null ? "" : contentType));
+        } else if (content instanceof Multipart multipart) {
+            for (int i = 0; i < multipart.getCount(); i++) {
+                BodyPart bodyPart = multipart.getBodyPart(i);
+                collectTextParts(bodyPart.getContent(), bodyPart.getContentType(), parts);
+            }
+        }
+    }
+
+    /** Текстовая часть письма и объявленный ею Content-Type. */
+    private record MailPart(String text, String contentType) {
     }
 
     private final Map<Long, UserModel> stubbedUsers = new java.util.HashMap<>();
