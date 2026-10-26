@@ -7,6 +7,7 @@ import java.util.Set;
 
 import org.springframework.stereotype.Component;
 
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketAccessStatus;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketPriority;
@@ -50,6 +51,7 @@ public class BusinessMetrics {
     private static final String ATTACHMENTS_UPLOADED = "attachments.uploaded";
     private static final String ATTACHMENTS_SIZE = "attachments.size";
     private static final String MAIL_SENT = "mail.sent";
+    private static final String EMAIL_TEMPLATE_SENT = "email.template.sent";
 
     private static final String DESCRIPTION_TICKETS_CREATED = "Созданные заявки по приоритету и типу доступа";
     private static final String DESCRIPTION_TRANSITIONS = "Переходы статусов заявок";
@@ -58,6 +60,7 @@ public class BusinessMetrics {
     private static final String DESCRIPTION_ATTACHMENTS_UPLOADED = "Загруженные вложения по группе типа содержимого";
     private static final String DESCRIPTION_ATTACHMENTS_SIZE = "Размер загруженных вложений";
     private static final String DESCRIPTION_MAIL_SENT = "Отправленные письма по событию и результату";
+    private static final String DESCRIPTION_EMAIL_TEMPLATE_SENT = "Отправленные письма по типу шаблона и результату";
 
     /** SLO-бакеты первого ответа: от минуты до суток — видно, где очередь отвечает быстрее часа. */
     private static final Duration[] FIRST_RESPONSE_SLOS = {Duration.ofMinutes(1), Duration.ofMinutes(5),
@@ -146,6 +149,22 @@ public class BusinessMetrics {
         Counter.builder(MAIL_SENT)
                 .description(DESCRIPTION_MAIL_SENT)
                 .tag("type", type.name())
+                .tag("result", success ? AuthMetrics.RESULT_SUCCESS : AuthMetrics.RESULT_FAILURE)
+                .register(meterRegistry)
+                .increment();
+    }
+
+    /**
+     * email.template.sent: считаются фактические попытки отправки каждого типа шаблона (тег type = имя enum);
+     * стоп-лист, mute и лимит восстановления счётчик не трогают, так как рендер и доставка не выполняются.
+     */
+    public void emailTemplateSent(EmailTemplateId template, boolean success) {
+        if (template == null) {
+            return;
+        }
+        Counter.builder(EMAIL_TEMPLATE_SENT)
+                .description(DESCRIPTION_EMAIL_TEMPLATE_SENT)
+                .tag("type", template.name())
                 .tag("result", success ? AuthMetrics.RESULT_SUCCESS : AuthMetrics.RESULT_FAILURE)
                 .register(meterRegistry)
                 .increment();

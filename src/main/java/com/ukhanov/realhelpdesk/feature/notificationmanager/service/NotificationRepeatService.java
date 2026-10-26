@@ -19,7 +19,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.ukhanov.realhelpdesk.core.exception.SafeSideEffectExecutor;
 import com.ukhanov.realhelpdesk.core.filter.LoggingFilter;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.service.UserDomainService;
@@ -63,7 +63,6 @@ public class NotificationRepeatService {
     private final NotificationPublisher notificationPublisher;
     private final UserDomainService userDomainService;
     private final EmailDeliveryService emailDeliveryService;
-    private final EmailTemplates emailTemplates;
 
     @Scheduled(fixedDelay = SCAN_PERIOD_MS, initialDelay = SCAN_PERIOD_MS)
     @Transactional
@@ -195,8 +194,8 @@ public class NotificationRepeatService {
     private boolean sendQuietly(UserModel recipient, NotificationModel source) {
         return SafeSideEffectExecutor.runSafely(() -> {
             emailDeliveryService.sendUserNotification(recipient.getEmail(),
-                    emailTemplates.notificationRepeatSubject(source.getTitle()),
-                    emailTemplates.notificationRepeatBody(source.getTitle(), source.getTicketId(),
+                    EmailTemplateId.NOTIFICATION_REPEAT,
+                    Map.of("title", source.getTitle(), "ticketId", source.getTicketId(), "portalId",
                             source.getPortalId()),
                     source.getEvent(),
                     recipient.getId());

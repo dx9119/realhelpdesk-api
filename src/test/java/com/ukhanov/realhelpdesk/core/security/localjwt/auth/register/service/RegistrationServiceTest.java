@@ -1,19 +1,21 @@
 package com.ukhanov.realhelpdesk.core.security.localjwt.auth.register.service;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.mapper.AuthMapper;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.register.dto.RegisterRequest;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.register.exception.RegistrationException;
@@ -27,7 +29,6 @@ import com.ukhanov.realhelpdesk.core.security.user.service.UserDomainService;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -56,15 +57,15 @@ class RegistrationServiceTest {
     @Mock
     private CaptchaService captchaService;
 
-    private RegistrationService service;
+    @Captor
+    private ArgumentCaptor<Map<String, Object>> modelCaptor;
 
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
+    private RegistrationService service;
 
     @BeforeEach
     void setUp() {
         service = new RegistrationService(passwordEncoder, userDomainService, getTokenService, emailDeliveryService,
-                captchaService,
-                emailTemplates, Mappers.getMapper(AuthMapper.class));
+                captchaService, Mappers.getMapper(AuthMapper.class));
     }
 
     @Test
@@ -84,17 +85,16 @@ class RegistrationServiceTest {
         UserModel user = service.addUser(request());
 
         // then
-        verify(emailDeliveryService).sendAdminNotification(eq("Новая регистрация:" + EMAIL), anyString(),
-                eq(NotificationEvent.NEW_SYSTEM_MESSAGE));
+        verify(emailDeliveryService).sendAdminNotification(eq(EmailTemplateId.ADMIN_REGISTRATION),
+                modelCaptor.capture(), eq(NotificationEvent.NEW_SYSTEM_MESSAGE));
+        assertThat(modelCaptor.getValue()).containsEntry("email", EMAIL).containsEntry("userId", 1L);
 
-        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailDeliveryService).sendUserNotification(eq(EMAIL), eq(emailTemplates.registrationLinkSubject()),
-                bodyCaptor.capture(),
+        verify(emailDeliveryService).sendUserNotification(eq(EMAIL), eq(EmailTemplateId.REGISTRATION_LINK),
+                modelCaptor.capture(),
                 eq(NotificationEvent.NEW_SYSTEM_MESSAGE), eq(user.getId()));
 
         assertThat(user.getVerifyEmailToken()).isNotNull();
-        assertThat(bodyCaptor.getValue()).contains(user.getVerifyEmailToken().toString())
-                .contains("http://" + EmailTemplatesFixture.DOMAIN + "/notify-settings");
+        assertThat(modelCaptor.getValue()).containsEntry("token", String.valueOf(user.getVerifyEmailToken()));
     }
 
     @Test

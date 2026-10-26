@@ -2,6 +2,7 @@ package com.ukhanov.realhelpdesk.feature.usermanager.service;
 
 import java.io.UnsupportedEncodingException;
 import java.security.SecureRandom;
+import java.util.Map;
 import java.util.Objects;
 
 import jakarta.mail.MessagingException;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Service;
 
 import com.ukhanov.realhelpdesk.core.http.EntityTag;
 import com.ukhanov.realhelpdesk.core.log.LogSanitizer;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.observability.AuthMetrics;
@@ -48,7 +49,6 @@ public class UserManageService {
     private final PasswordEncoder passwordEncoder;
     private final AuthMetrics authMetrics;
     private final GetTokenService getTokenService;
-    private final EmailTemplates emailTemplates;
     private final UserMapper userMapper;
 
     public UserInfoResponse getUserInfo() {
@@ -130,8 +130,8 @@ public class UserManageService {
 
         userDomainService.saveUser(user);
 
-        emailDeliveryService.sendEmail(user.getEmail(), emailTemplates.passwordResetSubject(),
-                emailTemplates.passwordResetBody(recoverPasswdToken.toString()), NotificationEvent.RECOVERY_PASSWORD,
+        emailDeliveryService.sendEmail(user.getEmail(), EmailTemplateId.PASSWORD_RESET,
+                Map.of("code", String.valueOf(recoverPasswdToken)), NotificationEvent.RECOVERY_PASSWORD,
                 user.getId());
         logger.info("Отправлено письмо восстановления пароля, userId={}", user.getId());
         authMetrics.record(AuthMetrics.TYPE_PASSWORD_RESET, AuthMetrics.RESULT_SUCCESS);

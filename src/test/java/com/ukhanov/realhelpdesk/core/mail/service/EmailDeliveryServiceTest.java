@@ -1,8 +1,5 @@
 package com.ukhanov.realhelpdesk.core.mail.service;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -10,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
@@ -26,9 +22,9 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import com.ukhanov.realhelpdesk.core.mail.config.EmailProperties;
 import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
 import com.ukhanov.realhelpdesk.core.mail.model.EmailLog;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
+import com.ukhanov.realhelpdesk.core.mail.support.EmailContentFixture;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.config.RateLimitProperties;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
@@ -61,6 +57,10 @@ class EmailDeliveryServiceTest {
     private static final String ADMIN = "admin@example.com";
     private static final String FROM = "noreply@example.com";
 
+    private static final EmailTemplateId TICKET_TEMPLATE = EmailTemplateId.TICKET_CREATED;
+    private static final Map<String, Object> TICKET_MODEL = Map.of("ticketId", 77L, "portalId", 5L);
+    private static final String TICKET_SUBJECT = "Создана новая заявка #77";
+
     private JavaMailSender mailSender;
     private UserDomainService userDomainService;
     private EmailProperties emailProperties;
@@ -70,8 +70,6 @@ class EmailDeliveryServiceTest {
     private RateLimitProperties rateLimitProperties;
     private EmailDeliveryService service;
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
-
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
 
     @BeforeEach
     void setUp() {
@@ -84,13 +82,14 @@ class EmailDeliveryServiceTest {
         emailProperties = new EmailProperties();
         emailProperties.setFrom(FROM);
         emailProperties.setNotify(ADMIN);
+        emailProperties.setDomain(EmailContentFixture.DOMAIN);
 
         rateLimitProperties = new RateLimitProperties();
         rateLimitProperties.setLimits(Map.of("email-recovery", new RateLimitProperties.Limit(3, 86400)));
 
         service = new EmailDeliveryService(mailSender, userDomainService, emailProperties, emailPolicyService,
                 currentUserProvider,
-                emailLogService, rateLimitProperties, emailTemplates, ObservationRegistry.NOOP,
+                emailLogService, rateLimitProperties, EmailContentFixture.renderer(), ObservationRegistry.NOOP,
                 new BusinessMetrics(meterRegistry));
 
         when(mailSender.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
@@ -115,44 +114,58 @@ class EmailDeliveryServiceTest {
     // ────────────────────────────────────────────────
 
     @Test
-    @DisplayName("Письмо собирается в MIME, отправляется и пишется в журнал")
+    @DisplayName("Письмо собирается в HTML-MIME, отправляется и пишется в журнал")
     void sendEmail_validInput_buildsMimeAndWritesLog() throws Exception {
 
         // given
         // when
-        service.sendEmail(RECIPIENT, "Тема письма", "Текст письма", NotificationEvent.NEW_TICKET);
+        service.sendEmail(RECIPIENT, TICKET_TEMPLATE, TICKET_MODEL, NotificationEvent.NEW_TICKET);
 
         MimeMessage message = singleSentMessage();
+        // заголовки JavaMail проставляет в saveChanges — ровно этот вызов выполняет JavaMailSender перед отправкой
+        message.saveChanges();
 
         // then
-        assertThat(message.getSubject()).isEqualTo("Тема письма");
+        assertThat(message.getSubject()).isEqualTo(TICKET_SUBJECT);
         assertThat(message.getAllRecipients()).hasSize(1);
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
         InternetAddress from = (InternetAddress) message.getFrom()[0];
         assertThat(from.getAddress()).isEqualTo(FROM);
         assertThat(from.getPersonal()).isEqualTo("Оповещения Заявус");
-        assertThat(contentOf(message)).contains("Текст письма");
+        assertThat(message.getContent()).isInstanceOf(String.class);
+        assertThat((String) message.getContent())
+                .contains("<!DOCTYPE html>")
+                .contains("/ticket-show/portal/5/ticket/77")
+                .contains("real help desk")
+                .doesNotContain("th:replace")
+                .doesNotContain("mailHeader");
         assertThat(message.getHeader("MIME-Version", null)).isEqualTo("1.0");
-        assertThat(message.getHeader("Content-Type", null)).contains("text/plain").contains("charset=UTF-8");
-        assertThat(message.getHeader("Content-Transfer-Encoding", null)).isEqualTo("7bit");
+        assertThat(message.getHeader("Content-Type", null)).contains("text/html").contains("charset=UTF-8");
+        assertThat(message.getHeader("Content-Transfer-Encoding", null)).isNotEqualTo("7bit");
 
         verify(emailLogService).add(argThat(EmailDeliveryServiceTest::matchesExpectedEmailLog));
 
         Counter success = meterRegistry.find("mail.sent").tags("type", "NEW_TICKET", "result", "success").counter();
         assertThat(success).isNotNull();
         assertThat(success.count()).isEqualTo(1);
+
+        Counter templateSuccess = meterRegistry.find("email.template.sent")
+                .tags("type", "TICKET_CREATED", "result", "success")
+                .counter();
+        assertThat(templateSuccess).isNotNull();
+        assertThat(templateSuccess.count()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("Ошибка SMTP → mail.sent{result=failure} и исключение наружу")
-    void sendEmail_smtpFailure_countsFailedMetric() {
+    @DisplayName("Ошибка SMTP → обе метрики считают неудачу, исключение уходит вызывающему")
+    void sendEmail_smtpFailure_countsFailedMetrics() {
 
         // given
         // when
         doThrow(new MailSendException("Connection refused")).when(mailSender).send(any(MimeMessage.class));
 
         MailSendException exception = catchThrowableOfType(MailSendException.class,
-                () -> service.sendEmail(RECIPIENT, "Тема письма", "Текст письма", NotificationEvent.NEW_TICKET));
+                () -> service.sendEmail(RECIPIENT, TICKET_TEMPLATE, TICKET_MODEL, NotificationEvent.NEW_TICKET));
 
         // then
         assertThat(exception).isNotNull();
@@ -160,24 +173,31 @@ class EmailDeliveryServiceTest {
         assertThat(failure).isNotNull();
         assertThat(failure.count()).isEqualTo(1);
         assertThat(meterRegistry.find("mail.sent").tags("result", "success").counter()).isNull();
+
+        Counter templateFailure = meterRegistry.find("email.template.sent")
+                .tags("type", "TICKET_CREATED", "result", "failure")
+                .counter();
+        assertThat(templateFailure).isNotNull();
+        assertThat(templateFailure.count()).isEqualTo(1);
+        assertThat(meterRegistry.find("email.template.sent").tags("result", "success").counter()).isNull();
     }
 
     @Test
-    @DisplayName("Адрес в стоп-листе: письмо не отправляется и не попадает в журнал")
-    void sendEmail_recipientInStopList_skipsDeliveryAndLog() throws Exception {
+    @DisplayName("Адрес в стоп-листе: письмо не отправляется, журнал и обе метрики не трогаются")
+    void sendEmail_recipientInStopList_skipsDeliveryAndMetrics() throws Exception {
 
         // given
         // when
         when(emailPolicyService.isStopList(RECIPIENT, NotificationEvent.NEW_MESSAGE)).thenReturn(true);
 
-        service.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_MESSAGE);
+        service.sendEmail(RECIPIENT, EmailTemplateId.TICKET_REPLY, TICKET_MODEL, NotificationEvent.NEW_MESSAGE);
 
         // then
         verify(emailLogService, never()).add(any(EmailLog.class));
         verify(mailSender, never()).createMimeMessage();
         verify(mailSender, never()).send(any(MimeMessage.class));
-        // стоп-лист не отправлял письмо — попыток и неудач в метрике нет
         assertThat(meterRegistry.find("mail.sent").counter()).isNull();
+        assertThat(meterRegistry.find("email.template.sent").counter()).isNull();
     }
 
     @Test
@@ -188,7 +208,8 @@ class EmailDeliveryServiceTest {
         // when
         when(emailPolicyService.isStopList(RECIPIENT, NotificationEvent.NEW_MESSAGE)).thenReturn(true);
 
-        service.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.RECOVERY_PASSWORD);
+        service.sendEmail(RECIPIENT, EmailTemplateId.PASSWORD_RESET, Map.of("code", "123456"),
+                NotificationEvent.RECOVERY_PASSWORD);
 
         // then
         assertThat(sentMessages()).hasSize(1);
@@ -203,7 +224,7 @@ class EmailDeliveryServiceTest {
         when(emailLogService.countEmailsSentToByEventInWindow(eq(RECIPIENT), eq(NotificationEvent.RECOVERY_PASSWORD),
                 eq(Duration.ofSeconds(86400)))).thenReturn(2L);
 
-        service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст",
+        service.sendEmail(RECIPIENT, EmailTemplateId.PASSWORD_RESET, Map.of("code", "123456"),
                 NotificationEvent.RECOVERY_PASSWORD);
 
         // then
@@ -220,7 +241,7 @@ class EmailDeliveryServiceTest {
                 eq(Duration.ofSeconds(86400)))).thenReturn(3L);
 
         EmailAccessDeniedException exception = catchThrowableOfType(EmailAccessDeniedException.class,
-                () -> service.sendEmail(RECIPIENT, emailTemplates.passwordResetSubject(), "Текст",
+                () -> service.sendEmail(RECIPIENT, EmailTemplateId.PASSWORD_RESET, Map.of("code", "123456"),
                         NotificationEvent.RECOVERY_PASSWORD));
 
         // then
@@ -229,6 +250,8 @@ class EmailDeliveryServiceTest {
         assertThat(exception.getMessage()).contains("86400");
         verify(emailLogService, never()).add(any(EmailLog.class));
         verify(mailSender, never()).send(any(MimeMessage.class));
+        // лимит сработал до рендера и доставки — метрики попыток не появилось
+        assertThat(meterRegistry.find("email.template.sent").counter()).isNull();
     }
 
     @Test
@@ -237,7 +260,7 @@ class EmailDeliveryServiceTest {
 
         // given
         // when
-        service.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_TICKET);
+        service.sendEmail(RECIPIENT, TICKET_TEMPLATE, TICKET_MODEL, NotificationEvent.NEW_TICKET);
 
         // then
         verify(emailLogService, never()).countEmailsSentToByEventInWindow(anyString(), any(), any());
@@ -254,7 +277,8 @@ class EmailDeliveryServiceTest {
 
         // given
         // when
-        service.sendAdminNotification("Тема", "Текст", NotificationEvent.NEW_SYSTEM_MESSAGE);
+        service.sendAdminNotification(EmailTemplateId.ADMIN_REGISTRATION,
+                Map.of("email", "newuser@example.com", "userId", 1L), NotificationEvent.NEW_SYSTEM_MESSAGE);
 
         // then
         assertThat(recipientsOfSentMessages()).containsExactly(ADMIN);
@@ -266,7 +290,7 @@ class EmailDeliveryServiceTest {
 
         // given
         // when
-        service.sendUserNotification(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_MESSAGE);
+        service.sendUserNotification(RECIPIENT, TICKET_TEMPLATE, TICKET_MODEL, NotificationEvent.NEW_MESSAGE);
 
         // then
         assertThat(recipientsOfSentMessages()).containsExactly(RECIPIENT);
@@ -287,12 +311,17 @@ class EmailDeliveryServiceTest {
         stubUser(2L, "second@example.com");
         stubUser(3L, "third@example.com");
 
-        service.initNotifyPortalUsers(portal, "Тема", "Текст", NotificationEvent.NEW_TICKET);
+        service.initNotifyPortalUsers(portal, TICKET_TEMPLATE, TICKET_MODEL, NotificationEvent.NEW_TICKET);
 
         // then
         assertThat(recipientsOfSentMessages()).containsExactlyInAnyOrder("owner@example.com", "second@example.com",
                 "third@example.com");
         verify(mailSender, times(3)).send(any(MimeMessage.class));
+        // шаблон рендерится один раз на рассылку, а не на получателя
+        Counter templateSuccess = meterRegistry.find("email.template.sent")
+                .tags("type", "TICKET_CREATED", "result", "success")
+                .counter();
+        assertThat(templateSuccess.count()).isEqualTo(3);
     }
 
     @Test
@@ -304,7 +333,8 @@ class EmailDeliveryServiceTest {
         PortalModel portal = portalWith(1L, null);
         stubUser(1L, "owner@example.com");
 
-        service.initNotifyPortalUsers(portal, "Тема", "Текст", NotificationEvent.NEW_PORTAL);
+        service.initNotifyPortalUsers(portal, EmailTemplateId.PORTAL_CREATED, Map.of("portalId", 5L),
+                NotificationEvent.NEW_PORTAL);
 
         // then
         assertThat(recipientsOfSentMessages()).containsExactly("owner@example.com");
@@ -352,7 +382,7 @@ class EmailDeliveryServiceTest {
     // ────────────────────────────────────────────────
 
     @Test
-    @DisplayName("Код подтверждения уходит текущему пользователю с телом из шаблона")
+    @DisplayName("Код подтверждения уходит текущему пользователю: тема из enum, код в HTML-теле")
     void sendConfirmCode_currentUserWithToken_sendsCodeFromTemplate() throws Exception {
 
         // given
@@ -362,10 +392,12 @@ class EmailDeliveryServiceTest {
         service.sendConfirmCode();
 
         MimeMessage message = singleSentMessage();
+        message.saveChanges();
         // then
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
-        assertThat(message.getSubject()).isEqualTo(emailTemplates.registrationCodeSubject());
-        assertThat(contentOf(message)).contains("987654");
+        assertThat(message.getSubject()).isEqualTo("Код подтверждения");
+        assertThat(message.getHeader("Content-Type", null)).contains("text/html").contains("charset=UTF-8");
+        assertThat((String) message.getContent()).contains("987654");
 
         verify(emailLogService).add(argThat((EmailLog log) -> RECIPIENT.equals(log.getRecipient())
                 && log.getNotificationEvent() == NotificationEvent.NEW_SYSTEM_MESSAGE));
@@ -393,16 +425,6 @@ class EmailDeliveryServiceTest {
             recipients.add(message.getAllRecipients()[0].toString());
         }
         return recipients;
-    }
-
-    private static String contentOf(MimeMessage message) throws IOException, MessagingException {
-        Object content = message.getContent();
-        if (content instanceof String text) {
-            return text;
-        }
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        message.writeTo(buffer);
-        return buffer.toString(StandardCharsets.UTF_8);
     }
 
     private final Map<Long, UserModel> stubbedUsers = new java.util.HashMap<>();
@@ -434,7 +456,7 @@ class EmailDeliveryServiceTest {
     }
 
     private static boolean matchesExpectedEmailLog(EmailLog log) {
-        boolean subjectAndSender = "Тема письма".equals(log.getTitle()) && FROM.equals(log.getSender());
+        boolean subjectAndSender = TICKET_SUBJECT.equals(log.getTitle()) && FROM.equals(log.getSender());
         boolean recipientAndEvent = RECIPIENT.equals(log.getRecipient())
                 && log.getNotificationEvent() == NotificationEvent.NEW_TICKET;
         return subjectAndSender && recipientAndEvent && log.getSentAt() != null;

@@ -2,6 +2,7 @@ package com.ukhanov.realhelpdesk.feature.messagemanager.service;
 
 import java.io.UnsupportedEncodingException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -9,7 +10,7 @@ import jakarta.mail.MessagingException;
 
 import org.springframework.stereotype.Service;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
@@ -43,7 +44,6 @@ public class MessageManageService {
     private final TicketDomainService ticketDomainService;
     private final MessageDomainService messageDomainService;
     private final EmailDeliveryService emailDeliveryService;
-    private final EmailTemplates emailTemplates;
     private final NotificationPublisher notificationPublisher;
     private final BusinessMetrics businessMetrics;
 
@@ -76,8 +76,9 @@ public class MessageManageService {
 
         // Отправляем письмо с оповещением о новом сообщении в тикете
         emailDeliveryService.sendUserNotification(ticket.getAuthor().getEmail(),
-                emailTemplates.ticketReplySubject(ticket.getId()),
-                emailTemplates.ticketReplyBody(ticket.getId(), portalId), NotificationEvent.NEW_MESSAGE,
+                EmailTemplateId.TICKET_REPLY,
+                Map.of("ticketId", ticket.getId(), "portalId", portalId),
+                NotificationEvent.NEW_MESSAGE,
                 ticket.getAuthor().getId());
 
         logger.info("Сообщение сохранено для заявки с ID: {}", ticketId);

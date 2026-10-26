@@ -2,6 +2,7 @@ package com.ukhanov.realhelpdesk.feature.ticketmanager.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,10 +20,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
 import com.ukhanov.realhelpdesk.core.pagination.service.PaginationAdapter;
@@ -48,10 +48,8 @@ import com.ukhanov.realhelpdesk.feature.ticketmanager.mapper.TicketMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -87,9 +85,10 @@ class TicketManageServiceTest {
     @Captor
     private ArgumentCaptor<TicketModel> ticketCaptor;
 
-    private TicketManageService service;
+    @Captor
+    private ArgumentCaptor<Map<String, Object>> modelCaptor;
 
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
+    private TicketManageService service;
 
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
@@ -102,7 +101,7 @@ class TicketManageServiceTest {
     void setUp() {
         service = new TicketManageService(mockTicketDomainService, mockCurrentUserProvider, mockPortalDomainService,
                 mockPaginationAdapter,
-                mockEmailDeliveryService, mockTicketAccessValidationService, mockTicketRepository, emailTemplates,
+                mockEmailDeliveryService, mockTicketAccessValidationService, mockTicketRepository,
                 mockNotificationPublisher, Mappers.getMapper(TicketMapper.class), ObservationRegistry.NOOP,
                 new BusinessMetrics(meterRegistry));
 
@@ -166,8 +165,9 @@ class TicketManageServiceTest {
         verify(mockTicketDomainService).saveTicket(ticketCaptor.capture());
         assertThat(ticketCaptor.getValue().getTitle()).isEqualTo("New Issue");
 
-        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), anyString(), anyString(),
-                eq(NotificationEvent.NEW_TICKET));
+        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), eq(EmailTemplateId.TICKET_CREATED),
+                modelCaptor.capture(), eq(NotificationEvent.NEW_TICKET));
+        assertThat(modelCaptor.getValue()).containsEntry("ticketId", TICKET_ID).containsEntry("portalId", PORTAL_ID);
     }
 
     // ────────────────────────────────────────────────
@@ -191,9 +191,11 @@ class TicketManageServiceTest {
 
         // then
         assertThat(ticket.getTicketStatus()).isEqualTo(TicketStatus.CLOSED);
-        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal),
-                eq(emailTemplates.updateStatusTicketSubject(TICKET_ID, TicketStatus.CLOSED)),
-                eq(emailTemplates.updateStatusTicketBody(TICKET_ID, PORTAL_ID)), eq(NotificationEvent.CHANGE_TICKET));
+        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), eq(EmailTemplateId.TICKET_STATUS),
+                modelCaptor.capture(), eq(NotificationEvent.CHANGE_TICKET));
+        assertThat(modelCaptor.getValue()).containsEntry("ticketId", TICKET_ID)
+                .containsEntry("portalId", PORTAL_ID)
+                .containsEntry("status", TicketStatus.CLOSED.name());
     }
 
     @Test
@@ -230,9 +232,11 @@ class TicketManageServiceTest {
 
         // then
         assertThat(ticket.getTicketPriority()).isEqualTo(TicketPriority.HIGH);
-        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal),
-                eq(emailTemplates.updatePriorityTicketSubject(TICKET_ID, TicketPriority.HIGH)),
-                eq(emailTemplates.updatePriorityTicketBody(TICKET_ID, PORTAL_ID)), eq(NotificationEvent.CHANGE_TICKET));
+        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), eq(EmailTemplateId.TICKET_PRIORITY),
+                modelCaptor.capture(), eq(NotificationEvent.CHANGE_TICKET));
+        assertThat(modelCaptor.getValue()).containsEntry("ticketId", TICKET_ID)
+                .containsEntry("portalId", PORTAL_ID)
+                .containsEntry("priority", TicketPriority.HIGH.name());
     }
 
     @Test
@@ -252,9 +256,10 @@ class TicketManageServiceTest {
 
         // then
         assertThat(ticket.getTicketLiveStatus()).isEqualTo(TicketLiveStatus.DELETE);
-        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal),
-                eq(emailTemplates.deletedTicketSubject(TICKET_ID)),
-                eq(emailTemplates.deletedTicketBody(TICKET_ID, "test@user.com")), eq(NotificationEvent.TICKET_DELETED));
+        verify(mockEmailDeliveryService).initNotifyPortalUsers(eq(portal), eq(EmailTemplateId.TICKET_DELETED),
+                modelCaptor.capture(), eq(NotificationEvent.TICKET_DELETED));
+        assertThat(modelCaptor.getValue()).containsEntry("ticketId", TICKET_ID)
+                .containsEntry("deletedByEmail", "test@user.com");
     }
 
     @Test

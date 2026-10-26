@@ -26,6 +26,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.ukhanov.realhelpdesk.core.log.LogSanitizer;
+import com.ukhanov.realhelpdesk.core.mail.exception.EmailTemplateRenderException;
 
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -185,6 +186,18 @@ public class InfrastructureExceptionHandler {
                     schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<ProblemDetail> handleMessagingException(MessagingException ex, HttpServletRequest request) {
         logger.error("MIME или SMTP ошибка: {}", ex.getMessage(), ex);
+        ProblemObservation.mark(ex, request);
+        return ProblemResponses.entity(HttpStatus.SERVICE_UNAVAILABLE, "Ошибка отправки email", request);
+    }
+
+    @ExceptionHandler(EmailTemplateRenderException.class)
+    @ApiResponse(responseCode = "503", description = "Не удалось собрать письмо из шаблона",
+            content = @Content(mediaType = "application/problem+json",
+                    schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<ProblemDetail> handleEmailTemplateRender(EmailTemplateRenderException ex,
+            HttpServletRequest request) {
+        // Сообщение исключения намеренно без содержимого модели и HTML — детали остаются в cause в логе
+        logger.error("Ошибка рендера шаблона письма", ex);
         ProblemObservation.mark(ex, request);
         return ProblemResponses.entity(HttpStatus.SERVICE_UNAVAILABLE, "Ошибка отправки email", request);
     }

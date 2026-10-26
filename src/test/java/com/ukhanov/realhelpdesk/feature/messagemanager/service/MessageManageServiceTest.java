@@ -2,6 +2,7 @@ package com.ukhanov.realhelpdesk.feature.messagemanager.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,10 +13,9 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
@@ -69,10 +69,10 @@ class MessageManageServiceTest {
     private ArgumentCaptor<TicketModel> ticketCaptor;
     @Captor
     private ArgumentCaptor<MessageModel> messageCaptor;
+    @Captor
+    private ArgumentCaptor<Map<String, Object>> modelCaptor;
 
     private MessageManageService service;
-
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
 
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
@@ -86,7 +86,7 @@ class MessageManageServiceTest {
     void setUp() {
         service = new MessageManageService(mockMessageMapper, mockCurrentUserProvider, mockTicketDomainService,
                 mockMessageDomainService,
-                mockEmailDeliveryService, emailTemplates, mockNotificationPublisher,
+                mockEmailDeliveryService, mockNotificationPublisher,
                 new BusinessMetrics(meterRegistry));
     }
 
@@ -126,10 +126,9 @@ class MessageManageServiceTest {
         assertThat(savedTicket.getTicketStatus()).isEqualTo(TicketStatus.IN_PROGRESS);
 
         // Проверяем вызов отправки email
-        verify(mockEmailDeliveryService).sendUserNotification(eq(USER_EMAIL),
-                eq(emailTemplates.ticketReplySubject(TICKET_ID)),
-                eq(emailTemplates.ticketReplyBody(TICKET_ID, PORTAL_ID)), eq(NotificationEvent.NEW_MESSAGE),
-                eq(USER_ID));
+        verify(mockEmailDeliveryService).sendUserNotification(eq(USER_EMAIL), eq(EmailTemplateId.TICKET_REPLY),
+                modelCaptor.capture(), eq(NotificationEvent.NEW_MESSAGE), eq(USER_ID));
+        assertThat(modelCaptor.getValue()).containsEntry("ticketId", TICKET_ID).containsEntry("portalId", PORTAL_ID);
 
         // Счётчик сообщений до вставки — для метрики первого ответа
         verify(mockMessageDomainService).countByTicketId(TICKET_ID);

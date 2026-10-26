@@ -35,7 +35,7 @@ import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
 import com.ukhanov.realhelpdesk.core.mail.config.EmailProperties;
 import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
 import com.ukhanov.realhelpdesk.core.mail.model.EmailLog;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.model.UnsubscribedEmail;
 import com.ukhanov.realhelpdesk.core.mail.repository.EmailLogRepository;
@@ -43,7 +43,8 @@ import com.ukhanov.realhelpdesk.core.mail.repository.UnsubscribedEmailRepository
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailLogService;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailPolicyService;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
+import com.ukhanov.realhelpdesk.core.mail.service.EmailTemplateRenderService;
+import com.ukhanov.realhelpdesk.core.mail.support.EmailContentFixture;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.config.RateLimitProperties;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
@@ -123,19 +124,25 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
         // given
         // when
-        emailDeliveryService.sendEmail(RECIPIENT, "Тема письма", "Текст письма", NotificationEvent.NEW_TICKET);
+        emailDeliveryService.sendEmail(RECIPIENT, EmailTemplateId.TICKET_CREATED,
+                Map.of("ticketId", 42L, "portalId", 5L), NotificationEvent.NEW_TICKET);
 
         // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
         MimeMessage message = greenMail.getReceivedMessages()[0];
 
-        assertThat(message.getSubject()).isEqualTo("Тема письма");
+        assertThat(message.getSubject()).isEqualTo("Создана новая заявка #42");
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
         InternetAddress from = (InternetAddress) message.getFrom()[0];
         assertThat(from.getAddress()).isEqualTo(FROM);
         assertThat(from.getPersonal()).isEqualTo("Оповещения Заявус");
-        assertThat(contentOf(message)).contains("Текст письма");
-        assertThat(message.getHeader("Content-Type", null)).contains("charset=UTF-8");
+        // HTML-тело: кириллица пережила quoted-printable, шапка и футер на месте
+        assertThat(contentOf(message))
+                .contains("<!DOCTYPE html>")
+                .contains("Добрый день!")
+                .contains("real help desk")
+                .contains("/ticket-show/portal/5/ticket/42");
+        assertThat(message.getHeader("Content-Type", null)).contains("text/html").contains("charset=UTF-8");
 
         assertThat(countLogs(RECIPIENT, NotificationEvent.NEW_TICKET)).isEqualTo(1);
     }
@@ -146,8 +153,8 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
         // given
         // when
-        emailDeliveryService.sendAdminNotification("Новая регистрация", "Кто,что",
-                NotificationEvent.NEW_SYSTEM_MESSAGE);
+        emailDeliveryService.sendAdminNotification(EmailTemplateId.ADMIN_REGISTRATION,
+                Map.of("email", RECIPIENT, "userId", 1L), NotificationEvent.NEW_SYSTEM_MESSAGE);
 
         // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
@@ -162,8 +169,10 @@ class EmailSendingIT extends AbstractIntegrationTest {
         // when
         unsubscribedEmailRepository.saveAndFlush(new UnsubscribedEmail(RECIPIENT, NotificationEvent.NEW_MESSAGE));
 
-        emailDeliveryService.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_MESSAGE);
-        emailDeliveryService.sendEmail(RECIPIENT, "Тема", "Текст", NotificationEvent.NEW_TICKET);
+        emailDeliveryService.sendEmail(RECIPIENT, EmailTemplateId.TICKET_REPLY,
+                Map.of("ticketId", 42L, "portalId", 5L), NotificationEvent.NEW_MESSAGE);
+        emailDeliveryService.sendEmail(RECIPIENT, EmailTemplateId.TICKET_CREATED,
+                Map.of("ticketId", 42L, "portalId", 5L), NotificationEvent.NEW_TICKET);
 
         // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
@@ -180,7 +189,8 @@ class EmailSendingIT extends AbstractIntegrationTest {
         // when
         seedRecoveryLogs(2);
 
-        emailDeliveryService.sendEmail(RECIPIENT, "Сброс пароля", "Текст", NotificationEvent.RECOVERY_PASSWORD);
+        emailDeliveryService.sendEmail(RECIPIENT, EmailTemplateId.PASSWORD_RESET, Map.of("code", "1234567890123456"),
+                NotificationEvent.RECOVERY_PASSWORD);
 
         // then
         assertThat(greenMail.waitForIncomingEmail(5000, 1)).isTrue();
@@ -196,8 +206,8 @@ class EmailSendingIT extends AbstractIntegrationTest {
         seedRecoveryLogs(3);
 
         // then
-        assertThatThrownBy(() -> emailDeliveryService.sendEmail(RECIPIENT, "Сброс пароля", "Текст",
-                NotificationEvent.RECOVERY_PASSWORD))
+        assertThatThrownBy(() -> emailDeliveryService.sendEmail(RECIPIENT, EmailTemplateId.PASSWORD_RESET,
+                Map.of("code", "1234567890123456"), NotificationEvent.RECOVERY_PASSWORD))
                 .isInstanceOf(EmailAccessDeniedException.class)
                 .extracting(ex -> ((EmailAccessDeniedException) ex).getStatus())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
@@ -269,6 +279,7 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(RECIPIENT);
         assertThat(message.getSubject()).isEqualTo("Код подтверждения");
+        assertThat(message.getHeader("Content-Type", null)).contains("text/html");
         assertThat(contentOf(message)).contains("424242");
     }
 
@@ -343,15 +354,15 @@ class EmailSendingIT extends AbstractIntegrationTest {
             EmailProperties emailProperties = emailProperties();
             RateLimitProperties rateLimitProperties = new RateLimitProperties();
             rateLimitProperties.setLimits(Map.of("email-recovery", new RateLimitProperties.Limit(3, 86400)));
-            EmailTemplates emailTemplates = new EmailTemplates(EmailTemplatesFixture.messageSource(), emailProperties);
             // NOOP-реестр: слайсу @DataJpaTest наблюдаемость не нужна, тесту важна только SMTP-логика.
             return new EmailDeliveryService(mailSender, userDomainService, emailProperties, emailPolicyService,
-                    currentUserProvider, new EmailLogService(emailLogRepository), rateLimitProperties, emailTemplates,
+                    currentUserProvider, new EmailLogService(emailLogRepository), rateLimitProperties,
+                    new EmailTemplateRenderService(EmailContentFixture.templateEngine(), emailProperties),
                     ObservationRegistry.NOOP, new BusinessMetrics(new SimpleMeterRegistry()));
         }
 
         private static EmailProperties emailProperties() {
-            EmailProperties properties = EmailTemplatesFixture.emailProperties();
+            EmailProperties properties = EmailContentFixture.emailProperties();
             properties.setFrom(FROM);
             properties.setNotify(ADMIN);
             return properties;

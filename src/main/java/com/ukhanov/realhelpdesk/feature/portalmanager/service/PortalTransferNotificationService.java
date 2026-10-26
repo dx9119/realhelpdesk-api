@@ -2,6 +2,7 @@ package com.ukhanov.realhelpdesk.feature.portalmanager.service;
 
 import java.io.UnsupportedEncodingException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import jakarta.mail.MessagingException;
@@ -10,7 +11,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import com.ukhanov.realhelpdesk.core.exception.SafeSideEffectExecutor;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
@@ -34,7 +35,6 @@ public class PortalTransferNotificationService {
 
     private final NotificationPublisher notificationPublisher;
     private final EmailDeliveryService emailDeliveryService;
-    private final EmailTemplates emailTemplates;
     private final UserDomainService userDomainService;
 
     public void notifyTransferRequested(PortalModel portal, PortalTransferRequestModel transfer, UserModel initiator,
@@ -59,15 +59,15 @@ public class PortalTransferNotificationService {
         quietly("инициирование передачи портала " + portal.getId(), () -> {
             if (!participants.isEmpty()) {
                 emailDeliveryService.sendPortalUsersNotification(participants,
-                        emailTemplates.portalTransferRequestedSubject(portal.getId()),
-                        emailTemplates.portalTransferRequestedBody(portal.getId(), initiatorName,
-                                transfer.getReasonInitiator()),
+                        EmailTemplateId.PORTAL_TRANSFER_REQUESTED,
+                        Map.of("portalId", portal.getId(), "initiatorName", initiatorName,
+                                "reason", transfer.getReasonInitiator()),
                         NotificationEvent.PORTAL_TRANSFER_REQUESTED);
             }
             emailDeliveryService.sendUserNotification(proposed.getEmail(),
-                    emailTemplates.portalTransferProposedSubject(portal.getId()),
-                    emailTemplates.portalTransferProposedBody(portal.getId(), initiatorName,
-                            transfer.getReasonInitiator()),
+                    EmailTemplateId.PORTAL_TRANSFER_PROPOSED,
+                    Map.of("portalId", portal.getId(), "initiatorName", initiatorName,
+                            "reason", transfer.getReasonInitiator()),
                     NotificationEvent.PORTAL_TRANSFER_REQUESTED, proposed.getId());
         });
     }
@@ -88,9 +88,9 @@ public class PortalTransferNotificationService {
 
         quietly("подтверждение передачи портала " + portal.getId(),
                 () -> emailDeliveryService.sendPortalUsersNotification(recipients,
-                        emailTemplates.portalTransferAcceptedSubject(portal.getId()),
-                        emailTemplates.portalTransferAcceptedBody(portal.getId(), newOwnerName,
-                                transfer.getReasonInitiator()),
+                        EmailTemplateId.PORTAL_TRANSFER_ACCEPTED,
+                        Map.of("portalId", portal.getId(), "newOwnerName", newOwnerName,
+                                "reason", transfer.getReasonInitiator()),
                         NotificationEvent.PORTAL_TRANSFER_ACCEPTED));
     }
 
@@ -106,9 +106,9 @@ public class PortalTransferNotificationService {
         if (initiator != null) {
             quietly("отклонение передачи портала " + portal.getId(),
                     () -> emailDeliveryService.sendUserNotification(initiator.getEmail(),
-                            emailTemplates.portalTransferRejectedSubject(portal.getId()),
-                            emailTemplates.portalTransferRejectedBody(portal.getId(), proposedName,
-                                    transfer.getReasonProposed()),
+                            EmailTemplateId.PORTAL_TRANSFER_REJECTED,
+                            Map.of("portalId", portal.getId(), "proposedName", proposedName,
+                                    "reason", transfer.getReasonProposed()),
                             NotificationEvent.PORTAL_TRANSFER_REJECTED, initiator.getId()));
         }
     }
@@ -125,8 +125,8 @@ public class PortalTransferNotificationService {
         if (proposed != null) {
             quietly("отзыв передачи портала " + portal.getId(),
                     () -> emailDeliveryService.sendUserNotification(proposed.getEmail(),
-                            emailTemplates.portalTransferCancelledSubject(portal.getId()),
-                            emailTemplates.portalTransferCancelledBody(portal.getId(), initiatorName),
+                            EmailTemplateId.PORTAL_TRANSFER_CANCELLED,
+                            Map.of("portalId", portal.getId(), "initiatorName", initiatorName),
                             NotificationEvent.PORTAL_TRANSFER_CANCELLED, proposed.getId()));
         }
     }
@@ -141,8 +141,8 @@ public class PortalTransferNotificationService {
 
         quietly("истечение срока передачи портала " + portal.getId(),
                 () -> emailDeliveryService.sendUserNotification(initiator.getEmail(),
-                        emailTemplates.portalTransferExpiredSubject(portal.getId()),
-                        emailTemplates.portalTransferExpiredBody(portal.getId()),
+                        EmailTemplateId.PORTAL_TRANSFER_EXPIRED,
+                        Map.of("portalId", portal.getId()),
                         NotificationEvent.PORTAL_TRANSFER_EXPIRED, initiator.getId()));
     }
 

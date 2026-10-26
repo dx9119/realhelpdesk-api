@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketAccessStatus;
 import com.ukhanov.realhelpdesk.domain.ticket.model.TicketPriority;
@@ -252,6 +253,50 @@ class BusinessMetricsTest {
 
         // then
         assertThat(meterRegistry.find("mail.sent").counter()).isNull();
+    }
+
+    // ────────────────────────────────────────────────
+    // email.template.sent
+    // ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("emailTemplateSent → теги type (имя шаблона) и result, success и failure считаются раздельно")
+    void emailTemplateSent_knownTemplates_countsTypeAndResultTags() {
+
+        // given
+        // when
+        businessMetrics.emailTemplateSent(EmailTemplateId.REGISTRATION_LINK, true);
+        businessMetrics.emailTemplateSent(EmailTemplateId.REGISTRATION_LINK, true);
+        businessMetrics.emailTemplateSent(EmailTemplateId.PASSWORD_RESET, false);
+
+        // then
+        Counter success = meterRegistry.find("email.template.sent")
+                .tags("type", "REGISTRATION_LINK", "result", "success")
+                .counter();
+        assertThat(success).isNotNull();
+        assertThat(success.count()).isEqualTo(2);
+        assertThat(success.getId().getDescription()).isEqualTo("Отправленные письма по типу шаблона и результату");
+
+        Counter failure = meterRegistry.find("email.template.sent")
+                .tags("type", "PASSWORD_RESET", "result", "failure")
+                .counter();
+        assertThat(failure).isNotNull();
+        assertThat(failure.count()).isEqualTo(1);
+
+        // параллельная метрика mail.sent из этого метода не растёт
+        assertThat(meterRegistry.find("mail.sent").counter()).isNull();
+    }
+
+    @Test
+    @DisplayName("emailTemplateSent → null-шаблон не создаёт метрику")
+    void emailTemplateSent_nullTemplate_skipsRecording() {
+
+        // given
+        // when
+        businessMetrics.emailTemplateSent(null, true);
+
+        // then
+        assertThat(meterRegistry.find("email.template.sent").counter()).isNull();
     }
 
 }

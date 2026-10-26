@@ -3,6 +3,7 @@ package com.ukhanov.realhelpdesk.feature.ticketmanager.service;
 import java.io.UnsupportedEncodingException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -12,7 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.observability.BusinessMetrics;
@@ -57,7 +58,6 @@ public class TicketManageService {
     private final EmailDeliveryService emailDeliveryService;
     private final TicketAccessValidationService ticketAccessValidationService;
     private final TicketRepository ticketRepository;
-    private final EmailTemplates emailTemplates;
     private final NotificationPublisher notificationPublisher;
     private final TicketMapper ticketMapper;
     private final ObservationRegistry observationRegistry;
@@ -98,8 +98,8 @@ public class TicketManageService {
                     saved.getId(), saved.getTitle());
 
             // Отправляем письмо с оповещением о создании заявки всем пользователям портала
-            emailDeliveryService.initNotifyPortalUsers(portal, emailTemplates.ticketCreatedSubject(ticket.getId()),
-                    emailTemplates.ticketCreatedBody(ticket.getId(), portal.getId()), NotificationEvent.NEW_TICKET);
+            emailDeliveryService.initNotifyPortalUsers(portal, EmailTemplateId.TICKET_CREATED,
+                    Map.of("ticketId", saved.getId(), "portalId", portal.getId()), NotificationEvent.NEW_TICKET);
 
             created = true;
             return new CreateTicketResponse(saved.getId());
@@ -198,9 +198,8 @@ public class TicketManageService {
                     ticketSaved.getId(), ticketSaved.getTitle());
 
             // Отправляем письмо
-            emailDeliveryService.initNotifyPortalUsers(portal,
-                    emailTemplates.updateStatusTicketSubject(ticketSaved.getId(), status),
-                    emailTemplates.updateStatusTicketBody(ticketSaved.getId(), portalId),
+            emailDeliveryService.initNotifyPortalUsers(portal, EmailTemplateId.TICKET_STATUS,
+                    Map.of("ticketId", ticketSaved.getId(), "portalId", portalId, "status", status.name()),
                     NotificationEvent.CHANGE_TICKET);
             changed = true;
         } finally {
@@ -238,9 +237,8 @@ public class TicketManageService {
                 ticketSaved.getId(), ticketSaved.getTitle());
 
         // Отправляем письмо
-        emailDeliveryService.initNotifyPortalUsers(portal,
-                emailTemplates.updatePriorityTicketSubject(ticketSaved.getId(), priority),
-                emailTemplates.updatePriorityTicketBody(ticketSaved.getId(), portal.getId()),
+        emailDeliveryService.initNotifyPortalUsers(portal, EmailTemplateId.TICKET_PRIORITY,
+                Map.of("ticketId", ticketSaved.getId(), "portalId", portal.getId(), "priority", priority.name()),
                 NotificationEvent.CHANGE_TICKET);
     }
 
@@ -270,8 +268,9 @@ public class TicketManageService {
                 ticketSaved.getTitle());
 
         // Отправляем письмо
-        emailDeliveryService.initNotifyPortalUsers(portal, emailTemplates.deletedTicketSubject(ticketID),
-                emailTemplates.deletedTicketBody(ticketID, user.getEmail()), NotificationEvent.TICKET_DELETED);
+        emailDeliveryService.initNotifyPortalUsers(portal, EmailTemplateId.TICKET_DELETED,
+                Map.of("ticketId", ticketSaved.getId(), "deletedByEmail", user.getEmail()),
+                NotificationEvent.TICKET_DELETED);
     }
 
 }

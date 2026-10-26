@@ -1,19 +1,22 @@
 package com.ukhanov.realhelpdesk.feature.portalmanager.service;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
 import com.ukhanov.realhelpdesk.core.pagination.service.PaginationAdapter;
 import com.ukhanov.realhelpdesk.core.security.limiter.exception.LimitException;
 import com.ukhanov.realhelpdesk.core.security.limiter.service.LimitService;
@@ -72,13 +75,14 @@ class PortalManageServiceTest {
 
     private PortalManageService service;
 
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
+    @Captor
+    private ArgumentCaptor<Map<String, Object>> modelCaptor;
 
     @BeforeEach
     void setUp() {
         service = new PortalManageService(
                 currentUserProvider, portalDomainService, paginationAdapter,
-                limitService, emailDeliveryService, emailTemplates,
+                limitService, emailDeliveryService,
                 notificationPublisher, portalHistoryService, Mappers.getMapper(PortalMapper.class));
 
         UserModel owner = new UserModel();
@@ -112,8 +116,8 @@ class PortalManageServiceTest {
         // then
         assertThat(response.id()).isEqualTo(PORTAL_ID);
         verify(emailDeliveryService).initNotifyPortalUsers(any(PortalModel.class),
-                eq(emailTemplates.portalCreatedSubject(PORTAL_ID)),
-                eq(emailTemplates.portalCreatedBody(PORTAL_ID)), eq(NotificationEvent.NEW_PORTAL));
+                eq(EmailTemplateId.PORTAL_CREATED), modelCaptor.capture(), eq(NotificationEvent.NEW_PORTAL));
+        assertThat(modelCaptor.getValue()).containsEntry("portalId", PORTAL_ID);
     }
 
     @Test

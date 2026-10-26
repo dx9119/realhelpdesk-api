@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.ukhanov.realhelpdesk.core.exception.SafeSideEffectExecutor;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.accesscontrol.service.AccessValidationService;
@@ -44,7 +45,6 @@ public class PortalDeletionService {
     private final AccessValidationService accessValidationService;
     private final PortalHistoryService portalHistoryService;
     private final EmailDeliveryService emailDeliveryService;
-    private final EmailTemplates emailTemplates;
     private final NotificationPublisher notificationPublisher;
     private final TransactionTemplate transactionTemplate;
 
@@ -70,8 +70,8 @@ public class PortalDeletionService {
             SafeSideEffectExecutor.runSafely(() -> {
                 notificationPublisher.publishToPortalUsers(portal, NotificationEvent.PORTAL_DELETED, user.getId(), null,
                         portal.getName());
-                emailDeliveryService.initNotifyPortalUsers(portal, emailTemplates.deletedPortalSubject(portal.getId()),
-                        emailTemplates.deletedPortalBody(portal.getId(), user.getEmail()),
+                emailDeliveryService.initNotifyPortalUsers(portal, EmailTemplateId.PORTAL_DELETED,
+                        Map.of("portalId", portal.getId(), "deletedByEmail", user.getEmail()),
                         NotificationEvent.PORTAL_DELETED);
                 return null;
             }, e -> logger.warn("Не удалось уведомить о удалении портала {}: {}", portal.getId(), e.getMessage()));

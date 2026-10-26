@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Новое сообщение в заявке</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f4f7; font-family:Arial, Helvetica, sans-serif;">
+<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;">
+<tr>
+<td align="center" style="padding: 24px 0;">
+<table role="presentation" width="600" border="0" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+<tr>
+<td th:replace="~{mail/fragments/header :: mailHeader}"></td>
+</tr>
+<tr>
+<td style="padding: 32px 40px 24px; color:#1a1a1a; font-size:15px; line-height:1.6;">
+<p style="margin:0 0 16px;">Добрый день!</p>
+<p style="margin:0 0 16px;">
+В заявке #<span th:text="${ticketId}">123</span> появилось новое сообщение.
+</p>
+<p style="margin:0 0 16px;">
+Ознакомиться с ним можно по ссылке:
+</p>
+<p style="margin:0 0 16px;">
+<a th:href="${baseUrl} + '/ticket-show/portal/' + ${portalId} + '/ticket/' + ${ticketId}" style="display:inline-block; padding:10px 24px; background-color:#2563eb; color:#ffffff; text-decoration:none; border-radius:6px;">
+Открыть заявку
+</a>
+</p>
+<p style="margin:0;">С уважением,<br/>Команда <span th:text="${projectName}">real help desk</span></p>
+</td>
+</tr>
+<tr>
+<td th:replace="~{mail/fragments/footer :: mailFooter}"></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>

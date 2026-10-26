@@ -1,5 +1,7 @@
 package com.ukhanov.realhelpdesk.feature.usermanager.service;
 
+import java.util.Map;
+
 import jakarta.persistence.EntityNotFoundException;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -8,14 +10,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
 import com.ukhanov.realhelpdesk.core.observability.AuthMetrics;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.TokenStatus;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.service.GetTokenService;
@@ -60,14 +62,16 @@ class UserManageServiceTest {
     private GetTokenService getTokenService;
 
     private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
+
+    @Captor
+    private ArgumentCaptor<Map<String, Object>> modelCaptor;
 
     private UserManageService service;
 
     @BeforeEach
     void setUp() {
         service = new UserManageService(currentUserProvider, userDomainService, emailDeliveryService, passwordEncoder,
-                new AuthMetrics(new SimpleMeterRegistry()), getTokenService, emailTemplates, userMapper);
+                new AuthMetrics(new SimpleMeterRegistry()), getTokenService, userMapper);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -165,13 +169,11 @@ class UserManageServiceTest {
         verify(userDomainService).saveUser(user);
         assertThat(user.getRecoveryPasswdToken()).isNotEqualTo(88L);
 
-        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailDeliveryService).sendEmail(eq("email@example.com"), eq(emailTemplates.passwordResetSubject()),
-                bodyCaptor.capture(),
+        verify(emailDeliveryService).sendEmail(eq("email@example.com"), eq(EmailTemplateId.PASSWORD_RESET),
+                modelCaptor.capture(),
                 eq(NotificationEvent.RECOVERY_PASSWORD), eq(user.getId()));
         verifyNoMoreInteractions(emailDeliveryService);
-        assertThat(bodyCaptor.getValue()).contains("/pass-reset?code=" + user.getRecoveryPasswdToken())
-                .contains(EmailTemplatesFixture.DOMAIN);
+        assertThat(modelCaptor.getValue()).containsEntry("code", String.valueOf(user.getRecoveryPasswdToken()));
     }
 
     // ────────────────────────────────────────────────────────────────

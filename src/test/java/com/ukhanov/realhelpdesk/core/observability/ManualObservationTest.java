@@ -18,12 +18,12 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import com.ukhanov.realhelpdesk.core.mail.config.EmailProperties;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailLogService;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailPolicyService;
-import com.ukhanov.realhelpdesk.core.mail.support.EmailTemplatesFixture;
+import com.ukhanov.realhelpdesk.core.mail.support.EmailContentFixture;
 import com.ukhanov.realhelpdesk.core.pagination.service.PaginationAdapter;
 import com.ukhanov.realhelpdesk.core.security.accesscontrol.service.TicketAccessValidationService;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.config.RateLimitProperties;
@@ -88,8 +88,6 @@ class ManualObservationTest {
     @Mock
     private NotificationPublisher notificationPublisher;
 
-    private final EmailTemplates emailTemplates = EmailTemplatesFixture.emailTemplates();
-
     @BeforeEach
     void setUp() {
         observationRegistry = TestObservationRegistry.create();
@@ -104,7 +102,6 @@ class ManualObservationTest {
         TicketManageService service = new TicketManageService(ticketDomainService, currentUserProvider,
                 portalDomainService,
                 paginationAdapter, emailDeliveryService, ticketAccessValidationService, ticketRepository,
-                emailTemplates,
                 notificationPublisher, Mappers.getMapper(TicketMapper.class), observationRegistry,
                 new BusinessMetrics(new SimpleMeterRegistry()));
 
@@ -174,7 +171,8 @@ class ManualObservationTest {
         when(mailSender.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         EmailDeliveryService service = emailDeliveryService(mailSender);
 
-        service.sendEmail("user@example.com", "Тема", "Текст", NotificationEvent.NEW_TICKET);
+        service.sendEmail("user@example.com", EmailTemplateId.TICKET_CREATED, ticketModel(),
+                NotificationEvent.NEW_TICKET);
 
         TestObservationRegistryAssert.assertThat(observationRegistry)
                 .hasObservationWithNameEqualTo("mail.send")
@@ -201,8 +199,8 @@ class ManualObservationTest {
         EmailDeliveryService service = emailDeliveryService(mailSender);
 
         // then
-        assertThatThrownBy(() -> service.sendEmail("user@example.com", "Тема", "Текст", NotificationEvent.NEW_TICKET))
-                .isInstanceOf(MailSendException.class);
+        assertThatThrownBy(() -> service.sendEmail("user@example.com", EmailTemplateId.TICKET_CREATED, ticketModel(),
+                NotificationEvent.NEW_TICKET)).isInstanceOf(MailSendException.class);
 
         TestObservationRegistryAssert.assertThat(observationRegistry)
                 .hasObservationWithNameEqualTo("mail.send")
@@ -227,8 +225,12 @@ class ManualObservationTest {
         return new EmailDeliveryService(mailSender, org.mockito.Mockito.mock(UserDomainService.class), emailProperties,
                 emailPolicyService,
                 org.mockito.Mockito.mock(CurrentUserProvider.class), emailLogService, rateLimitProperties,
-                emailTemplates,
+                EmailContentFixture.renderer(),
                 observationRegistry, new BusinessMetrics(new SimpleMeterRegistry()));
+    }
+
+    private static Map<String, Object> ticketModel() {
+        return Map.of("ticketId", TICKET_ID, "portalId", PORTAL_ID);
     }
 
     /** Запрещённые ключи: id, email и прочие ПДн не должны жить в low-cardinality тегах. */

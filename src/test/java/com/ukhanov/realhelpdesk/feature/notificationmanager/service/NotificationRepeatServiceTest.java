@@ -10,13 +10,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Pageable;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
@@ -62,16 +63,15 @@ class NotificationRepeatServiceTest {
     @Mock
     private EmailDeliveryService emailDeliveryService;
 
-    @Mock
-    private EmailTemplates emailTemplates;
+    @Captor
+    private ArgumentCaptor<Map<String, Object>> modelCaptor;
 
     private NotificationRepeatService service;
 
     @BeforeEach
     void setUp() {
         service = new NotificationRepeatService(notificationRepository, preferencesRepository, notificationPublisher,
-                userDomainService,
-                emailDeliveryService, emailTemplates);
+                userDomainService, emailDeliveryService);
         when(notificationRepository.findRepeatCandidates(anySet(), any(Pageable.class))).thenReturn(List.of());
         // как в JPA: save возвращает ту же строку с присвоенным id
         when(notificationRepository.save(any(NotificationModel.class)))
@@ -223,9 +223,12 @@ class NotificationRepeatServiceTest {
         // then
         verify(notificationRepository, times(1)).save(any(NotificationModel.class));
         verify(notificationPublisher).wakeAfterCommit(List.of(USER_ID));
-        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user@example.com"), any(), any(),
-                eq(NotificationEvent.NEW_TICKET),
+        verify(emailDeliveryService, times(1)).sendUserNotification(eq("user@example.com"),
+                eq(EmailTemplateId.NOTIFICATION_REPEAT), modelCaptor.capture(), eq(NotificationEvent.NEW_TICKET),
                 eq(USER_ID));
+        assertThat(modelCaptor.getValue()).containsEntry("title", "Проблема")
+                .containsEntry("ticketId", TICKET_ID)
+                .containsEntry("portalId", PORTAL_ID);
     }
 
     @Test

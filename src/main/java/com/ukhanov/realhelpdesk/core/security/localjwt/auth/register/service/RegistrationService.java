@@ -1,6 +1,7 @@
 package com.ukhanov.realhelpdesk.core.security.localjwt.auth.register.service;
 
 import java.io.UnsupportedEncodingException;
+import java.util.Map;
 import java.util.Objects;
 
 import jakarta.mail.MessagingException;
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Service;
 
 import com.ukhanov.realhelpdesk.core.log.LogSanitizer;
 import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.localjwt.auth.mapper.AuthMapper;
@@ -38,7 +39,6 @@ public class RegistrationService {
     private final GetTokenService getTokenService;
     private final EmailDeliveryService emailDeliveryService;
     private final CaptchaService captchaService;
-    private final EmailTemplates emailTemplates;
     private final AuthMapper authMapper;
 
     public UserModel addUser(RegisterRequest registerRequest)
@@ -66,12 +66,12 @@ public class RegistrationService {
         logger.info("Зарегистрирован пользователь {}", newUser.getId());
 
         // Оповещаем админа о регистрации
-        emailDeliveryService.sendAdminNotification("Новая регистрация:" + newUser.getEmail(),
-                "Кто,что:" + newUser.toString(),
+        emailDeliveryService.sendAdminNotification(EmailTemplateId.ADMIN_REGISTRATION,
+                Map.of("email", newUser.getEmail(), "userId", newUser.getId()),
                 NotificationEvent.NEW_SYSTEM_MESSAGE);
 
-        emailDeliveryService.sendUserNotification(newUser.getEmail(), emailTemplates.registrationLinkSubject(),
-                emailTemplates.registrationLinkBody(newUser.getVerifyEmailToken().toString()),
+        emailDeliveryService.sendUserNotification(newUser.getEmail(), EmailTemplateId.REGISTRATION_LINK,
+                Map.of("token", String.valueOf(newUser.getVerifyEmailToken())),
                 NotificationEvent.NEW_SYSTEM_MESSAGE,
                 newUser.getId());
 

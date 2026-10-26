@@ -3,6 +3,7 @@ package com.ukhanov.realhelpdesk.feature.portalmanager.service;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -17,7 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.ukhanov.realhelpdesk.core.http.EntityTag;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplates;
+import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.pagination.dto.PageResponse;
@@ -65,7 +66,6 @@ public class PortalManageService {
     private final PaginationAdapter paginationAdapter;
     private final LimitService limitService;
     private final EmailDeliveryService emailDeliveryService;
-    private final EmailTemplates emailTemplates;
     private final NotificationPublisher notificationPublisher;
     private final PortalHistoryService portalHistoryService;
     private final PortalMapper portalMapper;
@@ -102,8 +102,8 @@ public class PortalManageService {
                 portal.getName());
 
         // Отправляем письмо
-        emailDeliveryService.initNotifyPortalUsers(portal, emailTemplates.portalCreatedSubject(savePortal.getId()),
-                emailTemplates.portalCreatedBody(savePortal.getId()), NotificationEvent.NEW_PORTAL);
+        emailDeliveryService.initNotifyPortalUsers(portal, EmailTemplateId.PORTAL_CREATED,
+                Map.of("portalId", savePortal.getId()), NotificationEvent.NEW_PORTAL);
 
         return new CreatePortalResponse(savePortal.getId());
     }
