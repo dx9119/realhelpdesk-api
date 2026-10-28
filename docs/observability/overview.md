@@ -76,7 +76,7 @@
 
 ## Как работать с алертами
 
-Правила — `infrastructure/observability/mimir/rules/anonymous/realhelpdesk.yml` (8 алертов в 5 группах, каждому —
+Правила — `infrastructure/observability/mimir/rules/anonymous/realhelpdesk.yml` (9 алертов в 6 группах, каждому —
 severity/summary/description/runbook_url; их оценивает ruler Mimir). SLO — [slo.md](slo.md).
 
 | Алерт | Порог | Runbook |
@@ -89,6 +89,7 @@ severity/summary/description/runbook_url; их оценивает ruler Mimir). 
 | AppUnreachable | `up == 0` / 2 мин (critical) | [runbooks/app-unreachable.md](../runbooks/app-unreachable.md) |
 | NoNewTickets | нет заявок 2 ч в рабочее время | [runbooks/no-new-tickets.md](../runbooks/no-new-tickets.md) |
 | AuthFailuresSpike | failure > 6/мин / 5 мин | [runbooks/auth-failures-spike.md](../runbooks/auth-failures-spike.md) |
+| EmailTemplateSentFailures | доля неудач > 1% / 5 мин | [runbooks/email-template-sent-failures.md](../runbooks/email-template-sent-failures.md) |
 
 ```bash
 # синтаксис правил (promtool из образа, без локальной установки)

@@ -124,6 +124,25 @@ groups:
           description: "Счётчик tickets.created не рос 2 часа подряд в рабочее время (пн–пт, 9–18 UTC). Возможна деградация фронтенда/шлюза или перестал работать канал создания заявок."
           runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/no-new-tickets.md"
 
+  - name: realhelpdesk-mail
+    rules:
+      - alert: EmailTemplateSentFailures
+        # Доля неудач по email.template.sent_total{result="failure"} > 1% в течение 5 минут.
+        # Группировка по type показывает, какой именно шаблон падает.
+        expr: |
+          (
+            sum by (type) (rate(email_template_sent_total{result="failure"}[5m]))
+            /
+            clamp_min(sum by (type) (rate(email_template_sent_total[5m])), 0.001)
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Доля неудач отправки писем выше 1% по типу {{ $labels.type }} ({{ $value | humanizePercentage }})"
+          description: "У {{ $labels.instance }} шаблон {{ $labels.type }} не доставляется с долей ошибок более 1% на протяжении 5 минут. Возможна проблема SMTP, опечатка в шаблоне или невалидные данные модели."
+          runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/email-template-sent-failures.md"
+
   - name: realhelpdesk-security
     rules:
       - alert: AuthFailuresSpike

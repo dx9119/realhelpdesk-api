@@ -15,13 +15,14 @@
 | `attachments.uploaded` | Counter | `content_type` (группа MIME) | Загруженные вложения по группе типа содержимого |
 | `attachments.size` | DistributionSummary, `baseUnit=bytes` | `content_type` (группа MIME) | Суммарный размер загруженных вложений |
 | `mail.sent` | Counter | `type` (enum `NotificationEvent`), `result` (`success`/`failure`) | Фактические попытки отправки письма |
+| `email.template.sent` | Counter | `type` (enum `EmailTemplateId`), `result` (`success`/`failure`) | Отправленные письма по типу шаблона и результату |
 | `auth.attempts` | Counter | `type`, `result` | Попытки аутентификации (`AuthMetrics`) |
 
 Экспортируемые имена в Prometheus: `tickets_total` (Micrometer-имя `tickets.created`: конвенция
 PrometheusNaming срезает суффикс `.created` — OpenMetrics резервирует `_created` вспомогательной
 меткой, поэтому к `tickets` добавляется только `_total`), `tickets_status_transitions_total`,
 `tickets_open`, `attachments_uploaded_total`, `attachments_size_bytes`, `mail_sent_total`,
-`auth_attempts_total`; Timer получает суффикс `_seconds` автоматически
+`email_template_sent_total`, `auth_attempts_total`; Timer получает суффикс `_seconds` автоматически
 (`tickets_time_to_first_response_seconds_bucket/…_sum/…_count`).
 
 ## Теги и кардинальность
@@ -41,6 +42,10 @@ PrometheusNaming срезает суффикс `.created` — OpenMetrics рез
   коммита, поэтому вызов метрики сразу за ними — это граница «после коммита»: откат или исключение раньше счётчик не завышает (аналог
   `@TransactionalEventListener(AFTER_COMMIT)` без публикации событий в домен). `mail.sent` считается сразу после приёма письма SMTP:
   стоп-лист и лимиты возвращаются до `deliver` и попытками не считаются.
+- **`email.template.sent` vs `mail.sent`.** Считается в том же `deliver()` по фактической попытке доставки. Теги различаются:
+  `mail.sent.type` = `NotificationEvent` (событие-источник), `email.template.sent.type` = `EmailTemplateId` (шаблон письма).
+  У события `PORTAL_TRANSFER_REQUESTED` два шаблона (участникам портала и кандидату), поэтому по `mail.sent` они смешиваются —
+  новая метрика разделяет их. `mail.sent` не удаляется: по ней построены существующие запросы и дашборды.
 - **Первый ответ.** `tickets.time.to.first.response` пишется для первого сообщения в заявке — той же семантики, что и доменный признак
   «без ответа» (`findOpenTicketIdsWithoutMessages…`: заявка без ответа = без сообщений, независимо от автора). Счётчик берётся до вставки
   нового сообщения (`countByTicketId`), поэтому вложения (они создаются сообщением) участвуют как первое сообщение.
@@ -100,7 +105,7 @@ PrometheusNaming срезает суффикс `.created` — OpenMetrics рез
 # после логина и создания заявки/сообщения/вложения и отправки письма
 # (креды скрейпа — METRICS_USER и METRICS_PASSWORD из infrastructure/.env)
 curl -s -u "$METRICS_USER:$METRICS_PASSWORD" localhost:8081/actuator/prometheus \
-  | grep -E 'tickets_total|tickets_status_transitions|tickets_open|tickets_time_to|attachments_|mail_sent'
+  | grep -E 'tickets_total|tickets_status_transitions|tickets_open|tickets_time_to|attachments_|mail_sent|email_template_sent'
 ```
 
 Ожидаемо: `tickets_total{priority="MEDIUM",…}` растёт при создании заявки, `tickets_time_to_first_response_seconds_count` появляется на
