@@ -206,6 +206,26 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
 последовательных запросов и всегда упирался бы в лимиты. Цель оставлена для
 ручного прогона после изменений в рейт-лимитах.
 
+### Тестовый профиль `test`
+
+Основной `src/main/resources/application.properties` — схема обязательных
+`${VAR}` без дефолтов (инвариант проверяет `ApplicationConfigSchemaTest`): без
+`infrastructure/.env` контекст Spring не стартует. `src/test/resources/application.properties`
+затеняет его и активирует профиль `prod`, а `src/test/resources/application-test.properties`
+задаёт то, без чего интеграционный контекст не поднимается:
+
+| Что задаёт | Зачем |
+|---|---|
+| Literal-значения JWT, MinIO, капчи, `spring.mail.*`, всех `ratelimit.limits.*` | Контекст стартует без `.env` и без docker-инфры; тестовые значения, секретов нет |
+| `spring.liquibase.enabled=true`, `contexts=schema`, `ddl-auto=validate` | Схему в контейнере создаёт миграция, Hibernate её только сверяет с сущностями — расхождение валит IT |
+| Обход prod-preflight | `ProdPreflightValidator` не пропустил бы старт на `mail.host=localhost` |
+| `management.opentelemetry.enabled=false`, `management.server.port=0`, health `minio`/`mail` выключены | Экспорт трейсов не нужен, индикаторы без реальных сервисов валили бы `/actuator/health` в 503 |
+
+Профиль включается в `@SpringBootTest` IT явно —
+`properties = "spring.profiles.active=test"`. `@DataJpaTest` его не читает: там
+Liquibase выключён (`src/test/resources/application-prod.properties`), а схема —
+за `ddl-auto` самого теста.
+
 Подробнее: [`docs/testing.md`](docs/testing.md)
 
 ## Документация
