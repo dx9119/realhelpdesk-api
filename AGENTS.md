@@ -1,5 +1,5 @@
 # CI/CD Requirements
-CRITICAL WORKFLOW: Edit code -> Run `make check-ci` -> If failed: **REPORT** errors & fix options to user -> **PAUSE & WAIT** for explicit approval (NEVER auto-fix) -> Apply approved fix -> Re-run `make check-ci`. Finish/commit ONLY when exit code is 0.
+CRITICAL WORKFLOW: Edit code -> Run `make check-ci-all` -> If failed: **REPORT** errors & fix options to user -> **PAUSE & WAIT** for explicit approval (NEVER auto-fix) -> Apply approved fix -> Re-run `make check-ci-all`. Finish/commit ONLY when exit code is 0.
 
 PROTECTED QUALITY GATES: NEVER modify `pom.xml` (build/quality-plugin sections), `config/checkstyle/**` (incl. `suppressions.xml`), `config/spotbugs/**`, `config/eclipse/**`, or guard tests (`ArchitectureTest`, `OpenApiDocumentationGuardTest`) without explicit user approval. When a quality gate fails, fix the code — never weaken the rule, add suppressions, or extend exclude lists on your own.
 
@@ -36,7 +36,7 @@ Output Language (Docs, Javadoc, Comments, Swagger, Configs): **Russian ONLY**. T
     - *`Dockerfile` & `docker-compose.yaml`:* Comment non-obvious JVM/CLI flags, healthcheck intervals, port/volume mappings, and image tag pins.
     - *`Makefile`:* Add a 1-line comment above each target stating its purpose and prerequisites (e.g., requires running DB).
     - *`.env`:* Group by service; specify units (ms, sec, MB), allowed formats, and mark secrets that must be overridden in prod.
-- **DB (`Liquibase`):** No text descriptions of tables/columns. Reference `db/changelog/db.changelog-master.xml` (`make dev-migrate`) and invariant: Hibernate `validate` mode only.
+- **DB (`Liquibase`):** No text descriptions of tables/columns. Reference `db/changelog/db.changelog-master.xml` (migrations run on app start, `DB_MIGRATIONS_CONTEXTS`) and invariant: Hibernate `validate` mode only.
 
 - **Linting:** Do not explain code style rules. Write only: "Must pass `mvn validate`; format via `mvn spotless:apply`".
 
