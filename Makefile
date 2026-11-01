@@ -31,16 +31,15 @@ PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile mo
 
 # Префикс dev- = цель локального dev-контура (compose-цепочка с override,
 # порты на хост): на prod-сервере не запускается — там только prod-up/prod-backup/prod-restore.
-.PHONY: help build clean compile package test verify format check run \
-        dev-run dev-test run-local dev-up-deps \
-        env dev-apply-config dev-docker-build dev-up prod-up dev-up-load dev-down dev-down-volumes \
+.PHONY: help build clean test verify run-local \
+        dev-run \
+        env dev-apply-config dev-docker-build prod-up dev-down dev-down--del-volumes \
         dev-logs dev-ps dev-restart dev-shell check-image \
-        check-ci check-secrets check-dockerfile ci-image check-image-vuln \
+        check-ci-all check-code-style check-secrets check-dockerfile ci-image check-image-vuln \
         prod-backup prod-restore \
         dev-profile-local dev-profile-keycloak \
         obs-up obs-down obs-reload obs-alerts \
-        load load-smoke \
-        dev-migrate dev-db-seed \
+        load-full load-smoke .load-up \
         dev-openapi dev-openapi-types \
         e2e-reset-limits \
         e2e-portal-access e2e-ratelimit e2e-jwt e2e-notifications e2e-portal-transfer e2e-token-cleanup e2e-keycloak \
@@ -49,21 +48,15 @@ PROFILES_ALL ?= --profile infra --profile local-tools --profile app --profile mo
         require-local require-keycloak
 
 help: ## Показать список команд
-	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
 ## --- Сборка и тесты (Maven, на хосте) ---
 
-build: ## Собрать jar без тестов (package -DskipTests)
-	$(MVN) -DskipTests package
+build: ## Собрать jar с юнит-тестами (package; интеграционные *IT не входят)
+	$(MVN) -DskipITs package
 
 clean: ## Очистить target/
 	$(MVN) clean
-
-compile: ## Компиляция main и test (после checkstyle/spotless из фазы validate)
-	$(MVN) validate test-compile
-
-package: ## Полная сборка: тесты + jar
-	$(MVN) package
 
 test: ## Юнит-тесты (surefire)
 	$(MVN) test
@@ -71,25 +64,16 @@ test: ## Юнит-тесты (surefire)
 verify: ## Тесты + интеграционные *IT (failsafe)
 	$(MVN) verify
 
-format: ## Форматирование кода (spotless:apply)
-	$(MVN) spotless:apply
-
-check: ## Проверки стиля (spotless:check + checkstyle)
+check-code-style: ## Проверки стиля (spotless:check + checkstyle)
 	$(MVN) spotless:check checkstyle:check
 
-run: ## Запустить приложение локально (spring-boot:run)
-	$(MVN) spring-boot:run
-
-run-local: env ## Приложение на хосте против dockerized-инфры (профили dev,host; инфру поднимает spring-boot-docker-compose или make dev-up-deps)
+run-local: env ## Приложение на хосте против dockerized-инфры (профили dev,host; инфру поднимает spring-boot-docker-compose или make dev-run)
 	bash scripts/dev/run-local.sh
 
-dev-run: env ## Dev-среда: compose up в foreground (логи всех сервисов, Ctrl+C — стоп)
-	$(COMPOSE) $(PROFILES_LOCAL) up --build
-
-dev-test: ## Dev-среда: mvn verify + e2e Keycloak-контура (нужен поднятый стек: dev-run/dev-up)
-	$(MVN) verify
-	$(MAKE) dev-profile-keycloak
-	$(MAKE) e2e-all
+# Dev-режим: приложение запускается из IDE/CLI на хосте, поэтому контейнер app
+# и сборка его образа не участвуют — только инфраструктура (infra+local-tools).
+dev-run: env ## Dev-среда: compose up инфраструктуры в foreground (БД, MinIO, smtp4dev, Keycloak; Ctrl+C — стоп)
+	$(COMPOSE) $(PROFILES_DEPS) up
 
 ## --- Docker ---
 
@@ -106,19 +90,13 @@ dev-apply-config: ## Применить изменения .env к запуще�
 dev-docker-build: ## Собрать docker-образ приложения (с меткой GIT_SHA)
 	$(COMPOSE) $(PROFILES_LOCAL) build --build-arg GIT_SHA=$(GIT_SHA)
 
-dev-up: env ## Поднять локальный стек (профили infra+local-tools+app, сборка образа, в фоне)
-	$(COMPOSE) $(PROFILES_LOCAL) up --build -d
-
-dev-up-deps: env ## Поднять только инфраструктуру (infra+local-tools: БД, MinIO, smtp4dev, Keycloak) — для запуска app из IDEA/CLI
-	$(COMPOSE) $(PROFILES_DEPS) up -d
-
 prod-up: env ## Поднять рабочий стек (infra+app, pull из ghcr.io; настройки — «Рабочий контур» в .env)
 	$(COMPOSE_PROD) $(PROFILES_PROD) up -d --no-build
 
 dev-down: ## Остановить стек (все профили)
 	$(COMPOSE) $(PROFILES_ALL) down
 
-dev-down-volumes: ## Остановить стек и удалить тома (данные БД/MinIO)
+dev-down--del-volumes: ## Остановить стек и удалить тома (данные БД/MinIO)
 	$(COMPOSE) $(PROFILES_ALL) down -v
 
 ## --- Бэкапы (PostgreSQL + MinIO; артефакты — ./backups/) ---
@@ -207,13 +185,15 @@ check-image-vuln: ci-image ## trivy: уязвимости образа CRITICAL/
 	  -v trivy-cache:/root/.cache/trivy \
 	  aquasec/trivy:0.58.2 image --timeout 15m --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $(CI_IMAGE)
 
-check-ci: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
+check-ci-all: check-secrets check-dockerfile check-image-vuln ## Все CI-проверки локально: gitleaks + hadolint + trivy
 
 ## --- Нагрузочное тестирование (k6, scripts/load/) ---
 # Прогон сидирует пул пользователей через /api/v1/auth/register — это
-# внутренний JWT-контур, поэтому dev-up-load переводит приложение на профиль dev.
+# внутренний JWT-контур, поэтому стек для нагрузки переводит приложение на профиль dev.
 
-dev-up-load: env ## Поднять стек для нагрузки (профиль dev и TRUST_PROXY_HEADERS=true инлайном; только локально)
+# Служебная (не в help): профиль dev и TRUST_PROXY_HEADERS=true инлайном — .env не меняется;
+# доверие X-Forwarded-For даёт каждой VU свой bucket рейт-лимита.
+.load-up: env
 	# Внутренний JWT-контур (пул сидируется через /api/v1/auth/register) и
 	# доверие X-Forwarded-For (каждой VU — свой bucket рейт-лимита) задаются
 	# инлайном: .env не меняется.
@@ -221,41 +201,13 @@ dev-up-load: env ## Поднять стек для нагрузки (профи�
 	TRUST_PROXY_HEADERS=true OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces \
 	$(COMPOSE_LOAD) $(PROFILES_LOCAL) up --build -d --wait
 
-load: dev-up-load ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
+load-full: .load-up ## Нагрузочный user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
 	bash scripts/load/run.sh
 
-load-smoke: dev-up-load ## Короткий smoke-прогон user journey (2 VU, 1 минута)
+load-smoke: .load-up ## Короткий smoke-прогон user journey (2 VU, 1 минута)
 	TARGET_VUS=2 DURATION=1m bash scripts/load/run.sh
 
-## --- Миграции схемы (Liquibase с хоста; порт 127.0.0.1:5432 публикует
-## docker-compose.override.yaml — нужен make dev-up-deps) ---
-# Миграции также применяет само приложение при старте (DB_MIGRATIONS_ENABLED).
-# Цели ниже — для чистого/ручного прогона без контейнера приложения.
-
-# Контекст передаёт и dev-migrate: Liquibase без -Dliquibase.contexts применяет
-# ВСЕ changeset'ы, включая помеченные context="seed" — без него «чистая»
-# миграция незаметно наполнила бы базу фикстурами.
-dev-migrate: env ## Миграции Liquibase на основную БД (localhost:5432)
-	@set -a && . infrastructure/.env && set +a && \
-	$(MVN) -q liquibase:update \
-	  -Dliquibase.url=jdbc:postgresql://127.0.0.1:5432/desk \
-	  -Dliquibase.username=user \
-	  -Dliquibase.password="$$DB_PASSWORD" \
-	  -Dliquibase.contexts="$${DB_MIGRATIONS_CONTEXTS:-schema}"
-
-# Сид отличается от dev-migrate контекстом: фикстуры помечены context="seed" и не
-# применяются при DB_MIGRATIONS_CONTEXTS=schema (чистая dev-база по умолчанию).
-# Повторный прогон безопасен — seed-INSERT'ы идемпотентны. Чистая схема взамен:
-# make dev-down-volumes && make dev-up.
-dev-db-seed: env ## Локальные фикстуры (Liquibase context=seed) на основную БД (localhost:5432)
-	@set -a && . infrastructure/.env && set +a && \
-	$(MVN) -q liquibase:update \
-	  -Dliquibase.url=jdbc:postgresql://127.0.0.1:5432/desk \
-	  -Dliquibase.username=user \
-	  -Dliquibase.password="$$DB_PASSWORD" \
-	  -Dliquibase.contexts=schema,seed
-
-## --- OpenAPI (нужен поднятый стек: make dev-up) ---
+## --- OpenAPI (нужен поднятый стек: make dev-run) ---
 
 dev-openapi: ## Забрать OpenAPI-спеку с запущенного стека в openapi.json
 	curl -s http://localhost:8080/v3/api-docs -o openapi.json && echo "openapi.json обновлён"
@@ -263,7 +215,7 @@ dev-openapi: ## Забрать OpenAPI-спеку с запущенного ст
 dev-openapi-types: dev-openapi ## Сгенерировать TypeScript-типы из спеки (нужен npx)
 	npx --yes openapi-typescript openapi.json -o web/src/api/schema.d.ts
 
-## --- E2E (нужен поднятый стек: make dev-up) ---
+## --- E2E (нужен запущенный стек: make dev-run + приложение из IDE) ---
 # E2e разделены на два контура аутентификации:
 #
 # 1. e2e-jwt-in-app — внутренний JWT-контур (профиль dev).
@@ -306,7 +258,7 @@ e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпои�
 require-profile:
 	@code=$$(curl -sk -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/health); \
 	if [ $$code != 200 ]; then \
-	  echo "ошибка: приложение недоступно на http://localhost:8080 — поднимите стек: make dev-up"; \
+	  echo "ошибка: приложение недоступно на http://localhost:8080 — поднимите инфраструктуру (make dev-run) и запустите приложение из IDE"; \
 	  exit 1; \
 	fi; \
 	profile=$$($(COMPOSE) $(PROFILES_ALL) exec -T app printenv SPRING_PROFILES_ACTIVE 2>/dev/null | tr -d '\r'); \
