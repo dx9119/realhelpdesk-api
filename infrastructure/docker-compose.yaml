@@ -5,8 +5,8 @@
 #   infra       — postgres, minio: внутренняя сеть data (internal), портов на хост нет
 #   local-tools — smtp4dev и keycloak (локальные сервисы разработки)
 #
-# make dev-up-deps     → infra + local-tools        (зависимости для запуска app из IDEA)
-# make dev-up       → infra + local-tools + app  (локальная разработка)
+# make dev-run         → infra + local-tools        (инфраструктура для запуска app из IDEA)
+# make dev-profile-*  → infra + local-tools + app  (стек целиком, контур — профиль)
 # make prod-up     → infra + app                (рабочий контур: без local-tools/monitoring)
 #
 # Порты БД/MinIO на loopback хоста (для IDEA/psql/MinIO-консоли) публикует
@@ -108,7 +108,7 @@ services:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-dev}"
       # Динамические ключи: без объявления здесь инлайн-переменная хоста до
       # контейнера не доходит — env_file (.env) переопределить нельзя, поэтому
-      # make obs-up / dev-up-load и scripts/e2e-token-cleanup.sh молча получали
+      # make obs-up / load-full и scripts/e2e-token-cleanup.sh молча получали
       # значения из .env. Приоритет: переменная хоста → infrastructure/.env →
       # дефолт ниже.
       # HTTP OTLP (дефолт Boot 4): порт 4318 Collector'а. Без obs-стека адрес

@@ -90,9 +90,9 @@ curl -s localhost:9090/prometheus/api/v1/alerts
 запросы     ──PromQL──▶ mimir:9090/prometheus │ TraceQL──▶ tempo:3200 │ LogQL──▶ loki:3100
 ```
 
-Без наблюдаемости (обычный `make dev-up`) endpoint — `localhost:4318/v1/traces` (дефолт
+Без наблюдаемости (стек без `monitoring`-профиля) endpoint — `localhost:4318/v1/traces` (дефолт
 compose-интерполяции, HTTP OTLP), экспорта трейсов нет (соединение отклоняется, приложение
-работает). `make obs-up` и `make dev-up-load`/`make load-smoke` передают
+работает). `make obs-up` и `make load-full`/`make load-smoke` передают
 `OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces` инлайном, поэтому
 в комбинации «obs + load» endpoint'ы совпадают — экспорт трейсов не ломается
 при пересоздании app ни одной из команд. Постоянный адрес collector'а для всех

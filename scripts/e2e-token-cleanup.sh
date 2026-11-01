@@ -20,7 +20,8 @@
 # (Ctrl+C, kill -9) не оставляет сломанной конфигурации. По завершении app
 # пересоздаётся без инлайн-переменных — возвращается штатное расписание.
 #
-# Требования: поднятый стек (make dev-up), капча выключена (по умолчанию), docker
+# Требования: приложение на JWT-контуре (make dev-profile-local), капча выключена
+# (по умолчанию), docker
 # для psql. Тратит рейт-лимиты /auth/register и /auth/login (по 10 на 5 мин);
 # пересоздание app сбрасывает счётчики, поэтому прогон укладывается в лимит.
 set -u
@@ -164,11 +165,11 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 if [ "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/health")" != "200" ]; then
-  echo "  FAIL $BASE/health недоступен — поднимите стек: make dev-up"
+  echo "  FAIL $BASE/health недоступен — запустите приложение: make dev-profile-local"
   exit 1
 fi
 if [ "$(sql 'select 1;')" != "1" ]; then
-  echo "  FAIL postgres недоступен через docker compose — поднимите стек: make dev-up"
+  echo "  FAIL postgres недоступен через docker compose — поднимите инфраструктуру: make dev-run"
   exit 1
 fi
 
