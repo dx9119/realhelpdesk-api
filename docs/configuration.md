@@ -19,7 +19,7 @@
 | `infrastructure/.env.dev.example` | Шаблон для локальной разработки: секреты (пустые), специфичные для среды хосты (dev-домены, smtp4dev, MinIO в compose-сети), Keycloak, JVM-флаги. `make env` копирует его в `.env` | Новый обязательный ключ, новый dev-дефолт |
 | `infrastructure/.env.prod.example` | Шаблон для рабочего контура: секреты (пустые), prod-домены, внешний SMTP, JVM-флаги. На VPS копируется вручную | Новый обязательный ключ для прода |
 | `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` создаёт его из dev-шаблона и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет. Его читают compose (интерполяция `${VAR}`) и приложение (`env_file`) | Локальные значения и секреты |
-| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск. Здесь же `SPRING_PROFILES_ACTIVE` — переопределяется инлайном (`make dev-profile-local`, `dev-up-load`, e2e-сценарии) | Новая секретная переменная |
+| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск. Здесь же `SPRING_PROFILES_ACTIVE` — переопределяется инлайном (`make dev-profile-local`, `make dev-profile-keycloak`, `dev-up-load`) | Новая секретная переменная |
 
 Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,

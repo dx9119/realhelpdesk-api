@@ -100,6 +100,8 @@ jobs:
       - name: Дождаться готовности Keycloak
         run: |
           timeout 180 bash -c 'until curl -sf http://localhost:8180/realms/realhelpdesk/.well-known/openid-configuration >/dev/null; do echo "wait keycloak..."; sleep 5; done'
+      - name: Переключить приложение на Keycloak-контур
+        run: make dev-profile-keycloak
       - name: E2E-сценарии
         run: make e2e-all
       - name: Логи стека (при падении)

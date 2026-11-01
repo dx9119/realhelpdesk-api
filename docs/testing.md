@@ -286,6 +286,12 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
 автономных инсталляций без внешнего OAuth2-сервера, но новым пользователям не
 предлагается.
 
+E2E-цели отвечают только за тесты: контейнеры не поднимают и не пересобирают.
+Профиль переключается заранее — `make dev-profile-keycloak` (для `e2e-all`) или
+`make dev-profile-local` (для `e2e-jwt-in-app`). Цели `make require-keycloak` /
+`make require-local` лишь проверяют готовность контура и подсказывают команду
+переключения; при неверном профиле e2e-прогон не запускается.
+
 ### Keycloak-контур (e2e-all)
 
 | Команда | Сценарий | Скрипт |

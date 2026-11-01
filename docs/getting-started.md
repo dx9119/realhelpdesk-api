@@ -7,11 +7,12 @@
 ## Быстрый старт
 
 ```bash
-make env && make dev-up && make e2e-all
+make env && make dev-up && make dev-profile-keycloak && make e2e-all
 ```
 
 `make env` создаёт `infrastructure/.env` с секретами, `make dev-up` поднимает
-стек целиком, `make e2e-all` проверяет его сквозным сценарием. Адреса
+стек целиком, `make dev-profile-keycloak` переключает приложение на Keycloak-контур,
+`make e2e-all` проверяет его сквозным сценарием. Адреса
 поднятых сервисов (API, Swagger, Actuator, smtp4dev, Keycloak) —
 [таблица в §2.1](#21-весь-стек-в-контейнерах-первый-запуск).
 
@@ -318,7 +319,7 @@ job: docker
 
 job: e2e — compose-стек (JDK 25)
   └─► make env → make dev-up → wait health (app) → wait Keycloak
-  └─► make e2e-all
+  └─► make dev-profile-keycloak → make e2e-all
   └─► при провале — ps + logs всех контейнеров в CI-вывод
   └─► always: make dev-down
 ```
@@ -371,8 +372,11 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 Шелл-сценарии в `scripts/e2e-*.sh`, ходят в реальный стек по
 `http://localhost:8080` (нужен `make dev-up`). Контуры аутентификации два:
 **Keycloak** (рекомендуемый, `make e2e-all`) и внутренний JWT
-(`make e2e-jwt-in-app`, автономные инсталляции). Каждый сценарий автоматически
-переводит приложение на нужный профиль и сбрасывает in-memory рейт-лимиты.
+(`make e2e-jwt-in-app`, автономные инсталляции). E2E-цели отвечают только за
+тесты: контейнеры они не поднимают и не пересобирают. Профиль нужно переключить
+заранее — `make dev-profile-keycloak` или `make dev-profile-local`; цели
+`make require-keycloak` / `make require-local` проверяют контур и подсказывают
+нужную команду, а `make e2e-reset-limits` сбрасывает in-memory рейт-лимиты.
 
 | Команда | Сценарий |
 |---|---|
