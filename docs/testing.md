@@ -3,20 +3,21 @@
 Все тесты проводятся только в dev-среде. Юнит-тесты — на хосте, без Docker, в тестовой
 конфигурации `src/test/resources/application.properties`; интеграционные (`*IT`) — тоже на
 хосте, но им нужен Docker (Testcontainers поднимает PostgreSQL 18 и MinIO); e2e — только на
-поднятом dev-стеке (`make dev-run` или `make dev-up`). В других средах тесты не запускаются.
+запущенном dev-приложении (`make dev-profile-local` / `make dev-profile-keycloak`,
+инфраструктура — `make dev-run`). В других средах тесты не запускаются.
 
 | Команда | Что делает |
 |---|---|
 | `make test` | Юнит-тесты и срезы (`@DataJpaTest` на H2) |
 | `make verify` | То же + интеграционные `*IT` (failsafe, GreenMail) |
-| `make compile` | Компиляция main и test (через `validate`: spotless + checkstyle, затем компиляция) |
-| `make format` | Форматирование (`spotless:apply`) |
-| `make check` | Проверки стиля (`spotless:check`, `checkstyle`) |
-| `make check-ci` | CI-проверки локально: gitleaks + hadolint + trivy |
+| `make check-code-style` | Проверки стиля (`spotless:check`, `checkstyle`) |
+| `make check-ci-all` | CI-проверки локально: gitleaks + hadolint + trivy |
+| `./mvnw spotless:apply` | Форматирование кода |
+| `./mvnw -q test-compile` | Компиляция main и test (через `validate`: spotless + checkstyle) |
 | `make dev-openapi` | Снять OpenAPI-спеку с запущенного стека в `openapi.json` |
 | `make dev-openapi-types` | Сгенерировать TypeScript-типы (`npx openapi-typescript`) |
-| `make dev-run` | Dev-среда: сборка и запуск стека в foreground (логи всех сервисов) |
-| `make dev-test` | Dev-среда: `mvn verify` + все e2e-сценарии (нужен поднятый стек) |
+| `make dev-run` | Dev-среда: инфраструктура в foreground (БД, MinIO, smtp4dev, Keycloak) |
+| `make dev-profile-local` / `make dev-profile-keycloak` | Поднять стек с приложением на нужном контуре (нужно для e2e) |
 
 ## Архитектура: unit и интеграционные тесты
 
@@ -258,15 +259,16 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
   Mockito объявлен в арглайнах плагинов, инструмент вроде JaCoCo сможет дописать
   свой агент, не затирая Mockito; свойство `argLine` объявлено пустым, чтобы
   `@{argLine}` резолвился всегда.
-- Проверки стиля живут в фазе `validate`, поэтому `make compile` =
-  `./mvnw validate test-compile` — компиляция без spotless/checkstyle невозможна.
+- Проверки стиля живут в фазе `validate`, поэтому и `./mvnw test-compile`,
+  и `make build` (`package -DskipITs`) проходят через spotless/checkstyle —
+  компиляция без них невозможна.
   В IDEA включите «Delegate IDE build/run actions to Maven» (см.
   [`code-style.md`](code-style.md#настройка-intellij-idea)), иначе IDE-сборка
   обходит все эти проверки.
 
 ### Локальная CI-верификация
 
-`make check-ci` повторяет CI-джобы (обязательна перед коммитом, см. `AGENTS.md`):
+`make check-ci-all` повторяет CI-джобы (обязательна перед коммитом, см. `AGENTS.md`):
 
 1. **gitleaks** — секреты в дереве и истории коммитов;
 2. **hadolint** — линтер Dockerfile;
@@ -281,7 +283,7 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
 | **Keycloak** (рекомендуемый) | `make e2e-all` | `dev,keycloak` | Bearer-токены, OAuth2 RS |
 | **JWT in-app** (автономный) | `make e2e-jwt-in-app` | `dev` | Cookie-аутентификация |
 
-`make e2e-all` (и, соответственно, `make dev-test`) прогоняет **Keycloak-контур** —
+`make e2e-all` прогоняет **Keycloak-контур** —
 рекомендуемую схему развёртывания. Внутренний JWT-контур поддерживается для
 автономных инсталляций без внешнего OAuth2-сервера, но новым пользователям не
 предлагается.
@@ -337,12 +339,11 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
 
 | Команда | Что делает |
 |---|---|
-| `make load` | Полный прогон: сидит пул пользователей и гоняет journey (10 VU, 5 минут) |
+| `make load-full` | Полный прогон: поднимает load-стек, сидит пул пользователей и гоняет journey (10 VU, 5 минут) |
 | `make load-smoke` | Короткий smoke: 2 VU, 1 минута |
-| `make dev-up-load` | Только поднять стек с load-оверлеем (k6 запускать вручную) |
 
 Параметры: `TARGET_VUS`, `DURATION`, `POOL_SIZE` (≤10), `THINK_TIME`,
-`WAIT_TIMEOUT_SEC` — через окружение, например `TARGET_VUS=30 DURATION=15m make load`.
+`WAIT_TIMEOUT_SEC` — через окружение, например `TARGET_VUS=30 DURATION=15m make load-full`.
 `RESET_LIMITS=1` — перезапустить app перед прогоном (обнуляет in-memory
 счётчики рейт-лимитов, если предыдущий прогон исчерпал окно логина 10/300с).
 
@@ -352,12 +353,12 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
   `run.sh` (регистрация + psql-верификация email — портал создаёт только
   `isEmailVerified=true`). VU распределяют пользователей по кругу
   (`VU1 → p1, VU2 → p2, …`), общий лимит регистрации не превышается.
-- **Рейт-лимиты** — `make dev-up-load` передаёт `TRUST_PROXY_HEADERS=true`
+- **Рейт-лимиты** — load-цели передают `TRUST_PROXY_HEADERS=true`
   инлайном: каждая k6-VU шлёт уникальный `X-Forwarded-For` и получает свой
   bucket рейт-лимитов. Без этого профиля все VU делят один `127.0.0.1` и
   логин упирается в лимит 10/300с. Включать **только локально** — за таким
   профилем нет прокси.
-- **Совместимость с наблюдаемостью** — `dev-up-load`/`load-smoke` передают
+- **Совместимость с наблюдаемостью** — `load-full`/`load-smoke` передают
   `OTLP_TRACING_ENDPOINT` на collector инлайном: app пересоздаётся, и без
   этого ключа экспорт трейсов откатился бы на `localhost:4318/v1/traces` (дефолт
   compose-интерполяции), сломав связку с запущенным obs-стеком

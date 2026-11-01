@@ -7,11 +7,11 @@
 ## Быстрый старт
 
 ```bash
-make env && make dev-up && make dev-profile-keycloak && make e2e-all
+make env && make dev-profile-keycloak && make e2e-all
 ```
 
-`make env` создаёт `infrastructure/.env` с секретами, `make dev-up` поднимает
-стек целиком, `make dev-profile-keycloak` переключает приложение на Keycloak-контур,
+`make env` создаёт `infrastructure/.env` с секретами, `make dev-profile-keycloak`
+поднимает весь стек (инфраструктура + приложение) на Keycloak-контуре,
 `make e2e-all` проверяет его сквозным сценарием. Адреса
 поднятых сервисов (API, Swagger, Actuator, smtp4dev, Keycloak) —
 [таблица в §2.1](#21-весь-стек-в-контейнерах-первый-запуск).
@@ -47,19 +47,20 @@ make env
 
 ## 2. Dev: запуск проекта
 
-Два варианта: весь стек в контейнерах (штатный) или приложение на хосте
-против dockerized-инфраструктуры (отладка).
+Два варианта: приложение на хосте против dockerized-инфраструктуры (штатный
+dev-путь) или весь стек в контейнерах.
 
 | Вариант | Команды | Когда выбирать |
 |---|---|---|
-| Весь стек в контейнерах | `make dev-up` (в фоне) / `make dev-run` (foreground) | штатный путь без IDEA: код правится редко или правка Java с пересборкой образа допустима |
-| Приложение на хосте | `make dev-up-deps` + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
+| Приложение на хосте | `make dev-run` (foreground, только инфраструктура) + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
+| Весь стек в контейнерах | `make dev-profile-local` / `make dev-profile-keycloak` (`up -d --wait`, контейнер `app`) | путь без IDEA: код правится редко или правка Java с пересборкой образа допустима |
 
 ### 2.1 Весь стек в контейнерах: первый запуск
 
 ```bash
-make dev-up        # сборка образа и запуск всего в фоне
-make dev-run   # то же в foreground: логи всех сервисов, Ctrl+C — остановка
+make dev-profile-keycloak   # инфраструктура + app в фоне, контур Keycloak
+make dev-run                # то же в foreground, но без контейнера app:
+                            # логи инфраструктуры, Ctrl+C — остановка
 ```
 
 После старта:
@@ -103,23 +104,27 @@ make dev-run   # то же в foreground: логи всех сервисов, Ct
 
 | Сценарий | Команда |
 |---|---|
-| Поднять стек (первый или после `down`) | `make dev-up` |
-| Поднять только инфраструктуру (БД, MinIO, smtp4dev, Keycloak) | `make dev-up-deps` |
-| Стек в foreground со всеми логами | `make dev-run` |
+| Поднять инфраструктуру в foreground (БД, MinIO, smtp4dev, Keycloak) | `make dev-run` |
+| Поднять стек с приложением в контейнере (контур задаёт профиль) | `make dev-profile-local` / `make dev-profile-keycloak` |
+| Пересобрать образ `app` | `make dev-docker-build` |
 | Перезапустить только app (быстрый цикл) | `make dev-restart` |
 | Применить изменения `.env` к запущенному стеку | `make dev-apply-config` |
 | Логи app / статус контейнеров | `make dev-logs` / `make dev-ps` |
 | Shell внутри контейнера app (осмотреть ФС, дампы) | `make dev-shell` |
 | Остановить стек | `make dev-down` |
-| Полная очистка (с удалением томов) | `make dev-down-volumes` |
+| Полная очистка (с удалением томов) | `make dev-down--del-volumes` |
 
 ### 2.3 Приложение на хосте (IDEA / CLI)
 
 Инфраструктура — в Docker, приложение — на хосте с отладчиком:
 
 ```bash
-make dev-up-deps   # один раз: поднять infra + local-tools
+make dev-run       # инфраструктура в foreground: infra + local-tools
 ```
+
+Окно `dev-run` держат открытым (Ctrl+C останавливает инфраструктуру); для
+фона — тот же `docker compose ... --profile infra --profile local-tools up -d`
+напрямую.
 
 В IntelliJ IDEA (2025.2+) конфигурация `RealHelpDeskApplication`
 (`.run/RealHelpDeskApplication.run.xml`) уже настроена: запуск через Maven
@@ -134,18 +139,19 @@ IDE-сборкой. Файл коммитится в git и хранит нас�
 
 #### Inner loop: правка Java-кода
 
-**Вариант A — в контейнере** (штатный):
+**Вариант A — в контейнере**:
 
 ```bash
-make dev-up          # пересборка слоя app (docker layer cache из m2 ускоряет)
+make dev-docker-build   # пересборка слоя app (docker layer cache из m2 ускоряет)
+make dev-restart        # пересоздать контейнер на новом образе
 ```
 
 Любая правка Java требует пересборки образа.
 
-**Вариант B — на хосте** (быстрый):
+**Вариант B — на хосте** (быстрый, штатный dev-путь):
 
 ```bash
-make dev-up-deps    # один раз: поднять infra + local-tools
+make dev-run        # инфраструктура в foreground (один раз)
 # Debug в IDEA (конфиг RealHelpDeskApplication, профили dev,host) —
 # при отсутствии стека инфру поднимет spring-boot-docker-compose сам;
 # либо CLI:
@@ -208,18 +214,18 @@ run-конфига инлайном задают `MINIO_ENDPOINT=http://127.0.0.
 ### 3.3 Запрещённые команды (не запускать на prod-сервере)
 
 Правило читается прямо по имени: **всё, что начинается с `dev-`, — команды
-локальной машины** (плюс `e2e-*`, `load*`, `obs-*`, `check-*`, `run`,
-`run-local`, `dev-run`, `dev-test`). На prod-сервере не существует
-штатной причины их запускать — рабочие операции перечислены в §3.2.
+локальной машины** (плюс `e2e-*`, `load*`, `obs-*`, `check-*`, `run-local`).
+На prod-сервере не существует штатной причины их запускать — рабочие операции
+перечислены в §3.2.
 
 | Команда | Почему нельзя |
 |---|---|
-| `make dev-up`, `make dev-run`, `make dev-docker-build`, `make ci-image`, любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; эти цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
-| `make dev-down-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
+| `make dev-run`, `make dev-docker-build`, `make ci-image`, любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; эти цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
+| `make dev-down--del-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
 | `make dev-profile-local`, `make dev-profile-keycloak`, инлайн `SPRING_PROFILES_ACTIVE=dev…` | Переводят приложение в dev-профиль; профиль рабочего контура задаёт только `.env` сервера (`prod` / `prod,keycloak`) |
 | `make dev-restart`, `make dev-apply-config`, `make dev-logs`, `make dev-ps`, `make dev-down`, `make dev-shell` | Локальные compose-цепочки с override-файлом и профилями local-tools/monitoring/load; на сервере управлять контуром командами из §3.2 |
-| `make dev-migrate`, `make dev-db-seed` | Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`); сид — тестовые данные в рабочей БД |
-| `make e2e-*`, `make load`, `make load-smoke`, `make dev-up-load`, `make obs-*`, `make dev-openapi` | Dev-инструменты: тестовые данные, рейт-лимиты, порты на хост |
+| `DB_MIGRATIONS_CONTEXTS=schema,seed` | Сид — тестовые данные в рабочей БД; миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`) |
+| `make e2e-*`, `make load-full`, `make load-smoke`, `make obs-*`, `make dev-openapi` | Dev-инструменты: тестовые данные, рейт-лимиты, порты на хост |
 
 ### 3.4 Ручной деплой и обновление образа
 
@@ -318,8 +324,8 @@ job: docker
       (на PR пуш образа не выполняется)
 
 job: e2e — compose-стек (JDK 25)
-  └─► make env → make dev-up → wait health (app) → wait Keycloak
-  └─► make dev-profile-keycloak → make e2e-all
+  └─► make env → make dev-profile-keycloak (стек сразу на Keycloak-контуре)
+  └─► wait health (app) → wait Keycloak → make e2e-all
   └─► при провале — ps + logs всех контейнеров в CI-вывод
   └─► always: make dev-down
 ```
@@ -329,23 +335,25 @@ job: e2e — compose-стек (JDK 25)
 ## 5. Тесты и проверки
 
 ```bash
-make test        # юнит-тесты (surefire; H2 для слоя репозиториев, быстро)
-make verify      # юнит + интеграционные *IT (failsafe; Testcontainers PostgreSQL 18)
-make check       # spotless:check + checkstyle:check
-make format      # spotless:apply
-make dev-test    # verify + все e2e-сценарии (нужен поднятый стек)
-make check-ci    # CI-проверки локально: gitleaks + hadolint + trivy (полный прогон)
+make test             # юнит-тесты (surefire; H2 для слоя репозиториев, быстро)
+make verify           # юнит + интеграционные *IT (failsafe; Testcontainers PostgreSQL 18)
+make check-code-style # spotless:check + checkstyle:check
+make check-ci-all     # CI-проверки локально: gitleaks + hadolint + trivy (полный прогон)
 ```
 
-Сборка артефактов, если нужен jar без запуска стека:
+Форматирование и компиляция — goals Maven, отдельных целей нет
+(проверки стиля живут в фазе `validate`, поэтому компиляция без них
+невозможна):
 
 ```bash
-make compile     # компиляция main и test (validate: spotless + checkstyle, затем компиляция)
-make build       # jar без тестов (package -DskipTests)
-make package     # полная сборка: тесты + jar
-make clean       # очистить target/
-make run         # spring-boot:run против локальных настроек (без dockerized-инфры)
+./mvnw spotless:apply            # автоформатирование
+./mvnw -q test-compile           # компиляция main и test
+make build                       # jar с юнит-тестами (package -DskipITs)
+make clean                       # очистить target/
 ```
+
+E2E-прогон собирается из целей контура вручную: переключить профиль
+(`make dev-profile-keycloak`) → `make e2e-all`.
 
 Отдельно: `ApplicationConfigSchemaTest` сверяет парность ключей между
 `application*.properties` (`${VAR}` без дефолтов), `services.app.environment`
@@ -354,7 +362,7 @@ compose и `*.env.example` — сломали схему → упал `make test
 ### Проверки образа
 
 Те же шаги, что выполняет job `docker` в CI, по отдельности — чтобы
-поймать проблему до полного `check-ci` (он гоняет их подряд и самый
+поймать проблему до полного `check-ci-all` (он гоняет их подряд и самый
 долгий шаг выполняет последним):
 
 ```bash
@@ -370,7 +378,8 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 ### E2E-тесты
 
 Шелл-сценарии в `scripts/e2e-*.sh`, ходят в реальный стек по
-`http://localhost:8080` (нужен `make dev-up`). Контуры аутентификации два:
+`http://localhost:8080` (нужен `make dev-profile-keycloak` или
+`make dev-profile-local`). Контуры аутентификации два:
 **Keycloak** (рекомендуемый, `make e2e-all`) и внутренний JWT
 (`make e2e-jwt-in-app`, автономные инсталляции). E2E-цели отвечают только за
 тесты: контейнеры они не поднимают и не пересобирают. Профиль нужно переключить
@@ -419,13 +428,13 @@ make obs-down    # остановить стек (тома целы)
 ## 7. Нагрузочное тестирование (k6)
 
 ```bash
-make load-smoke   # smoke: 2 VU, 1 минута
-make load         # user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
-make dev-up-load      # только стек для нагрузки, без прогона k6
+make load-smoke  # smoke: 2 VU, 1 минута
+make load-full   # user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
 ```
 
-`dev-up-load` переводит приложение на внутренний JWT-контур (пул сидируется
-через `/api/v1/auth/register`) и поднимает стек с
+Обе цели сначала поднимают load-стек (служебная цель `.load-up`), затем гоняют
+k6. Стек переводится на внутренний JWT-контур (пул сидируется
+через `/api/v1/auth/register`) и поднимается с
 `TRUST_PROXY_HEADERS=true` — только локально. Скрипты и сценарии —
 `scripts/load/`. Устройство пула пользователей, пороги k6 и параметры —
 в [`testing.md`](testing.md#нагрузочное-тестирование-k6).
@@ -434,14 +443,20 @@ make dev-up-load      # только стек для нагрузки, без п
 
 ## 8. Миграции и сиды (Liquibase с хоста)
 
-Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`).
-Цели ниже — для чистого/ручного прогона; нужен поднятый postgres
-(`make dev-up-deps`, порт `127.0.0.1:5432`):
+Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`),
+отдельной цели для них нет. Контекст — `DB_MIGRATIONS_CONTEXTS` (дефолт
+`schema`; `schema,seed` добавляет демо-фикстуры). Ручной прогон без контейнера
+приложения — goal Maven против `127.0.0.1:5432`, который публикует
+`docker-compose.override.yaml`:
 
 ```bash
-make dev-migrate           # контекст schema (чистая схема; context=seed НЕ применяется)
-make dev-db-seed           # schema + seed: демо-фикстуры, идемпотентны
-make dev-down-volumes && make dev-up   # чистая dev-база заново
+set -a && . infrastructure/.env && set +a
+./mvnw -q liquibase:update \
+  -Dliquibase.url=jdbc:postgresql://127.0.0.1:5432/desk \
+  -Dliquibase.username=user -Dliquibase.password="$DB_PASSWORD" \
+  -Dliquibase.contexts=schema
+
+make dev-down--del-volumes   # чистая dev-база: тома БД/MinIO удаляются
 ```
 
 ---
@@ -481,7 +496,7 @@ make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (ну�
 
 | Скрипт | Назначение | Вызывается из |
 |---|---|---|
-| `run.sh` | Оркестрация прогона: проверяет стек, сидирует пул пользователей через `/auth/register` (с реальной капчей), верифицирует email через `psql`, запускает k6 | `make load`, `make load-smoke` |
+| `run.sh` | Оркестрация прогона: проверяет стек, сидирует пул пользователей через `/auth/register` (с реальной капчей), верифицирует email через `psql`, запускает k6 | `make load-full`, `make load-smoke` |
 | `solve-pow.js` | Решает PoW-задачу капчи (`/captcha/challenge` → `captchaToken`) на Node.js; нужен и при `CAPTCHA_ENABLED=false`, т.к. контракт запроса тот же | `run.sh` |
 | `user-journey.js` | Сценарий k6: пользовательский путь (вход → заявка → вложение → оповещения) с проверками порогов | `docker-compose.yaml`, сервис `k6` |
 

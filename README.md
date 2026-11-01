@@ -42,10 +42,10 @@ REST API системы управления заявками. Предоста�
 
 ```
 Подготовка → .env (make env) → секреты в .env
-  ├─ Dev: контейнеры (make dev-up) / хост из IDEA (make dev-up-deps + Debug)
+  ├─ Dev: хост из IDEA (make dev-run + Debug) / контейнеры (make dev-profile-keycloak)
   ├─ Prod: pull из ghcr.io → make prod-up
   ├─ Тесты: make verify (хост) / make e2e-all (Keycloak-контур, поднятый стек)
-  ├─ Нагрузка: make load (k6)
+  ├─ Нагрузка: make load-full (k6)
   └─ CI/CD: push → build → push-образ → deploy по тегу
 ```
 
@@ -196,7 +196,7 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
 только на поднятом dev-стеке; нагрузочное тестирование идёт по полному
 пользовательскому сценарию через k6.
 
-`make e2e-all` (и, соответственно, `make dev-test`) прогоняет **Keycloak-контур** — рекомендуемую схему развёртывания:
+`make e2e-all` прогоняет **Keycloak-контур** — рекомендуемую схему развёртывания:
 вход через Keycloak, базовые CRUD порталов и уведомлений.
 Внутренний JWT-контур (cookie-аутентификация) поддерживается для автономных инсталляций,
 но новым пользователям не предлагается — его сценарии вынесены в `make e2e-jwt-in-app`

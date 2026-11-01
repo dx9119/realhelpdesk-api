@@ -2,7 +2,7 @@
 
 Частые ошибки и способы их устранения.
 
-## Сборка Docker-образа (`make check-ci`, `dev-docker-build`, `docker-compose build`)
+## Сборка Docker-образа (`make check-ci-all`, `dev-docker-build`, `docker-compose build`)
 
 ### Ошибка: Maven падает с `No match found` / `404` / `Temporary shutdown`
 
@@ -77,8 +77,8 @@ health-эндпоинты ошибка не влияет.
 **Решение:** перед запуском тестов всегда делать `test-compile`:
 
 ```bash
-./mvnw -q test-compile   # или make compile
-./mvnw surefire:test -Dtest='...'
+./mvnw -q test-compile            # компиляция main и test
+./mvnw surefire:test -Dtest='...' # только нужные тесты
 ```
 
 ## Проверка стиля
@@ -86,11 +86,11 @@ health-эндпоинты ошибка не влияет.
 ### Checkstyle / Spotless
 
 ```bash
-make check          # spotless:check + checkstyle:check
-make format         # spotless:apply (автоматическое форматирование)
+make check-code-style     # spotless:check + checkstyle:check
+./mvnw spotless:apply     # автоматическое форматирование
 ```
 
-Если `check` падает, но `format` говорит «0 files changed» — проверьте,
+Если `check-code-style` падает, а `spotless:apply` говорит «0 files changed» — проверьте,
 не коммитились ли файлы с разной кодировкой (CRLF → LF).
 
 ## Gitleaks
@@ -105,9 +105,9 @@ Gitleaks может находить «секреты» в публичных д
 
 | Команда | Что делает |
 |---|---|
-| `make check` | spotless + checkstyle (без тестов) |
-| `make compile` | validate (checkstyle/spotless) + компиляция main/test |
+| `make check-code-style` | spotless + checkstyle (без тестов) |
+| `./mvnw -q test-compile` | validate (checkstyle/spotless) + компиляция main/test |
 | `make verify` | все тесты + IT + jacoco + checkstyle |
-| `make check-ci` | gitleaks + hadolint + сборка образа + trivy |
+| `make check-ci-all` | gitleaks + hadolint + сборка образа + trivy |
 | `docker builder prune -f` | полная очистка кэша BuildKit |
 | `docker builder prune --filter type=exec.cachemount -f` | только кэш RUN-маунтов |

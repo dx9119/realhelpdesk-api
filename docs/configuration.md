@@ -19,7 +19,7 @@
 | `infrastructure/.env.dev.example` | Шаблон для локальной разработки: секреты (пустые), специфичные для среды хосты (dev-домены, smtp4dev, MinIO в compose-сети), Keycloak, JVM-флаги. `make env` копирует его в `.env` | Новый обязательный ключ, новый dev-дефолт |
 | `infrastructure/.env.prod.example` | Шаблон для рабочего контура: секреты (пустые), prod-домены, внешний SMTP, JVM-флаги. На VPS копируется вручную | Новый обязательный ключ для прода |
 | `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` создаёт его из dev-шаблона и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет. Его читают compose (интерполяция `${VAR}`) и приложение (`env_file`) | Локальные значения и секреты |
-| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск. Здесь же `SPRING_PROFILES_ACTIVE` — переопределяется инлайном (`make dev-profile-local`, `make dev-profile-keycloak`, `dev-up-load`) | Новая секретная переменная |
+| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск. Здесь же `SPRING_PROFILES_ACTIVE` — переопределяется инлайном (`make dev-profile-local`, `make dev-profile-keycloak`, load-цели) | Новая секретная переменная |
 
 Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,
@@ -32,7 +32,7 @@
 инициализации тома PostgreSQL, поэтому его правка в `.env` рассогласует
 приложение и БД. То же касается `KEYCLOAK_DB_PASSWORD` — он фиксируется
 томом `keycloak_postgres_data`. Меняйте вместе с пересозданием данных:
-`make dev-down-volumes && make dev-up`.
+`make dev-down--del-volumes` + повторный подъём стека.
 
 ## Как поменять настройку
 
@@ -61,7 +61,7 @@
 |---|---|
 | `infrastructure/docker-compose.yaml` | Ядро: приложение, postgres, minio, локальные инструменты (`smtp4dev`, Keycloak), `services.app.environment` (секреты через `${VAR:?}`) |
 | `infrastructure/docker-compose.obs.yaml` | Наблюдаемость: mimir, tempo, loki, otel-collector, alloy (профиль `monitoring`). Подключает `make obs-up` |
-| `infrastructure/docker-compose.load.yaml` | Нагрузочное тестирование: k6 (профиль `load`). Подключает `make load` |
+| `infrastructure/docker-compose.load.yaml` | Нагрузочное тестирование: k6 (профиль `load`). Подключают `make load-full` / `make load-smoke` |
 | `infrastructure/docker-compose.override.yaml` | Локальная разработка: порты postgres/minio на `127.0.0.1` + сеть `backend` для приложения на хосте. Подключают только локальные цели make |
 | `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make prod-up`): pull из ghcr.io, дефолт профиля `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`), без портов БД наружу; override не подключён |
 | `infrastructure/docker-compose.host.yaml` | Одностраничная сборка через top-level `include:` для spring-boot-docker-compose (модуль Boot принимает только один файл) |
@@ -73,8 +73,8 @@
 порты БД наружу.
 
 Цепочки `-f` инкапсулированы в Makefile (`COMPOSE`, `COMPOSE_OBS`,
-`COMPOSE_LOAD`, `COMPOSE_PROD`) — запуск идёт через `make dev-up-deps` / `make dev-up`
-/ `make obs-up` / `make load` / `make prod-up`.
+`COMPOSE_LOAD`, `COMPOSE_PROD`) — запуск идёт через `make dev-run`
+/ `make dev-profile-*` / `make obs-up` / `make load-full` / `make prod-up`.
 
 ## Клиентский IP
 
@@ -157,7 +157,7 @@ spring-boot-docker-compose: при старте с профилем `host` мо�
 
 ### Запуск из IDEA
 
-1. `make dev-up-deps` — поднять БД, MinIO, smtp4dev и Keycloak (или не поднимать:
+1. `make dev-run` — поднять БД, MinIO, smtp4dev и Keycloak (или не поднимать:
    профиль `host` сделает это сам через spring-boot-docker-compose).
 2. Открыть проект в IntelliJ IDEA (2025.2+): конфигурация
    `RealHelpDeskApplication` (`.run/RealHelpDeskApplication.run.xml`)
@@ -208,7 +208,7 @@ smtp4dev нужен dev и e2e: регистрация, подтверждени
 Структуру создаёт и обновляет Liquibase при старте; Hibernate только сверяет
 сущности со схемой (`spring.jpa.hibernate.ddl-auto=validate`). Миграции —
 `src/main/resources/db/changelog` (baseline `001-baseline-schema` + новые
-changeset'ы). `make dev-down-volumes` удаляет том PostgreSQL.
+changeset'ы). `make dev-down--del-volumes` удаляет том PostgreSQL.
 
 ### Изменение модели данных
 
@@ -235,8 +235,8 @@ changeset'ы). `make dev-down-volumes` удаляет том PostgreSQL.
    `@Table`, `@Index` и т.д.) — Hibernate валидирует модель против схемы
    при старте (`validate`). Если `validate` падает — схема и сущности
    рассинхронизированы.
-5. **Проверить локально.** `make dev-up-deps && make dev-up` — Liquibase применит
-   миграцию автоматически. Убедитесь, что приложение стартует без ошибок.
+5. **Проверить локально.** `make dev-run` + запуск приложения из IDE — Liquibase
+   применит миграцию автоматически. Убедитесь, что приложение стартует без ошибок.
 6. **Тесты.** `LiquibaseChangelogGuardTest` следит, чтобы в `changes/`
    не было DML (INSERT/UPDATE/DELETE) — только DDL. Данные, если нужны,
    кладутся в `seed/` с `context="seed"`.
@@ -263,8 +263,8 @@ changeset'ы). `make dev-down-volumes` удаляет том PostgreSQL.
 (`context="seed"`) и попадают в БД только по команде:
 
 ```bash
-make dev-db-seed                    # демо-пользователи, портал, заявка с диалогом
-make dev-down-volumes && make dev-up    # обратно: чистая схема
+DB_MIGRATIONS_CONTEXTS=schema,seed  # демо-пользователи, портал, заявка с диалогом
+make dev-down--del-volumes          # обратно: чистая схема
 ```
 
 INSERT'ы идемпотентны, повторный сид безопасен. E2E и нагрузка сид не
