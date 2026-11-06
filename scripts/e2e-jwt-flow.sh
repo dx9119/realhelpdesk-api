@@ -8,11 +8,11 @@
 #   - отзыв всех refresh-токенов при смене пароля
 #   - отказ неактивным/неаутентифицированным запросам
 #
-# Требует запущенное приложение на JWT-контуре: make dev-profile-local
+# Требует запущенное приложение на JWT-контуре: make run-local
 # (API :8080, smtp4dev :3000).
 # Капча должна быть выключена (по умолчанию).
 # Счетчики рейт-лимитов живут в памяти: при исчерпании перезапустите
-# приложение (make dev-restart) и повторите запуск.
+# приложение (перезапустите приложение (Ctrl+C + make run-local)) и повторите запуск.
 set -u
 
 BASE=${BASE:-http://localhost:8080}
@@ -89,7 +89,7 @@ REQ_STATUS=$(status -X POST "$BASE/api/v1/users/password-resets" \
   -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\"}")
 if [ "$REQ_STATUS" = "429" ]; then
   echo "  FAIL /users/password-resets -> 429: лимит 3 / 10 мин исчерпан."
-  echo "       Счетчики в памяти приложения: make dev-restart и повторите запуск."
+  echo "       Счетчики в памяти приложения: перезапустите приложение (Ctrl+C + make run-local) и повторите запуск."
   echo; echo "Итого: OK $PASS, FAIL $((FAIL+1))"
   exit 1
 fi

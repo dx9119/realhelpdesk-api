@@ -2,13 +2,14 @@
 # прежнего контейнера db-gateway (socat). Docker Compose подхватывает этот файл
 # автоматически при запуске без -f; Makefile подключает его явно
 # (-f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml)
-# для локальных целей (up-deps/up/dev-run/...).
+# для локальных целей (dev-run, load-цели, require-local).
 #
-# Рабочий контур (make prod-up: -f docker-compose.yaml -f docker-compose.prod.yaml)
-# оверлей НЕ подключает — на хост публикуется ровно ничего.
+# Этот оверлей — единственный способ достучаться до БД и хранилища с хоста:
+# приложение запускается вне сети compose (make run-local, профиль host), поэтому
+# порты infra-сервисов обязаны быть опубликованы на 127.0.0.1.
 #
-# postgres/minio в базовом файле нарочно без ports: БД и хранилище не должны
-# светиться на хост в проде. Здесь они дополнительно подключаются к сети
+# postgres/minio в базовом файле нарочно без ports: наружу не должно светиться
+# ничего лишнего. Здесь они дополнительно подключаются к сети
 # backend: на internal-сети data Docker не публикует порты, а backend даёт
 # и публикацию, и outbound. Секреты и healthcheck не трогаются.
 

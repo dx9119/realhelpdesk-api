@@ -17,7 +17,7 @@
 # (механизм доставки тот же long polling/SSE, что проверяется выше).
 # Прогон с планировщиком: E2E_REPEATS=1 bash scripts/e2e-notifications.sh
 #
-# Требования: приложение на JWT-контуре (make dev-profile-local), капча выключена (по
+# Требования: приложение на JWT-контуре (make run-local), капча выключена (по
 # умолчанию), docker для запросов к postgres. Регистрирует двух
 # пользователей со временными email.
 set -u
@@ -100,7 +100,7 @@ step "Регистрация владельца A и доверенного B"
 s=$(code -c "$JAR_A" -X POST "$BASE/auth/register" -H 'Content-Type: application/json' \
   -d "{\"firstName\":\"Alpha\",\"lastName\":\"Owner\",\"email\":\"$OWNER_EMAIL\",\"password\":\"Password123!\"}")
 if [ "$s" = "429" ]; then
-  echo "  FAIL лимит регистрации исчерпан — make dev-restart и повторите скрипт"
+  echo "  FAIL лимит регистрации исчерпан — перезапустите приложение (Ctrl+C + make run-local) и повторите скрипт"
   exit 1
 fi
 check "$s" "201" "A зарегистрирован"

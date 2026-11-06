@@ -46,8 +46,8 @@ SLO — цели по SLI, измеряемым метриками из `docs/ob
 
 ## Осознанные ограничения
 
-- **Exemplars выключены** — переход «метрика → трейс» идёт через Tempo serviceMap и
-  Loki по traceId, не через exemplars (см. `infrastructure/observability/README.md`).
+- **Exemplars выключены** — переход «метрика → трейс» идёт через Tempo serviceMap
+  и traceId из логов приложения, не через exemplars (см. `infrastructure/observability/README.md`).
 - **Минутный уровень алертов**: `evaluation_interval: 15s`, но окна rate — 5 мин;
   мгновенные просадки < 5 мин в SLO не считаем.
 - **Зависимости (MinIO, SMTP)**: отдельных SLO нет; их деградация ловится

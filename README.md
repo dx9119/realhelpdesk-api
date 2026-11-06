@@ -38,15 +38,15 @@ REST API системы управления заявками. Предоста�
 
 ## Запуск
 
-Стек поднимается в Docker; Java 25 и Maven нужны только для разработки.
+Приложение запускается на хосте (профили `dev,host`), в Docker поднимаются только
+инфраструктура и наблюдаемость. Java 25 и Maven нужны для сборки и запуска.
 
 ```
 Подготовка → .env (make env) → секреты в .env
-  ├─ Dev: хост из IDEA (make dev-run + Debug) / контейнеры (make dev-profile-keycloak)
-  ├─ Prod: pull из ghcr.io → make prod-up
+  ├─ Инфраструктура: make dev-run (postgres, minio, smtp4dev, Keycloak, Mimir/Tempo/OTel)
+  ├─ Приложение на хосте: make run-local (JWT) / make run-local-keycloak (Keycloak) / IDEA
   ├─ Тесты: make verify (хост) / make e2e-all (Keycloak-контур, поднятый стек)
-  ├─ Нагрузка: make load-full (k6)
-  └─ CI/CD: push → build → push-образ → deploy по тегу
+  └─ Нагрузка: make load-full (k6)
 ```
 
 Все сценарии — построчно, с командами, портами и проверками — на странице
@@ -134,7 +134,7 @@ long polling. Оба используют общий курсор `afterId` и �
 ## Наблюдаемость
 
 Три сигнала: метрики (Micrometer → Mimir), трейсы (OTel → Tempo) и логи с
-`traceId`/`spanId` (→ Loki). Стек наблюдаемости поднимается отдельно от
+`traceId`/`spanId` — логи остаются в stdout процесса. Стек наблюдаемости поднимается отдельно от
 приложения, приложение от него не зависит. Алерты обеспечены runbooks.
 
 ### Управляющий порт
@@ -157,7 +157,7 @@ long polling. Оба используют общий курсор `afterId` и �
 [`docs/api.md`](docs/api.md). Машинная спека собирается из контроллеров:
 `GET /v3/api-docs`, интерфейс — Swagger UI (`/swagger-ui.html`).
 
-Swagger UI работает в dev-контуре, в prod отключён (`springdoc.*.enabled=false`).
+Swagger UI работает в dev-контуре (`springdoc.*.enabled` по умолчанию включены).
 
 ### Спецификация контракта (OpenAPI)
 
@@ -178,12 +178,11 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
    документируют реальные статусы (`@ApiResponse(201)`, `204`, `206`, `416`),
    которые возвращаются напрямую, а не дефолтный `200`.
 
-3. **Безопасность в prod.** В рабочем контуре `springdoc.api-docs` и
-   `swagger-ui` отключены через `application-prod.properties` — эндпоинтов
-   документации в prod нет (404). Пути `/swagger-ui/**` и `/v3/api-docs`
-   находятся в white-list обеих security-цепочек (`permitAll`) и сами по себе
-   защиты не дают: в контурах, где springdoc включён, документация открыта без
-   аутентификации.
+3. **Доступность документации.** `springdoc.api-docs` и `swagger-ui` включены —
+   пути `/swagger-ui/**` и `/v3/api-docs` находятся в white-list обеих
+   security-цепочек (`permitAll`) и сами по себе защиты не дают: документация
+   открыта без аутентификации. Отключение springdoc — осознанная правка
+   `application.properties` с ревью, а не подмена env.
 
 Автоматическая проверка контракта — тест
 `OpenApiDocumentationGuardTest`: ≥50 схем, у каждой `example` + описания полей,
@@ -203,8 +202,8 @@ Swagger UI работает в dev-контуре, в prod отключён (`sp
 и в `e2e-all` не входят.
 
 E2E-цели не поднимают и не пересобирают контейнеры — они отвечают только за тесты.
-Профиль переключается заранее: `make dev-profile-keycloak` (для `e2e-all`) или
-`make dev-profile-local` (для `e2e-jwt-in-app`).
+Профиль переключается заранее: `make run-local-keycloak` (для `e2e-all`) или
+`make run-local` (для `e2e-jwt-in-app`).
 Сценарий `make e2e-ratelimit` в них **не входит**: логика бакетов, 429 и
 `Retry-After` целиком покрыта `RateLimitServiceTest`, а e2e-прогон тратит 56
 последовательных запросов и всегда упирался бы в лимиты. Цель оставлена для
@@ -215,20 +214,19 @@ E2E-цели не поднимают и не пересобирают конте
 Основной `src/main/resources/application.properties` — схема обязательных
 `${VAR}` без дефолтов (инвариант проверяет `ApplicationConfigSchemaTest`): без
 `infrastructure/.env` контекст Spring не стартует. `src/test/resources/application.properties`
-затеняет его и активирует профиль `prod`, а `src/test/resources/application-test.properties`
+затеняет его (профиль здесь не активируется), а `src/test/resources/application-test.properties`
 задаёт то, без чего интеграционный контекст не поднимается:
 
 | Что задаёт | Зачем |
 |---|---|
 | Literal-значения JWT, MinIO, капчи, `spring.mail.*`, всех `ratelimit.limits.*` | Контекст стартует без `.env` и без docker-инфры; тестовые значения, секретов нет |
 | `spring.liquibase.enabled=true`, `contexts=schema`, `ddl-auto=validate` | Схему в контейнере создаёт миграция, Hibernate её только сверяет с сущностями — расхождение валит IT |
-| Обход prod-preflight | `ProdPreflightValidator` не пропустил бы старт на `mail.host=localhost` |
 | `management.opentelemetry.enabled=false`, `management.server.port=0`, health `minio`/`mail` выключены | Экспорт трейсов не нужен, индикаторы без реальных сервисов валили бы `/actuator/health` в 503 |
 
 Профиль включается в `@SpringBootTest` IT явно —
 `properties = "spring.profiles.active=test"`. `@DataJpaTest` его не читает: там
-Liquibase выключён (`src/test/resources/application-prod.properties`), а схема —
-за `ddl-auto` самого теста.
+Liquibase выключён в тестовом `application.properties`, а схему создаёт
+`ddl-auto` самого теста.
 
 Подробнее: [`docs/testing.md`](docs/testing.md)
 
@@ -236,7 +234,7 @@ Liquibase выключён (`src/test/resources/application-prod.properties`), �
 
 | Документ | Содержание |
 |---|---|
-| [`getting-started.md`](docs/getting-started.md) | Сценарии запуска: dev, хост, рабочий контур |
+| [`getting-started.md`](docs/getting-started.md) | Сценарии запуска: dev, хост |
 | [`configuration.md`](docs/configuration.md) | Переменные окружения, профили, compose-файлы, почта, миграции |
 | [`authentication.md`](docs/authentication.md) | JWT-контур, Keycloak, refresh-токены, CSRF |
 | [`capcha.md`](docs/capcha.md) | Капча: PoW, эмодзи-эскалация, риск-движок, параметры |

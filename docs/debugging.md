@@ -2,37 +2,6 @@
 
 Частые ошибки и способы их устранения.
 
-## Сборка Docker-образа (`make check-ci-all`, `dev-docker-build`, `docker-compose build`)
-
-### Ошибка: Maven падает с `No match found` / `404` / `Temporary shutdown`
-
-Симптом: при сборке образа в RUN-шаге `mvn -B -q package -DskipTests` Maven
-не может скачать одну из зависимостей и падает с ошибкой вида:
-
-```
-[ERROR] Failed to read artifact descriptor: ...: No match found
-[ERROR] ...: Temporary shutdown.
-```
-
-**Причина:** BuildKit кэширует маунт `/root/.m2` контейнера сборки между
-прогонами. Если при предыдущей сборке репозиторий (например, Eclipse
-Foundation) был недоступен, в кэше окажется «битый» артефакт — ошибка
-повторяется даже когда репозиторий восстановился.
-
-**Решение:** очистить кэш-маунты BuildKit:
-
-```bash
-docker builder prune --filter type=exec.cachemount -f
-```
-
-Это удалит только кэш RUN-маунтов (в том числе `/root/.m2` контейнера сборки).
-Образы, данные проекта и том `trivy-cache` не затрагиваются.
-Следующий прогон перескачает зависимости заново.
-
-> **Профилактика:** если сборка образа упала из-за сетевой ошибки, всегда
-> начинайте с `docker builder prune --filter type=exec.cachemount -f`,
-> прежде чем искать проблему в конфигурации.
-
 ## Запуск приложения на хосте (`IDEA`, `make run-local`)
 
 ### Ошибка: `Failed to export spans` каждые ~30 секунд
@@ -45,22 +14,21 @@ ERROR i.o.exporter.internal.http.HttpExporter | Failed to export spans
 java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:4318
 ```
 
-При `make run-local` адрес в ошибке — `otel-collector`: значение приходит из
-`OTLP_TRACING_ENDPOINT` в `infrastructure/.env`.
+При `make run-local` адрес в ошибке — `localhost:4318` (дефолт compose-интерполяции
+в `services.app.environment`, если `OTLP_TRACING_ENDPOINT` не задан инлайном).
 
 **Причина:** экспортёр трейсов отправляет OTLP-спаны по
-`OTLP_TRACING_ENDPOINT`, но `otel-collector` живёт только в compose-сети
-профиля `monitoring` и портов на хост не публикует — хостовому процессу
-коллектор недоступен, соединение отклоняется.
+`OTLP_TRACING_ENDPOINT`. При запуске из хостового процесса (IDEA/`run-local`)
+наблюдаемость обычно не нужна — коллектор не участвует в хостовом запуске,
+и соединение отклоняется.
 
 **Влияние:** только трейсы — они никуда не экспортируются. На запросы, БД и
 health-эндпоинты ошибка не влияет.
 
-**Решение:** ошибка не требует устранения. Заглушить —
-`TRACING_SAMPLING_PROBABILITY=0` в env запуска (спаны не сэмплируются,
-экспортёр не пытается отправлять). Трейсы смотреть в контейнерном контуре:
-`make obs-up`, Tempo — `localhost:3200`
-([`observability/overview.md`](observability/overview.md)).
+**Решение:** ошибка не требует устранения — она возникает только при хостовом
+запуске, когда наблюдаемость не нужна. Для контейнерного контура (где коллектор
+есть) трейсы работают автоматически: `make dev-run` поднимает monitoring вместе
+со стеком.
 
 ## Запуск тестов
 
@@ -108,6 +76,4 @@ Gitleaks может находить «секреты» в публичных д
 | `make check-code-style` | spotless + checkstyle (без тестов) |
 | `./mvnw -q test-compile` | validate (checkstyle/spotless) + компиляция main/test |
 | `make verify` | все тесты + IT + jacoco + checkstyle |
-| `make check-ci-all` | gitleaks + hadolint + сборка образа + trivy |
-| `docker builder prune -f` | полная очистка кэша BuildKit |
-| `docker builder prune --filter type=exec.cachemount -f` | только кэш RUN-маунтов |
+| `make check-ci-all` | gitleaks: секреты в дереве и истории коммитов |

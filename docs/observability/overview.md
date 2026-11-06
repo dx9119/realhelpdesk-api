@@ -4,15 +4,23 @@
 
 ## Архитектура
 
-Три сигнала, один стек (`make obs-up`; состав и версии — `infrastructure/observability/README.md`):
+Два сигнала собираются в стек, третий остаётся в терминале
+(`make dev-run` — monitoring входит в dev-контур;
+состав и версии — `infrastructure/observability/README.md`):
 
 | Сигнал | Что | Куда | Доступ |
 |---|---|---|---|
 | Метрики | Micrometer → `/actuator/prometheus` (management-порт 8081, HTTP Basic) | Mimir | `curl -u … localhost:9090/prometheus` |
 | Трейсы | Micrometer Tracing (OTel-мост) → OTLP → Collector → Tempo | Tempo | `curl -s localhost:3200/api/traces/<traceId>`; поиск — `-G localhost:3200/api/search --data-urlencode q=… --data-urlencode start=… --data-urlencode end=…` (TraceQL) |
-| Логи | Logback-паттерн с `traceId`/`spanId` → stdout → Alloy → Loki | Loki | `curl -s localhost:3100/loki/api/v1/query` (LogQL) |
+| Логи | Logback-паттерн с `traceId`/`spanId` → stdout процесса | не агрегируются | терминал/лог-файл запускающего (`make run-local`, в CI — лог шага) |
 
-Приложение не зависит от стека: без `obs-up` экспорта трейсов нет (соединение отклоняется), метрики
+Логи приложения в стек не попадают принципиально: процесс живёт на хосте и
+пишет в stdout своего терминала, а docker-обнаружение контейнера приложения
+не существует. Нужен поиск по логам — перенаправляйте вывод
+(`make run-local 2>&1 | tee app.log`) и ищите по `traceId` в файле.
+
+Приложение не зависит от стека: без `monitoring` экспорта
+трейсов нет (соединение отклоняется), метрики
 живут на management-порту, логи пишутся в stdout как обычно.
 
 ### Точки наблюдения в коде
@@ -68,9 +76,11 @@
    Поиск по признакам: `curl -s -G localhost:3200/api/search --data-urlencode 'q={ name =~ "http .*" }'
    --data-urlencode "start=$(( $(date +%s) - 3600 ))" --data-urlencode "end=$(date +%s)" --data-urlencode 'limit=20'` — окно `start`/`end`
    обязательно: без него Tempo ищет только в живом ingester, дисковые блоки не попадают в выдачу.
-3. Или **Логи** — `curl -s -G localhost:3100/loki/api/v1/query_range --data-urlencode 'query={container_label_com_docker_compose_service="app"} |= "<traceId>"' --data-urlencode 'limit=20'` →
-   ссылка **TraceID** в колонке слева → переход к трейсу.
-4. Из трейса — «Logs for this span» (tracesToLogs настроен на тот же traceId).
+3. **Логи** — `grep "<traceId>" app.log` (вывод перенаправляется при запуске:
+   `make run-local 2>&1 | tee app.log`): колонка traceId есть в каждой строке
+   паттерна `logback-spring.xml`, так что по ней удобно связывать лог и трейс.
+4. Из трейса — имя операции и теги спана указывают на контроллер/метод, чей
+   лог ищется тем же `traceId`.
 
 Детали потоков данных и конфигурации — `infrastructure/observability/README.md`.
 
@@ -95,10 +105,10 @@ severity/summary/description/runbook_url; их оценивает ruler Mimir). 
 # синтаксис правил (promtool из образа, без локальной установки)
 docker run --rm -v $PWD/infrastructure/observability/mimir/rules/anonymous/realhelpdesk.yml:/alerts.yml:ro \
   --entrypoint promtool prom/prometheus:v3.15.0 check rules /alerts.yml
-# перечитать правила после правок — или make obs-reload
+# перечитать правила после правок — рестарт контейнера mimir
 docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.obs.yaml \
-  --profile infra --profile local-tools --profile app --profile monitoring restart mimir
-# текущие состояния алертов — или make obs-alerts
+  --profile infra --profile local-tools --profile monitoring restart mimir
+# текущие состояния алертов
 curl -s localhost:9090/prometheus/api/v1/alerts
 ```
 
@@ -117,7 +127,7 @@ curl -s localhost:9090/prometheus/api/v1/alerts
   отдельными корнями). Под API-запросом security-спаны вкладываются в HTTP-корень как раньше.
 - В тестовом профиле `management.opentelemetry.enabled=false`: дерево наблюдений проверяется
   статическим `ObservationHandler`-коллектором (`TracingSmokeIT`), реальный OTLP-экспорт — только
-  в `obs-up`-контуре.
+  в контуре с monitoring (`make dev-run`).
 - `promtool` не принимает `vector(hour())` — фильтры рабочего времени заданы цепочкой
   `hour() >= 9 < 18`.
 - PrometheusNaming срезает суффикс `.created` у meter-имён (OpenMetrics резервирует `_created`):

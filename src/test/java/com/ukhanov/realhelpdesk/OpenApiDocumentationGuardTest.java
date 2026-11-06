@@ -1,7 +1,6 @@
 package com.ukhanov.realhelpdesk;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,7 +8,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -37,18 +35,15 @@ import tools.jackson.databind.ObjectMapper;
  * Контракт OpenAPI-документации: спека безопасна и полна.
  *
  * <p>
- * 1) В prod-контуре springdoc выключен — контракт не раскрывается без аутентификации (в white-list security
- * документация permitAll во всех профилях). 2) SecurityScheme (Bearer JWT) описан — в swagger-ui есть кнопка Authorize.
- * 3) Глобальный обработчик исключений размечен {@link ApiResponse} — в описании каждой операции видны коды ошибок и
- * структура problem+json. 4) Контроллеры документируют реальные статусы: код в спеке совпадает с кодом, возвращаемым
- * методом (201/202/204/206/416), а не дефолтный 200. 5) Контракт схем ({@code openapi/schema-contract.json}) полон: у
- * каждой схемы пример и описания полей — фронтенд не спрашивает бэкендера форматы.
+ * 1) SecurityScheme (Bearer JWT) описан — в swagger-ui есть кнопка Authorize. 2) Глобальный обработчик исключений
+ * размечен {@link ApiResponse} — в описании каждой операции видны коды ошибок и структура problem+json. 3) Контроллеры
+ * документируют реальные статусы: код в спеке совпадает с кодом, возвращаемым методом (201/202/204/206/416), а не
+ * дефолтный 200. 4) Контракт схем ({@code openapi/schema-contract.json}) полон: у каждой схемы пример и описания полей
+ * — фронтенд не спрашивает бэкендера форматы.
  * </p>
  */
-@DisplayName("OpenAPI: спека в prod отключена, авторизация и ошибки задокументированы")
+@DisplayName("OpenAPI: авторизация, коды ошибок и полнота контракта задокументированы")
 class OpenApiDocumentationGuardTest {
-
-    private static final Path PROD_PROPERTIES = Path.of("src", "main", "resources", "application-prod.properties");
 
     private static final Path MAIN_JAVA = Path.of("src", "main", "java");
 
@@ -72,23 +67,6 @@ class OpenApiDocumentationGuardTest {
             "ResponseEntity.accepted(", "202",
             "ResponseEntity.noContent()", "204", "HttpStatus.PARTIAL_CONTENT", "206",
             "HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE", "416");
-
-    @Test
-    @DisplayName("Профиль prod отключает спеку и UI — контракт API не утекает из рабочего контура")
-    void prodProfile_springdocEnabled_equalsFalse() throws Exception {
-
-        // given
-        // when
-        Properties prod = new Properties();
-        try (InputStream in = Files.newInputStream(PROD_PROPERTIES)) {
-            prod.load(in);
-        }
-
-        // then
-        assertThat(prod.getProperty("springdoc.api-docs.enabled")).as("springdoc.api-docs.enabled").isEqualTo("false");
-        assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).as("springdoc.swagger-ui.enabled")
-                .isEqualTo("false");
-    }
 
     @Test
     @DisplayName("Документация в white-list обеих security-цепочек — swagger доступен в dev без аутентификации")

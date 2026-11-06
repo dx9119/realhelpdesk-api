@@ -7,14 +7,15 @@
 ## Быстрый старт
 
 ```bash
-make env && make dev-profile-keycloak && make e2e-all
+make env && make dev-run && make run-local-keycloak
 ```
 
-`make env` создаёт `infrastructure/.env` с секретами, `make dev-profile-keycloak`
-поднимает весь стек (инфраструктура + приложение) на Keycloak-контуре,
-`make e2e-all` проверяет его сквозным сценарием. Адреса
+`make env` создаёт `infrastructure/.env` с секретами, `make dev-run` поднимает
+инфраструктуру и наблюдаемость (приложение в контейнер не собирается),
+`make run-local-keycloak` запускает приложение на хосте на Keycloak-контуре.
+Адреса
 поднятых сервисов (API, Swagger, Actuator, smtp4dev, Keycloak) —
-[таблица в §2.1](#21-весь-стек-в-контейнерах-первый-запуск).
+[таблица в §2.1](#21-dev-контур-первый-запуск).
 
 ## 1. Подготовка (однократно)
 
@@ -47,20 +48,18 @@ make env
 
 ## 2. Dev: запуск проекта
 
-Два варианта: приложение на хосте против dockerized-инфраструктуры (штатный
-dev-путь) или весь стек в контейнерах.
+Штатный путь: приложение на хосте против dockerized-инфраструктуры.
 
 | Вариант | Команды | Когда выбирать |
 |---|---|---|
-| Приложение на хосте | `make dev-run` (foreground, только инфраструктура) + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
-| Весь стек в контейнерах | `make dev-profile-local` / `make dev-profile-keycloak` (`up -d --wait`, контейнер `app`) | путь без IDEA: код правится редко или правка Java с пересборкой образа допустима |
+| Приложение на хосте | `make dev-run` (в фоне, полный стек) + Debug в IDEA / `make run-local` | частая правка Java: рестарт за секунды, JVM hot-swap, без пересборки образа |
 
-### 2.1 Весь стек в контейнерах: первый запуск
+### 2.1 Dev-контур: первый запуск
 
 ```bash
-make dev-profile-keycloak   # инфраструктура + app в фоне, контур Keycloak
-make dev-run                # то же в foreground, но без контейнера app:
-                            # логи инфраструктуры, Ctrl+C — остановка
+make dev-run                # инфраструктура + наблюдаемость в фоне: БД, MinIO, smtp4dev, Keycloak, Mimir/Tempo/OTel
+make run-local-keycloak     # приложение на хосте, контур Keycloak (dev,keycloak,host)
+make run-local              # приложение на хосте, контур внутреннего JWT (dev,host)
 ```
 
 После старта:
@@ -90,28 +89,23 @@ make dev-run                # то же в foreground, но без контей�
   curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/users/profile
   ```
 
-- **Внутренний JWT** (после `make dev-profile-local`): зарегистрировать
+- **Внутренний JWT** (после `make run-local`): зарегистрировать
   пользователя `POST /api/v1/auth/register` и подтвердить email — письмо
   с кодом придёт в smtp4dev; cookies дальше держит браузер или Swagger UI.
   Пока email не подтверждён, создание портала отвечает `403`.
 
-Переключение контуров: `make dev-profile-local` / `make dev-profile-keycloak` —
-передают `SPRING_PROFILES_ACTIVE` инлайном и пересоздают только контейнер
-`app` (файлы не меняются; подробности — в
+Переключение контуров: `make run-local` / `make run-local-keycloak` —
+запускают приложение на хосте с нужным `SPRING_PROFILES_ACTIVE` (файлы не
+меняются; подробности — в
 [`configuration.md`](configuration.md#профили-spring)).
 
-### 2.2 Весь стек: повседневные команды
+### 2.2 Повседневные команды
 
 | Сценарий | Команда |
 |---|---|
-| Поднять инфраструктуру в foreground (БД, MinIO, smtp4dev, Keycloak) | `make dev-run` |
-| Поднять стек с приложением в контейнере (контур задаёт профиль) | `make dev-profile-local` / `make dev-profile-keycloak` |
-| Пересобрать образ `app` | `make dev-docker-build` |
-| Перезапустить только app (быстрый цикл) | `make dev-restart` |
-| Применить изменения `.env` к запущенному стеку | `make dev-apply-config` |
-| Логи app / статус контейнеров | `make dev-logs` / `make dev-ps` |
-| Shell внутри контейнера app (осмотреть ФС, дампы) | `make dev-shell` |
-| Остановить стек | `make dev-down` |
+| Поднять инфраструктуру и наблюдаемость в фоне (БД, MinIO, smtp4dev, Keycloak, Mimir/Tempo/OTel) | `make dev-run` |
+| Запустить приложение на хосте (JWT-контур / Keycloak-контур) | `make run-local` / `make run-local-keycloak` |
+| Остановить dev-контур | `make dev-down` |
 | Полная очистка (с удалением томов) | `make dev-down--del-volumes` |
 
 ### 2.3 Приложение на хосте (IDEA / CLI)
@@ -119,12 +113,13 @@ make dev-run                # то же в foreground, но без контей�
 Инфраструктура — в Docker, приложение — на хосте с отладчиком:
 
 ```bash
-make dev-run       # инфраструктура в foreground: infra + local-tools
+make dev-run       # инфраструктура + наблюдаемость в фоне
 ```
 
-Окно `dev-run` держат открытым (Ctrl+C останавливает инфраструктуру); для
-фона — тот же `docker compose ... --profile infra --profile local-tools up -d`
-напрямую.
+Стек остаётся в фоне; порт 8080 свободен для хостового процесса. Наблюдаемость
+(`monitoring`) продолжает работать: хостовое приложение шлёт трейсы на
+`localhost:4318` (порт Collector'а опубликован на loopback), а Alloy собирает
+логи и метрики контейнерных сервисов.
 
 В IntelliJ IDEA (2025.2+) конфигурация `RealHelpDeskApplication`
 (`.run/RealHelpDeskApplication.run.xml`) уже настроена: запуск через Maven
@@ -139,19 +134,10 @@ IDE-сборкой. Файл коммитится в git и хранит нас�
 
 #### Inner loop: правка Java-кода
 
-**Вариант A — в контейнере**:
+**На хосте** (быстрый, штатный dev-путь):
 
 ```bash
-make dev-docker-build   # пересборка слоя app (docker layer cache из m2 ускоряет)
-make dev-restart        # пересоздать контейнер на новом образе
-```
-
-Любая правка Java требует пересборки образа.
-
-**Вариант B — на хосте** (быстрый, штатный dev-путь):
-
-```bash
-make dev-run        # инфраструктура в foreground (один раз)
+make dev-run        # инфраструктура + наблюдаемость в фоне (один раз)
 # Debug в IDEA (конфиг RealHelpDeskApplication, профили dev,host) —
 # при отсутствии стека инфру поднимет spring-boot-docker-compose сам;
 # либо CLI:
@@ -176,169 +162,36 @@ run-конфига инлайном задают `MINIO_ENDPOINT=http://127.0.0.
 
 ---
 
-## 3. Prod: развёртывание и обновление
+## 3. CI (GitHub Actions)
 
-### 3.1 Архитектура
-
-```
-[Клиент] → Nginx (VPS, TLS/LE) → 127.0.0.1:8080 (app container, loopback)
-```
-
-- TLS завершает Nginx на хосте (Certbot/Let's Encrypt).
-- App биндится **только на loopback** — наружу недоступен; порты БД/MinIO
-  на хост не публикуются (override не подключён).
-- `TRUST_PROXY_HEADERS=true` — Spring читает `X-Forwarded-For`.
-- Сборка на сервере **запрещена** — только `pull` из ghcr.io
-  (`prod-up` с `--no-build`, образ — `ghcr.io/dx9119/realhelpdesk-api:${IMAGE_TAG}`).
-- Все различия prod-контура (пароли SMTP, домены, адреса внешнего Keycloak) —
-  в `infrastructure/.env` на сервере (шаблон — `infrastructure/.env.prod.example`,
-  копируется вручную). Профиль `prod` подставляет сам `docker-compose.prod.yaml`
-  (`${SPRING_PROFILES_ACTIVE:-prod}`): забытый на сервере ключ не поднимет
-  dev-режим. Для внешнего Keycloak задайте `SPRING_PROFILES_ACTIVE=prod,keycloak`
-  в `.env` сервера.
-
-### 3.2 Разрешённые команды
-
-Команды выполняются в каталоге проекта на сервере (`VPS_APP_DIR`, по
-умолчанию `/opt/realhelpdesk`):
-
-| Команда | Действие |
-|---|---|
-| `make prod-up` | Поднять/пересоздать стек: pull образа из ghcr.io (`--no-build`) |
-| `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app pull app` | Скачать новый образ перед `make prod-up` |
-| `curl -sf http://127.0.0.1:8081/actuator/health` | Проверка живости |
-| правка `infrastructure/.env` → `make prod-up` | Применить новые настройки: app пересоздаётся с обновлённым окружением |
-| `make prod-backup` / `make prod-restore BACKUP_FILE=…` | Бэкап/восстановление (§3.7) |
-| `docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.prod.yaml --profile infra --profile app down` | Остановить стек; тома сохраняются (ключ `-v` не передавать) |
-
-### 3.3 Запрещённые команды (не запускать на prod-сервере)
-
-Правило читается прямо по имени: **всё, что начинается с `dev-`, — команды
-локальной машины** (плюс `e2e-*`, `load*`, `obs-*`, `check-*`, `run-local`).
-На prod-сервере не существует штатной причины их запускать — рабочие операции
-перечислены в §3.2.
-
-| Команда | Почему нельзя |
-|---|---|
-| `make dev-run`, `make dev-docker-build`, `make ci-image`, любой `up --build` | Сборка образа на сервере запрещена: образ приходит из ghcr.io по `IMAGE_TAG`; эти цели вдобавок подключают `docker-compose.override.yaml` — порты БД/MinIO уйдут наружу |
-| `make dev-down--del-volumes` | Удаляет тома PostgreSQL и MinIO — данные рабочего контура |
-| `make dev-profile-local`, `make dev-profile-keycloak`, инлайн `SPRING_PROFILES_ACTIVE=dev…` | Переводят приложение в dev-профиль; профиль рабочего контура задаёт только `.env` сервера (`prod` / `prod,keycloak`) |
-| `make dev-restart`, `make dev-apply-config`, `make dev-logs`, `make dev-ps`, `make dev-down`, `make dev-shell` | Локальные compose-цепочки с override-файлом и профилями local-tools/monitoring/load; на сервере управлять контуром командами из §3.2 |
-| `DB_MIGRATIONS_CONTEXTS=schema,seed` | Сид — тестовые данные в рабочей БД; миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`) |
-| `make e2e-*`, `make load-full`, `make load-smoke`, `make obs-*`, `make dev-openapi` | Dev-инструменты: тестовые данные, рейт-лимиты, порты на хост |
-
-### 3.4 Ручной деплой и обновление образа
-
-```bash
-# На сервере:
-cd /opt/realhelpdesk
-
-# 1. Синхронизировать IMAGE_TAG в .env (v-тег релиза или sha-<git_sha>);
-#    строка должна быть одна — при повторе замените существующее значение
-echo "IMAGE_TAG=v1.0.0" >> infrastructure/.env
-
-# 2. Pull нового образа
-docker compose -f infrastructure/docker-compose.yaml \
-  -f infrastructure/docker-compose.prod.yaml \
-  --profile infra --profile app pull app
-
-# 3. Поднять prod-стек
-make prod-up
-
-# 4. Проверить health
-curl -sf http://127.0.0.1:8081/actuator/health
-```
-
-### 3.5 Автоматический деплой (CI/CD)
-
-```
-git tag v1.2.3
-  └─► CI (ci.yml) публикует образ с тегом v1.2.3 (и sha-<git_sha>, latest)
-  └─► GitHub Actions (deploy.yml)
-       └─► SSH на VPS (concurrency: deploy-production)
-            └─► Записать IMAGE_TAG=<имя тега> в .env (sed, предыдущий запоминается)
-            └─► docker compose pull app (ждёт появления тега в ghcr.io)
-            └─► make prod-up
-            └─► Health-gate (до 90 сек, 18×5 сек /actuator/health)
-                 ├─► OK → деплой завершён
-                 └─► FAIL → откат: IMAGE_TAG на предыдущий + prod-up
-```
-
-**Триггеры:**
-- Пуш тега `v*` — автоматически (`IMAGE_TAG=<имя тега>`, например `v1.0.0`)
-- `workflow_dispatch` — ручной запуск с полем `image_tag` (дефолт `latest` —
-  осознанный выбор оператора)
-
-Push в main деплой **не запускает**: CI при нём только публикует образы
-`sha-<git_sha>` и `latest` в ghcr.io. Рабочий контур всегда держит
-закреплённый `IMAGE_TAG` в `infrastructure/.env` на сервере и на `latest`
-молча не переходит — раскатка только по явному тегу (или руками).
-
-Секреты environment `production`: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
-`VPS_PORT`, `VPS_APP_DIR` (дефолт `/opt/realhelpdesk`), `GHCR_TOKEN`.
-
-### 3.6 Prod-preflight
-
-При запуске с `SPRING_PROFILES_ACTIVE=prod` выполняется
-`ProdPreflightValidator`:
-
-- капча включена;
-- CORS настроен строго (без localhost-допусков);
-- SMTP доступен;
-- миграции применены;
-- `ddl-auto=validate` не может быть выключен env'ом.
-
-Старт с debug-конфигурацией валится — рабочий контур не поднимется.
-
-### 3.7 Бэкапы
-
-```bash
-make prod-backup                                        # pg_dump -Fc + mc mirror бакета → ./backups/
-make prod-restore BACKUP_FILE=backups/db_2026-10-18_03-00.dump
-# restore: stop app → pg_restore --clean --if-exists → up app
-```
-
-Ротация — удаление артефактов старше 14 дней (делает `backup.sh`).
-На сервере рекомендуется crontab:
-
-```
-0 3 * * * cd /opt/realhelpdesk && make prod-backup
-```
-
----
-
-## 4. CI (GitHub Actions)
-
-Запускается на push в main, тег `v*` и PR. Прод не трогает: раскатка —
-отдельный workflow `deploy.yml`, только по явному тегу (флоу, health-gate
-и авто-откат — §3.5).
+Запускается на push в main и PR. Приложение нигде не контейнеризуется: в CI,
+как и локально, оно стартует на хосте через `spring-boot:run`, в Docker
+поднимается только инфраструктура.
 
 ```
 job: build — Maven (JDK 25)
   └─► spotless:check + checkstyle:check + verify (юнит + Testcontainers IT)
 
-job: docker
-  └─► hadolint → сборка образа → trivy (CRITICAL/HIGH) → gitleaks
-  └─► push в main: push в ghcr.io :sha-<git_sha> и :latest
-  └─► тег v*:      push в ghcr.io :v<версия> (v1.0.0), :sha-<git_sha> и :latest
-      (на PR пуш образа не выполняется)
+job: checks — статические проверки
+  └─► gitleaks (секреты в дереве и истории коммитов)
 
-job: e2e — compose-стек (JDK 25)
-  └─► make env → make dev-profile-keycloak (стек сразу на Keycloak-контуре)
+job: e2e — инфраструктура в compose, приложение на хосте (JDK 25)
+  └─► make dev-run (инфраструктура + наблюдаемость)
+  └─► make run-local-keycloak (приложение на хосте, в фоне)
   └─► wait health (app) → wait Keycloak → make e2e-all
-  └─► при провале — ps + logs всех контейнеров в CI-вывод
+  └─► при провале — ps + logs контейнеров и хостовые логи в CI-вывод
   └─► always: make dev-down
 ```
 
 ---
 
-## 5. Тесты и проверки
+## 4. Тесты и проверки
 
 ```bash
 make test             # юнит-тесты (surefire; H2 для слоя репозиториев, быстро)
 make verify           # юнит + интеграционные *IT (failsafe; Testcontainers PostgreSQL 18)
 make check-code-style # spotless:check + checkstyle:check
-make check-ci-all     # CI-проверки локально: gitleaks + hadolint + trivy (полный прогон)
+make check-ci-all     # CI-проверки локально: gitleaks
 ```
 
 Форматирование и компиляция — goals Maven, отдельных целей нет
@@ -352,39 +205,25 @@ make build                       # jar с юнит-тестами (package -Dski
 make clean                       # очистить target/
 ```
 
-E2E-прогон собирается из целей контура вручную: переключить профиль
-(`make dev-profile-keycloak`) → `make e2e-all`.
+E2E-прогон собирается из целей контура вручную: запустить приложение на нужном
+контуре (`make run-local-keycloak` для Keycloak / `make run-local` для JWT)
+→ `make e2e-all`.
 
 Отдельно: `ApplicationConfigSchemaTest` сверяет парность ключей между
-`application*.properties` (`${VAR}` без дефолтов), `services.app.environment`
-compose и `*.env.example` — сломали схему → упал `make test`.
-
-### Проверки образа
-
-Те же шаги, что выполняет job `docker` в CI, по отдельности — чтобы
-поймать проблему до полного `check-ci-all` (он гоняет их подряд и самый
-долгий шаг выполняет последним):
-
-```bash
-make dev-docker-build      # собрать образ приложения с меткой GIT_SHA
-make check-image       # образ собран и пригоден: секреты, ФС, содержимое jar
-make check-secrets     # gitleaks: секреты в дереве и истории коммитов
-make check-dockerfile  # hadolint: линтер Dockerfile
-make ci-image          # собрать образ realhelpdesk:ci как в CI (нужен trivy)
-make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15m — разбор
-                       # вложенных jar в fat-jar дольше дефолтных 5 минут
-```
+`application*.properties` (`${VAR}` без дефолтов) и `infrastructure/.env.dev.example` —
+сломали схему → упал `make test`.
 
 ### E2E-тесты
 
 Шелл-сценарии в `scripts/e2e-*.sh`, ходят в реальный стек по
-`http://localhost:8080` (нужен `make dev-profile-keycloak` или
-`make dev-profile-local`). Контуры аутентификации два:
+`http://localhost:8080` (нужно запустить приложение на хосте:
+`make run-local-keycloak` для Keycloak или `make run-local` для JWT).
+Контуры аутентификации два:
 **Keycloak** (рекомендуемый, `make e2e-all`) и внутренний JWT
 (`make e2e-jwt-in-app`, автономные инсталляции). E2E-цели отвечают только за
-тесты: контейнеры они не поднимают и не пересобирают. Профиль нужно переключить
-заранее — `make dev-profile-keycloak` или `make dev-profile-local`; цели
-`make require-keycloak` / `make require-local` проверяют контур и подсказывают
+тесты: контейнеры они не поднимают и не пересобирают. Приложение нужно запустить
+заранее — `make run-local-keycloak` или `make run-local`; цели
+`make require-keycloak` / `make require-local` проверяют доступность и подсказывают
 нужную команду, а `make e2e-reset-limits` сбрасывает in-memory рейт-лимиты.
 
 | Команда | Сценарий |
@@ -399,7 +238,6 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 | `make e2e-jwt` | полный JWT-поток: register → login → refresh → logout |
 | `make e2e-notifications` | in-app оповещения (long polling; JWT-контур) |
 | `make e2e-portal-transfer` | передача владения порталом (JWT-контур) |
-| `make e2e-token-cleanup` | очистка refresh-токенов по cron (JWT-контур) |
 | `make e2e-ratelimit` | отклонения по rate-limit (ручной прогон, вне `e2e-all`) |
 | `make e2e-reset-limits` | сбросить in-memory рейт-лимиты вручную (dev-эндпоинт) |
 
@@ -408,24 +246,20 @@ make check-image-vuln  # trivy: CRITICAL/HIGH с фиксом; таймаут 15
 
 ---
 
-## 6. Наблюдаемость
+## 5. Наблюдаемость
 
-```bash
-make obs-up      # стек + monitoring: Mimir :9090, Tempo :3200, Loki :3100
-                 # (Collector и Alloy — без портов на хост, только сеть compose)
-make obs-alerts  # текущие состояния алертов Mimir
-make obs-reload  # перечитать правила алертов (mimir/rules/)
-make obs-down    # остановить стек (тома целы)
-```
+Наблюдаемость поднимается вместе с dev-стеком (`make dev-run`):
+Mimir :9090, Tempo :3200, OTLP :4318 — все порты на loopback.
 
-Сбор логов/метрик: `alloy` → Loki (логи) и Mimir (метрики со скрейпа
-`app:8081/actuator/prometheus`); трейсы: app → otel-collector → Tempo.
+Сбор метрик: `alloy` → Mimir (скрейп
+хостового приложения `127.0.0.1:8081/actuator/prometheus`, из контейнера —
+`host.docker.internal:8081`); трейсы: app → otel-collector → Tempo.
 Архитектура сигналов, правила кардинальности и отладка —
 в [`observability/overview.md`](observability/overview.md).
 
 ---
 
-## 7. Нагрузочное тестирование (k6)
+## 6. Нагрузочное тестирование (k6)
 
 ```bash
 make load-smoke  # smoke: 2 VU, 1 минута
@@ -441,7 +275,7 @@ k6. Стек переводится на внутренний JWT-контур (
 
 ---
 
-## 8. Миграции и сиды (Liquibase с хоста)
+## 7. Миграции и сиды (Liquibase с хоста)
 
 Миграции применяет само приложение при старте (`DB_MIGRATIONS_ENABLED`),
 отдельной цели для них нет. Контекст — `DB_MIGRATIONS_CONTEXTS` (дефолт
@@ -461,7 +295,7 @@ make dev-down--del-volumes   # чистая dev-база: тома БД/MinIO у
 
 ---
 
-## 9. OpenAPI для фронтенда
+## 8. OpenAPI для фронтенда
 
 ```bash
 make dev-openapi        # вытащить спеку с запущенного стека → openapi.json
@@ -470,21 +304,12 @@ make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (ну�
 
 ---
 
-## 10. Вспомогательные скрипты
+## 9. Вспомогательные скрипты
 
 Каждый скрипт вызывается из цели Makefile — руками запускать их не нужно,
 разве что для отладки самого скрипта. Каталог `scripts/` не содержит
-«мёртвых» файлов: всё, что в нём лежит, задействовано в Makefile, Dockerfile
+«мёртвых» файлов: всё, что в нём лежит, задействовано в Makefile, CI
 или compose.
-
-### `scripts/docker/` — жизненный цикл образа и контейнера
-
-| Скрипт | Назначение | Вызывается из |
-|---|---|---|
-| `entrypoint.sh` | Точка входа контейнера: собирает JVM-опции из env (память, дампы, JFR, JMX) и запускает приложение | `Dockerfile` (`ENTRYPOINT`) |
-| `init-secrets.sh` | Создаёт `infrastructure/.env` из шаблона (если файла нет) и заполняет пустые секреты случайными значениями. Существующий `.env` не меняет — только предупреждает о ключах, которых в нём нет | `make env` |
-| `check-image.sh` | Гигиена собранного образа: нет ли секретов в слоях, лишней ФС на пути к jar, цел ли сам jar | `make check-image` |
-| `backup.sh` | `pg_dump -Fc` + `mc mirror` бакета MinIO в `./backups/`, ротация старше `BACKUP_RETENTION_DAYS` (14) | `make prod-backup` |
 
 ### `scripts/dev/` — запуск на хосте
 
@@ -498,13 +323,14 @@ make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (ну�
 |---|---|---|
 | `run.sh` | Оркестрация прогона: проверяет стек, сидирует пул пользователей через `/auth/register` (с реальной капчей), верифицирует email через `psql`, запускает k6 | `make load-full`, `make load-smoke` |
 | `solve-pow.js` | Решает PoW-задачу капчи (`/captcha/challenge` → `captchaToken`) на Node.js; нужен и при `CAPTCHA_ENABLED=false`, т.к. контракт запроса тот же | `run.sh` |
-| `user-journey.js` | Сценарий k6: пользовательский путь (вход → заявка → вложение → оповещения) с проверками порогов | `docker-compose.yaml`, сервис `k6` |
+| `user-journey.js` | Сценарий k6: пользовательский путь (вход → заявка → вложение → оповещения) с проверками порогов | `docker-compose.load.yaml`, сервис `k6` |
 
 ### `scripts/e2e-*.sh` — сквозные сценарии
 
-Шелл-сценарии против реального стека (см. §5). Каждый переводит приложение
-на нужный профиль аутентификации и сбрасывает рейт-лимиты через зависимости
-Makefile, поэтому запускать их напрямую не следует — профиль не применится.
+Шелл-сценарии против реального стека (см. §4). Цели Makefile сначала
+проверяют доступность приложения на нужном контуре (`make require-local` /
+`make require-keycloak`) и сбрасывают in-memory рейт-лимиты, поэтому запускать
+их напрямую не следует — проверка контура не выполнится.
 
 | Скрипт | Проверяет |
 |---|---|
@@ -512,7 +338,6 @@ Makefile, поэтому запускать их напрямую не след�
 | `e2e-jwt-flow.sh` | полный жизненный цикл внутреннего JWT: регистрация, подтверждение email, вход, refresh, выход |
 | `e2e-notifications.sh` | доставку in-app оповещений long polling (повторы — только под `E2E_REPEATS=1`) |
 | `e2e-portal-transfer.sh` | передачу владения порталом и историю передач |
-| `e2e-token-cleanup.sh` | фоновое расписание очистки refresh-токенов: занижает сроки JWT и cron инлайном, пересоздаёт `app`, по завершении возвращает штатный конфиг (`infrastructure/.env` не меняется) |
 | `e2e-keycloak.sh` | вход через Keycloak: realm, обмен кода на токены, работу профиля `dev,keycloak` |
 | `e2e-portal-access-kc.sh` | порталы через Bearer-токен Keycloak (CRUD) |
 | `e2e-notifications-kc.sh` | уведомления через Bearer-токен Keycloak |

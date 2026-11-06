@@ -1,32 +1,27 @@
-# Ядро стека: приложение, БД, хранилище, локальные сервисы разработки.
+# Ядро стека: БД, хранилище, локальные сервисы разработки.
+#
+# Приложение здесь НЕ запускается: оно живёт на хосте (make run-local /
+# run-local-keycloak, либо запуск из IDEA) и ходит в БД/MinIO/Keycloak через
+# loopback. В контейнерах — только инфраструктура и наблюдаемость.
 #
 # Профили (запуск — только через make, набор профилей передаётся явно):
-#   app         — приложение
 #   infra       — postgres, minio: внутренняя сеть data (internal), портов на хост нет
 #   local-tools — smtp4dev и keycloak (локальные сервисы разработки)
 #
-# make dev-run         → infra + local-tools        (инфраструктура для запуска app из IDEA)
-# make dev-profile-*  → infra + local-tools + app  (стек целиком, контур — профиль)
-# make prod-up     → infra + app                (рабочий контур: без local-tools/monitoring)
+# make dev-run  → infra + local-tools + monitoring (инфраструктура в фоне)
+# make dev-down → та же выборка, остановка
 #
 # Порты БД/MinIO на loopback хоста (для IDEA/psql/MinIO-консоли) публикует
 # infrastructure/docker-compose.override.yaml — локальный оверлей, который
-# make подключает явно (-f) для локальных целей; make prod-up (base + prod)
-# его игнорирует, поэтому в рабочем контуре на хост не выходит ничего.
-#
-# Профиль приложения (SPRING_PROFILES_ACTIVE) — dev/prod. По умолчанию — dev,
-# внутренний JWT-контур приложения (cookie, /api/v1/auth/*). Для Keycloak:
-# make dev-profile-keycloak передаёт dev,keycloak инлайном (см. Makefile).
-# Сервис keycloak живёт в профиле local-tools, поэтому make prod-up поднимает
-# приложение без него: в рабочем контуре Keycloak разворачивается отдельно (см. README).
+# make подключает явно (-f) для локальных целей.
 #
 # Сети:
-#   data    — internal: true: postgres, minio + app; наружу не ходит,
+#   data    — internal: true: postgres, minio, keycloak-postgres; наружу не ходит,
 #             портов на хост не имеет — изолированы БД и хранилище файлов
 #             (в локальном оверлее postgres/minio дополнительно подключаются
 #             к backend — только так Docker публикует их порты на хост)
-#   backend — обычная: app (в т.ч. наружу — SMTP/прокси), smtp, keycloak,
-#             наблюдаемость (подключается через docker-compose.obs.yaml)
+#   backend — обычная: smtp, keycloak, наблюдаемость
+#             (подключается через docker-compose.obs.yaml)
 #
 # Наблюдаемость и нагрузка подключаются как отдельные файлы:
 #   docker compose -f docker-compose.yaml -f docker-compose.obs.yaml  (obs)
@@ -48,7 +43,8 @@ x-logging: &default-logging
 
 networks:
   # Изолированная сеть данных: без выхода наружу и без портов на хосту.
-  # app попадает сюда же — приложению нужен доступ к БД и MinIO.
+  # Приложение живёт на хосте и ходит в БД/MinIO через loopback-публикации
+  # локального оверлея, поэтому в data оно не состоит.
   data:
     internal: true
   backend:
@@ -59,94 +55,6 @@ volumes:
   minio_data:
 
 services:
-  # ==========================================================================
-  # Профиль app: приложение
-  # ==========================================================================
-  app:
-    profiles: [app]
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args:
-        # Ревизия git для LABEL org.opencontainers.image.revision (Makefile передаёт)
-        GIT_SHA: "${GIT_SHA:-unknown}"
-    image: realhelpdesk:latest
-    ports:
-      - "8080:8080"
-      # Управляющий порт actuator (health/info/prometheus) — только loopback:
-      # наружу (и в сеть контейнеров) он доступен приложению и скрейпу (alloy)
-      # без проброса на хост.
-      - "127.0.0.1:8081:8081"
-    read_only: true
-    tmpfs:
-      # JVM пишет ErrorFile/heap dump в /tmp; uid/gid приложения — 10001 (Dockerfile)
-      - /tmp:size=64m
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    mem_limit: 768m
-    memswap_limit: 768m
-    # Единственный env-файл приложения — infrastructure/.env (он же источник
-    # ${VAR}-интерполяции ниже); парность ключей контроллирует ApplicationConfigSchemaTest.
-    env_file:
-      - ./.env
-    environment:
-      # Секреты: несекретные ключи — в infrastructure/.env.dev.example/.env.
-      # Имена совпадают с переменными .env (переименований DB_PASSWORD→DB_PASS
-      # и т.п. больше нет): env_file передал бы их и сам, но environment с
-      # ?-синтаксисом даёт fail-fast на старте compose при пустом секрете.
-      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
-      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
-      CAPTCHA_HMAC_SECRET: "${CAPTCHA_HMAC_SECRET:?CAPTCHA_HMAC_SECRET is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
-      MAIL_PASSWORD: "${MAIL_PASSWORD-}"
-      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
-      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
-      METRICS_PASSWORD: "${METRICS_PASSWORD:?METRICS_PASSWORD is required - copy infrastructure/.env.dev.example to infrastructure/.env}"
-      # Профиль приложения: переключается инлайном (make dev-profile-local / dev-profile-keycloak)
-      # или переменной окружения хоста. Дефолт в application.properties — 'dev'.
-      SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-dev}"
-      # Динамические ключи: без объявления здесь инлайн-переменная хоста до
-      # контейнера не доходит — env_file (.env) переопределить нельзя, поэтому
-      # make obs-up / load-full и scripts/e2e-token-cleanup.sh молча получали
-      # значения из .env. Приоритет: переменная хоста → infrastructure/.env →
-      # дефолт ниже.
-      # HTTP OTLP (дефолт Boot 4): порт 4318 Collector'а. Без obs-стека адрес
-      # недоступен — экспорт трейсов тихо отключается, приложение работает.
-      OTLP_TRACING_ENDPOINT: "${OTLP_TRACING_ENDPOINT:-http://localhost:4318/v1/traces}"
-      TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-false}"
-      CLIENT_IP_FORWARDED_INDEX: "${CLIENT_IP_FORWARDED_INDEX:-0}"
-      # Сроки ротации refresh-токенов — тоже динамические: scripts/e2e-token-cleanup.sh
-      # занижает их до секунд инлайном, чтобы проверить фоновую очистку на живом
-      # стеке, не переписывая infrastructure/.env.
-      JWT_ACCESS_TOKEN_EXPIRATION_SECONDS: "${JWT_ACCESS_TOKEN_EXPIRATION_SECONDS:-3600}"
-      JWT_REFRESH_TOKEN_EXPIRATION_SECONDS: "${JWT_REFRESH_TOKEN_EXPIRATION_SECONDS:-2592000}"
-      JWT_REVOKED_TOKEN_RETENTION_SECONDS: "${JWT_REVOKED_TOKEN_RETENTION_SECONDS:-604800}"
-      JWT_TOKEN_CLEANUP_CRON: "${JWT_TOKEN_CLEANUP_CRON:-0 30 3 * * *}"
-      # KC_JWK_SET_URI/KC_ISSUER_URI (профиль приложения keycloak) сюда не
-      # попадают: они несекретные и объявлены в infrastructure/.env.dev.example,
-      # а контейнер получает их через env_file — иначе одно значение задавалось
-      # бы в двух местах (это запрещает ApplicationConfigSchemaTest).
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    # TCP-проба без curl/wget в образе JRE: bash /dev/tcp открывает сокет
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8080'"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-    networks:
-      - backend
-      - data
-    logging: *default-logging
-    labels:
-      org.opencontainers.image.source: "https://github.com/dx9119/realhelpdesk-api"
-
   # ==========================================================================
   # Профиль infra: данные (внутренняя сеть data, БЕЗ портов на хосту)
   # ==========================================================================
@@ -222,11 +130,10 @@ services:
   # ==========================================================================
   # Профиль local-tools: Keycloak (внешний выпуск токенов)
   # ==========================================================================
-  # Приложение по умолчанию стартует с профилем keycloak
-  # (SPRING_PROFILES_ACTIVE=dev,keycloak в infrastructure/.env): токены
-  # выпускает и подписывает Keycloak, приложение только проверяет подпись по
-  # JWK и читает email/realm-роли из токена. Переключение на внутреннюю
-  # JWT-логику — убрать keycloak из SPRING_PROFILES_ACTIVE (см. README).
+  # Хостовое приложение запускают с профилем keycloak (make run-local-keycloak):
+  # токены выпускает и подписывает Keycloak, приложение только проверяет подпись
+  # по JWK и читает email/realm-роли из токена. Внутренний JWT-контур — обычный
+  # make run-local (профили dev,host), Keycloak при этом не нужен.
   #
   # Realm realhelpdesk импортируется из ./keycloak/realhelpdesk-realm.json при
   # первом старте (--import-realm): роли ROLE_USER/ROLE_OPERATOR/ROLE_NONE,

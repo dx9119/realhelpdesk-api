@@ -11,7 +11,7 @@
 #   - публичные эндпоинты (капча, health) остаются без токена;
 #   - блокировка учётной записи в БД закрывает доступ по валидному токену.
 #
-# Требования: приложение на Keycloak-контуре (make dev-profile-keycloak),
+# Требования: приложение на Keycloak-контуре (make run-local-keycloak),
 # SPRING_PROFILES_ACTIVE=dev,keycloak (дефолт шаблона), docker для psql.
 # Идемпотентен: пользователи из realm создаются при первом входе, повторный
 # прогон их переиспользует.
@@ -61,7 +61,7 @@ echo "═══ Вход через Keycloak (профиль keycloak) ═══
 
 step "Готовность Keycloak и realm $REALM"
 if [ "$(code "$KEYCLOAK/realms/$REALM/.well-known/openid-configuration")" != "200" ]; then
-  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make dev-profile-keycloak"
+  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make run-local-keycloak"
   exit 1
 fi
 echo "  OK   discovery realm'а доступен"

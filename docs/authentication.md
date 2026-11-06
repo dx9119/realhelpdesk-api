@@ -16,9 +16,9 @@
 проверяет подпись по JWK и читает из токена email и realm-роли. Роль для
 проверки прав приложение всегда читает из БД — блокировка пользователя и
 понижение роли действуют сразу, не дожидаясь истечения токена. Переключение
-контура: `make dev-profile-local` / `make dev-profile-keycloak` (передают
-`SPRING_PROFILES_ACTIVE` инлайном и пересоздают контейнер `app`, ничего не
-записывая в файлы — см. [`configuration.md`](configuration.md#профили-spring)).
+контура — профилем запуска приложения (`make run-local` / `make run-local-keycloak`
+для хоста, `SPRING_PROFILES_ACTIVE` в `.env` для контейнера; см.
+[`configuration.md`](configuration.md#профили-spring)).
 
 ## Внутренний JWT-контур
 
@@ -84,12 +84,11 @@ direct access grant для отладки и e2e) и тестовые польз
 заводит пользователя с источником `KEYCLOAK`; при `keycloak.sync-roles=true`
 realm-роли `ROLE_USER`/`ROLE_OPERATOR` повышают роль в БД.
 
-В рабочем контуре Keycloak разворачивается отдельно: сервис `keycloak` входит
-только в профиль `local-tools`. Укажите в `.env` адреса внешнего Keycloak
-(`KC_JWK_SET_URI` — внутренний адрес для проверки подписи, `KC_ISSUER_URI` и
-`KC_HOSTNAME` — адрес, который видит браузер) и включите профиль
-`prod,keycloak` — например, строкой `SPRING_PROFILES_ACTIVE=prod,keycloak`
-в `.env` сервера или инлайном при запуске стека.
+Локальный Keycloak — сервис `keycloak` профиля compose `local-tools`
+(`make dev-run`). Для внешнего провайдера укажите в `.env` его адреса
+(`KC_JWK_SET_URI` — адрес для проверки подписи, `KC_ISSUER_URI` и
+`KC_HOSTNAME` — адрес, который видит браузер) и запускайте приложение
+с профилем `dev,keycloak,host` (`make run-local-keycloak`).
 
 ## Защита от CSRF
 
@@ -105,9 +104,8 @@ realm-роли `ROLE_USER`/`ROLE_OPERATOR` повышают роль в БД.
 ## Капча (Proof-of-Work + эмодзи-эскалация)
 
 Локально выключена (дефолт `CAPTCHA_ENABLED:false` в схеме
-`application.properties`), в рабочем контуре включена обязательно
-(`CAPTCHA_ENABLED=true` в `.env` сервера; без него старт валит
-prod-preflight). Двухуровневая схема вместо текстовой картинки
+`application.properties`; включается `CAPTCHA_ENABLED=true` в
+`infrastructure/.env`). Двухуровневая схема вместо текстовой картинки
 (её обходят OCR/LLM):
 
 1. `POST /api/v1/captcha/challenge { action }` отдаёт подписанное задание:

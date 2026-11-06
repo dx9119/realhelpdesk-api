@@ -15,12 +15,11 @@
 
 ## Диагностика
 
-1. **Состояние контейнера**: `docker ps` (Restarting?), `docker logs <app> --tail 100` —
+1. **Состояние процесса**: `ps aux | grep realhelpdesk` — запущен ли процесс, `jps -l` (если JDK на хосте).
+2. **Логи терминала / journal**: вывод `make run-local` или `journalctl -u realhelpdesk` —
    стектрейс OOM, `APPLICATION FAILED TO START`.
-2. **Порты**: `docker exec <app> curl -s localhost:8081/actuator/health/readiness`.
-3. **Логи Loki**: `{container_label_com_docker_compose_service="app"} |~ "ERROR|FATAL"`.
-4. **Ресурсы**: `docker stats` — OOM-kill по памяти (лимит mem_limit).
-5. **Рестарты**: `docker inspect` → RestartCount; корреляция с jvm-heap-high/деплоем.
+3. **Ресурсы**: `htop` / `ps aux --sort=-%mem | head` — OOM-kill по памяти.
+4. **Рестарты**: `systemctl status realhelpdesk` или счётчик перезапусков в терминале.
 
 ## Митигация
 

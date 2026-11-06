@@ -7,7 +7,7 @@
 # публичность открывает только чтение имени/описания (GET /portals/{id}).
 # Смена isPublic доступна только владельцу.
 #
-# Требования: приложение на JWT-контуре (make dev-profile-local), капча выключена
+# Требования: приложение на JWT-контуре (make run-local), капча выключена
 # (по умолчанию), docker для запросов к postgres. Регистрирует двух
 # пользователей со временными email.
 set -u
@@ -45,7 +45,7 @@ step "Регистрация владельца A и гостя B"
 s=$(code -c "$JAR_A" -X POST "$BASE/auth/register" -H 'Content-Type: application/json' \
   -d "{\"firstName\":\"Alpha\",\"lastName\":\"Owner\",\"email\":\"$OWNER_EMAIL\",\"password\":\"Password123!\"}")
 if [ "$s" = "429" ]; then
-  echo "  FAIL лимит регистрации исчерпан — make dev-restart и повторите скрипт"
+  echo "  FAIL лимит регистрации исчерпан — перезапустите приложение (Ctrl+C + make run-local) и повторите скрипт"
   exit 1
 fi
 check "$s" "201" "A зарегистрирован"

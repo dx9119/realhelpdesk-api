@@ -16,10 +16,8 @@
 | Файл | Что это | Когда менять |
 |---|---|---|
 | `src/main/resources/application*.properties` | Схема `${VAR}` или `${VAR:default}`: разумные дефолты несекретных ключей живут здесь | Изменить дефолт для всех окружений |
-| `infrastructure/.env.dev.example` | Шаблон для локальной разработки: секреты (пустые), специфичные для среды хосты (dev-домены, smtp4dev, MinIO в compose-сети), Keycloak, JVM-флаги. `make env` копирует его в `.env` | Новый обязательный ключ, новый dev-дефолт |
-| `infrastructure/.env.prod.example` | Шаблон для рабочего контура: секреты (пустые), prod-домены, внешний SMTP, JVM-флаги. На VPS копируется вручную | Новый обязательный ключ для прода |
-| `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` создаёт его из dev-шаблона и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет. Его читают compose (интерполяция `${VAR}`) и приложение (`env_file`) | Локальные значения и секреты |
-| `services.app.environment` в `infrastructure/docker-compose.yaml` | Мост compose → приложение: секреты подставляются как `${VAR:?}` — пустой или отсутствующий секрет валит запуск. Здесь же `SPRING_PROFILES_ACTIVE` — переопределяется инлайном (`make dev-profile-local`, `make dev-profile-keycloak`, load-цели) | Новая секретная переменная |
+| `infrastructure/.env.dev.example` | Шаблон локальной разработки: секреты (пустые), специфичные для среды хосты (dev-домены, smtp4dev, адреса compose-сети), Keycloak, JVM-флаги. `make env` копирует его в `.env` | Новый обязательный ключ, новый dev-дефолт |
+| `infrastructure/.env` | Рабочий файл, в git не попадает. `make env` создаёт его из dev-шаблона и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет. Его читают compose (интерполяция `${VAR}`) и хостовое приложение (`scripts/dev/load-env.sh`) | Локальные значения и секреты |
 
 Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
 `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,
@@ -38,43 +36,44 @@
 
 1. Найдите `${VAR}` или `${VAR:default}` в `src/main/resources/application.properties`
    (или `application-domains.properties`).
-2. Задайте значение: в `infrastructure/.env` — локально (или `.env` на VPS,
-   созданный из `.env.prod.example`); в `application.properties` — дефолт для
-   всех окружений; в `services.app.environment` compose — секрет.
-3. Примените: `make dev-apply-config` — пересоздаёт контейнер `app` без
-   пересборки образа (для `SPRING_PROFILES_ACTIVE` есть `make dev-profile-local` /
-   `dev-profile-keycloak`). Если `.env` заполнен вручную — достаточно
-   `make dev-restart`.
+2. Задайте значение: в `infrastructure/.env` — локально; в
+   `application.properties` — дефолт для всех окружений. Секреты при
+   необходимости объявляются и в compose-окружении контейнеров
+   (`services.postgres/environment`, `services.minio/environment`) — там они
+   подставляются как `${VAR:?}`: пустой или отсутствующий секрет валит старт
+   инфраструктуры.
+3. Примените: приложение на хосте перезапускается вручную (`make run-local` /
+   `make run-local-keycloak`) — `.env` перечитывается при старте; контейнеры
+   инфраструктуры пересоздаются `make dev-run`.
 
-Обязательная переменная (без дефолта) объявлена ровно в одном месте —
-`services.app.environment` compose (секреты) или одном из env-шаблонов.
-Несекретный ключ с `${VAR:default}` объявлять не нужно — значение возьмётся
-из схемы. Парность сверяет `ApplicationConfigSchemaTest` (`make test`).
+Обязательная переменная (без дефолта) объявлена в env-шаблоне
+`infrastructure/.env.dev.example`. Несекретный ключ с `${VAR:default}`
+объявлять не нужно — значение возьмётся из схемы. Парность сверяет
+`ApplicationConfigSchemaTest` (`make test`).
 
 ## Compose-файлы
 
 Ядро (`infrastructure/docker-compose.yaml`) делится профилями `infra` /
-`local-tools` / `app`; наблюдаемость и нагрузочное тестирование вынесены в
-отдельные файлы и подключаются цепочкой `-f`, когда они нужны:
+`local-tools`; наблюдаемость и нагрузочное тестирование вынесены в отдельные
+файлы и подключаются цепочкой `-f`, когда они нужны. Приложения в compose нет:
+процесс Java живёт на хосте.
 
 | Файл | Назначение |
 |---|---|
-| `infrastructure/docker-compose.yaml` | Ядро: приложение, postgres, minio, локальные инструменты (`smtp4dev`, Keycloak), `services.app.environment` (секреты через `${VAR:?}`) |
-| `infrastructure/docker-compose.obs.yaml` | Наблюдаемость: mimir, tempo, loki, otel-collector, alloy (профиль `monitoring`). Подключает `make obs-up` |
+| `infrastructure/docker-compose.yaml` | Ядро: postgres, minio, локальные инструменты (`smtp4dev`, Keycloak) |
+| `infrastructure/docker-compose.obs.yaml` | Наблюдаемость: mimir, tempo, otel-collector, alloy (профиль `monitoring`). Подключает `make dev-run` |
 | `infrastructure/docker-compose.load.yaml` | Нагрузочное тестирование: k6 (профиль `load`). Подключают `make load-full` / `make load-smoke` |
 | `infrastructure/docker-compose.override.yaml` | Локальная разработка: порты postgres/minio на `127.0.0.1` + сеть `backend` для приложения на хосте. Подключают только локальные цели make |
-| `infrastructure/docker-compose.prod.yaml` | Рабочий контур (`make prod-up`): pull из ghcr.io, дефолт профиля `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`), без портов БД наружу; override не подключён |
 | `infrastructure/docker-compose.host.yaml` | Одностраничная сборка через top-level `include:` для spring-boot-docker-compose (модуль Boot принимает только один файл) |
 
-Почему порты нельзя переключить профилем: профиль не может сказать «в dev
-публикуй 5432 на loopback, в prod не публикуй» — пришлось бы дублировать
-сервисы, ломая `depends_on`, hostname и конфиг приложения. Прод собирается
-как `-f base -f prod`, поэтому случайный `--profile` не может опубликовать
-порты БД наружу.
+Порты БД/MinIO в базовом файле не публикуются: наружу на хост не должно
+выходить ничего лишнего, а локальному хостовому приложению доступ дают
+оверлейные публикации на `127.0.0.1` (плюс подключение сервисов к сети
+`backend` — на internal-сети Docker порты не публикует).
 
 Цепочки `-f` инкапсулированы в Makefile (`COMPOSE`, `COMPOSE_OBS`,
-`COMPOSE_LOAD`, `COMPOSE_PROD`) — запуск идёт через `make dev-run`
-/ `make dev-profile-*` / `make obs-up` / `make load-full` / `make prod-up`.
+`COMPOSE_LOAD`) — запуск идёт через `make dev-run` (инфраструктура +
+наблюдаемость, приложение на хосте) / `make load-full` / `make load-smoke`.
 
 ## Клиентский IP
 
@@ -89,41 +88,33 @@
 
 ## Профили Spring
 
-Профиль задаётся переменной `SPRING_PROFILES_ACTIVE`. Она объявлена в
-`services.app.environment` compose-файла с дефолтом `${SPRING_PROFILES_ACTIVE:-dev,keycloak}`,
-поэтому переключается инлайном — переменная окружения хоста имеет приоритет
-над `infrastructure/.env`, и на диск ничего не пишется:
+Профиль задаётся переменной `SPRING_PROFILES_ACTIVE`. Для приложения на
+хосте её формирует `scripts/dev/run-local.sh` из `RUN_PROFILES` (добавляя
+`host`), поэтому контур переключается целью запуска:
 
 ```bash
-make dev-profile-local     # SPRING_PROFILES_ACTIVE=dev          (внутренний JWT-контур)
-make dev-profile-keycloak  # SPRING_PROFILES_ACTIVE=dev,keycloak (токены выпускает Keycloak)
+make run-local          # SPRING_PROFILES_ACTIVE=dev,host          (внутренний JWT-контур)
+make run-local-keycloak # SPRING_PROFILES_ACTIVE=dev,keycloak,host (токены выпускает Keycloak)
 ```
 
-Compose сравнивает конфигурацию контейнера: при смене значения `app`
-пересоздаётся сам, при том же — команда ничего не делает. Постоянное значение,
-если нужно, можно задать в `infrastructure/.env` (переменная окружения хоста
-всё равно перекрывает файл). В рабочем контуре дефолт другой:
-`docker-compose.prod.yaml` подставляет `prod` (`${SPRING_PROFILES_ACTIVE:-prod}`) —
-чтобы забытый ключ не поднял dev-режим на сервере. Для запуска на хосте
-профиль задаёт `.run/`-конфигурация IDEA или `make run-local` (`dev,host`).
+В `infrastructure/.env` переменной `SPRING_PROFILES_ACTIVE` быть не должно:
+`run-local.sh` экспортирует её ДО загрузки `.env`, и значение из файла
+перезаписало бы контур, выбранный make-целью (инвариант проверяет
+`ApplicationConfigSchemaTest`).
 
 | Профиль | Файл | Что включает |
 |---|---|---|
 | `dev` | `application-dev.properties` | Локальная отладка: DEBUG по приложению, SQL-логи Hibernate без значений параметров |
-| `prod` | `application-prod.properties` | Рабочий контур: INFO/WARN, трассировка и SQL выключены, инварианты рабочего контура |
-| `host` | `application-host.properties` | Запуск на хосте поверх `dev` (IDEA/CLI): loopback-адреса БД/MinIO/почты, spring-boot-docker-compose. Контейнерное приложение профиль не видит |
+| `host` | `application-host.properties` | Запуск на хосте поверх `dev` (IDEA/CLI): loopback-адреса БД/MinIO/почты, spring-boot-docker-compose |
 | `keycloak` | `application-keycloak.properties` | Внешний выпуск токенов: OAuth2 Resource Server, JWK и issuer, синхронизация ролей, автосоздание пользователей |
 
-Профиль `keycloak` — надстройка над базовым `dev` или `prod`, не
-самостоятельный профиль. Без него работает внутренний JWT-контур приложения
+Профиль `keycloak` — надстройка над базовым `dev`, не самостоятельный профиль.
+Без него работает внутренний JWT-контур приложения
 (см. [`authentication.md`](authentication.md)).
 
 Профиль `host` — надстройка над `dev`, не самостоятельный профиль.
 Всегда используется как `dev,host` (IDEA, `make run-local`,
-`scripts/dev/run-local.sh`). Не активируется в контейнере:
-`spring-boot-docker-compose` исключён из prod-jar, а внутри compose
-контейнер ходит по hostname (`postgres`, `minio`, `smtp`), а не на
-`127.0.0.1`.
+`scripts/dev/run-local.sh`); в тестах не активен.
 
 Зачем нужен: при хостовом запуске приложение работает вне Docker, но
 инфраструктура — в контейнерах. По умолчанию `infrastructure/.env`
@@ -148,17 +139,14 @@ spring-boot-docker-compose: при старте с профилем `host` мо�
 автоматически поднимает стек из `docker-compose.host.yaml`
 (profiles `infra,local-tools`, `lifecycle-management=start-only`).
 Стек не останавливается вместе с приложением — им дальше пользуются
-`make` и e2e-сценарии. Модуль не попадает в prod-jar, в тестах и
-контейнере профиль `host` не активен.
-
-`ProdPreflightValidator` останавливает старт рабочего контура с отладочной
-конфигурацией: выключенная капча, localhost в CORS,
-почта на локальном SMTP.
+`make` и e2e-сценарии. В тестах профиль `host` не активен.
 
 ### Запуск из IDEA
 
-1. `make dev-run` — поднять БД, MinIO, smtp4dev и Keycloak (или не поднимать:
-   профиль `host` сделает это сам через spring-boot-docker-compose).
+1. `make dev-run` — поднять стек (БД, MinIO, Keycloak, наблюдаемость) в фоне;
+   либо не поднимать ничего: профиль `host` сделает это сам через
+   spring-boot-docker-compose (только infra+local-tools). Порт 8080
+   контейнеры не занимают — приложение всегда на хосте.
 2. Открыть проект в IntelliJ IDEA (2025.2+): конфигурация
    `RealHelpDeskApplication` (`.run/RealHelpDeskApplication.run.xml`)
    настроена — запуск через Maven (`spring-boot:run`, профили `dev,host`),
@@ -176,8 +164,7 @@ spring-boot-docker-compose: при старте с профилем `host` мо�
 
 Приложение отправляет письма только во внешний SMTP; встроенного SMTP нет.
 В dev-среде поднимается smtp4dev — тестовый SMTP-сервис (контейнер `smtp`,
-UI на `http://localhost:3000`), профиль compose `local-tools`; в рабочем
-контуре его нет.
+UI на `http://localhost:3000`), профиль compose `local-tools`.
 
 smtp4dev нужен dev и e2e: регистрация, подтверждение email и восстановление
 пароля отправляют письма с кодами, и сценарии (`scripts/e2e-jwt-flow.sh`,
@@ -190,15 +177,15 @@ smtp4dev нужен dev и e2e: регистрация, подтверждени
 |---|---|
 | `MAIL_PROTOCOL` / `MAIL_HOST` / `MAIL_PORT` | Транспорт и адрес SMTP-сервера |
 | `MAIL_USER` / `MAIL_PASSWORD` | Учётная запись SMTP; локальному smtp4dev пароль не нужен (`SMTP_AUTH=false`) |
-| `SMTP_AUTH` / `SMTP_STARTTLS` | Аутентификация и STARTTLS; `SMTP_AUTH=true` без `MAIL_USER` — ошибка preflight |
+| `SMTP_AUTH` / `SMTP_STARTTLS` | Аутентификация и STARTTLS; `SMTP_AUTH=true` требует `MAIL_USER` |
 | `MAIL_FROM` | Отправитель писем |
 | `MAIL_NOTIFY` | Адрес для уведомлений о заявках |
 | `APP_PROJECT_NAME` | Название проекта в письмах |
 | `MAIL_SMTP_CONNECTION_TIMEOUT` / `_READ_TIMEOUT` / `_WRITE_TIMEOUT` | Таймауты SMTP в мс: соединение, чтение, запись |
 
-Контроль рабочего контура: preflight не даёт стартовать с пустым `MAIL_HOST`,
-адресом локального SMTP (`localhost`, `127.0.0.1`, контейнер `smtp`), портом
-вне 1–65535, без `MAIL_FROM`, с `SMTP_AUTH=true` без `MAIL_USER`. Доступность
+Пустой `MAIL_HOST` валит старт (переменная обязательна), адрес локального
+SMTP (`localhost`, `127.0.0.1`, контейнер `smtp`) — штатная конфигурация dev и
+тестов. Доступность
 сервера отдаёт health-группа `smtp` (`/actuator/health/mail`, рукопожатие без
 письма, кэш 5 с); она вне readiness — недоступная почта не останавливает
 приём заявок.

@@ -1,18 +1,16 @@
 # CI для GitHub Actions (репозиторий на GitHub).
-# Три независимых job'а: Maven-проверки, проверки образа, e2e на реальном стеке.
+# Два job'а: Maven-проверки и e2e на реальном стеке.
+#
+# Приложение нигде не контейнеризуется: в CI (как и локально) оно запускается
+# на хосте через spring-boot:run, в Docker поднимается только инфраструктура.
 
 name: CI
 
 on:
   push:
     branches: [main]
-    # Тег v* — релизный прогон: тот же набор job'ов + публикация образа под именем тега
     tags: ["v*"]
   pull_request:
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build:
@@ -28,47 +26,16 @@ jobs:
       - name: Стиль, юнит- и интеграционные тесты
         run: ./mvnw -B spotless:check checkstyle:check verify
 
-  docker:
-    name: Образ (hadolint, trivy, gitleaks)
+  checks:
+    name: Статические проверки (gitleaks)
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v7
-      - name: hadolint
-        run: docker run --rm -i hadolint/hadolint:2.12.0 < Dockerfile
-      - name: Сборка образа
-        run: docker build --build-arg GIT_SHA=${{ github.sha }} -t realhelpdesk:ci .
-      - name: trivy (CRITICAL/HIGH)
-        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.2 image --timeout 15m --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed realhelpdesk:ci
       - name: gitleaks
         run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 detect --source /repo --redact --verbose
 
-      # Пуш в ghcr.io — при пуше в main или релизном теге v* (не на PR)
-      - name: Login to ghcr.io
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Теги и пуш образа (sha-<git_sha> + latest; для тега v* — ещё и v<версия>)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        run: |
-          IMAGE="${REGISTRY}/${IMAGE_NAME}"
-          docker tag realhelpdesk:ci "${IMAGE}:sha-${GITHUB_SHA}"
-          docker tag realhelpdesk:ci "${IMAGE}:latest"
-          docker push "${IMAGE}:sha-${GITHUB_SHA}"
-          docker push "${IMAGE}:latest"
-          # Релизный тег публикует образ и под своим именем (v1.0.0) — его разворачивает deploy.yml
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            docker tag realhelpdesk:ci "${IMAGE}:${GITHUB_REF_NAME}"
-            docker push "${IMAGE}:${GITHUB_REF_NAME}"
-          fi
-
   e2e:
-    name: E2E на compose-стеке
+    name: E2E (инфраструктура в compose, приложение на хосте)
     runs-on: ubuntu-24.04
     needs: build
     timeout-minutes: 30
@@ -91,25 +58,28 @@ jobs:
             -e "s|^METRICS_PASSWORD=.*|METRICS_PASSWORD=$(openssl rand -base64 32)|" \
             -e "s|^KEYCLOAK_ADMIN_PASSWORD=.*|KEYCLOAK_ADMIN_PASSWORD=$(openssl rand -base64 32)|" \
             infrastructure/.env
-          # MAIL_PASSWORD остаётся пустым: локальному smtp4dev пароль не нужен
-      # Приложение в CI живёт в контейнере: dev-profile-keycloak поднимает весь
-      # стек (infra+local-tools+app) сразу на Keycloak-контуре — отдельного
-      # шага переключения профиля после подъёма больше нет.
-      - name: Поднять стек на Keycloak-контуре
-        run: make dev-profile-keycloak
+      - name: Поднять инфраструктуру и наблюдаемость
+        run: make dev-run
+      - name: Запустить приложение на Keycloak-контуре
+        run: nohup make run-local-keycloak > app.log 2>&1 &
       - name: Дождаться готовности приложения
         run: |
-          timeout 180 bash -c 'until curl -sf http://localhost:8081/actuator/health >/dev/null; do echo "wait..."; sleep 5; done'
+          timeout 240 bash -c 'until curl -sf http://localhost:8080/api/v1/health >/dev/null; do echo "wait..."; sleep 5; done'
       - name: Дождаться готовности Keycloak
         run: |
           timeout 180 bash -c 'until curl -sf http://localhost:8180/realms/realhelpdesk/.well-known/openid-configuration >/dev/null; do echo "wait keycloak..."; sleep 5; done'
       - name: E2E-сценарии
         run: make e2e-all
-      - name: Логи стека (при падении)
+      - name: Логи (при падении)
         if: failure()
         run: |
-          docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app ps || true
-          docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app logs --no-color || true
+          echo "── app (хостовый процесс)"
+          tail -n 400 app.log || true
+          echo "── контейнеры"
+          docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml \
+            --profile infra --profile local-tools ps || true
+          docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.override.yaml \
+            --profile infra --profile local-tools logs --no-color || true
       - name: Остановить стек
         if: always()
         run: make dev-down

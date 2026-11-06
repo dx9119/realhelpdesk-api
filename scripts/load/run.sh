@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Запуск нагрузочного user journey (k6): сидирование пула пользователей + прогон.
 #
-# Требует поднятый load-стек (его поднимают make load-full / make load-smoke) — включённый
-# TRUST_PROXY_HEADERS даёт каждой VU свой bucket рейт-лимитов.
+# Требует запущенное на хосте приложение (make run-local, профиль dev) и
+# поднятый k6-стек (его поднимают make load-full / make load-smoke). Для
+# разделения рейт-лимитов между VU приложение нужно запускать с
+# TRUST_PROXY_HEADERS=true — иначе все VU делят один bucket 127.0.0.1.
 #
 # Сидирование проходит полный контракт капчи: POST /captcha/challenge →
 # решение PoW (scripts/load/solve-pow.js, нужен node) → captchaToken в
 # регистрации. Работает и при CAPTCHA_ENABLED=false (fail-open), и при
-# включённой капче — как в рабочем контуре.
+# включённой капче.
 #
 # Параметры (окружение):
 #   POOL_SIZE   — сколько пользователей сидировать (по умолчанию 8, максимум 10:
@@ -19,9 +21,9 @@
 #   TARGET_VUS  — число параллельных VU k6 (по умолчанию 10)
 #   DURATION    — длительность прогона, например 5m / 30s (по умолчанию 5m)
 #   THINK_TIME  — пауза между итерациями, сек (по умолчанию 1)
-#   RESET_LIMITS=1 — перезапустить app перед прогоном: in-memory счётчики
-#                 рейт-лимитов обнуляются (окно логина 10/300с от предыдущих
-#                 прогонов иначе может отказать первым же логинам)
+#   RESET_LIMITS=1 — сбросить in-memory счётчики рейт-лимитов через dev-эндпоинт
+#                 (окно логина 10/300с от предыдущих прогонов иначе может
+#                 отказать первым же логинам)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -31,7 +33,9 @@ TARGET_VUS=${TARGET_VUS:-10}
 DURATION=${DURATION:-5m}
 PASSWORD=${PASSWORD:-Password123!}
 BASE=${BASE:-http://localhost:8080}
-COMPOSE="docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.load.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile app --profile load"
+# Приложение — на хосте, поэтому из compose-цепочки исключён профиль app:
+# здесь только инфраструктура (postgres для сидирования) и k6.
+COMPOSE="docker compose -f infrastructure/docker-compose.yaml -f infrastructure/docker-compose.load.yaml -f infrastructure/docker-compose.override.yaml --profile infra --profile local-tools --profile load"
 
 if [ "$POOL_SIZE" -gt 10 ]; then
   echo "POOL_SIZE=$POOL_SIZE > 10: лимит регистрации 10/300с на IP, пул не засеивается за один проход." >&2
@@ -46,13 +50,17 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 if [ "${RESET_LIMITS:-0}" = "1" ]; then
-  echo "── RESET_LIMITS=1: перезапуск app (обнуление счётчиков рейт-лимитов)"
-  $COMPOSE restart app
+  echo "── RESET_LIMITS=1: сброс счётчиков рейт-лимитов (dev-эндпоинт)"
+  curl -sf -o /dev/null -X POST -H 'X-Requested-With: XMLHttpRequest' \
+    "$BASE/api/v1/dev/ratelimit-reset" || {
+      echo "dev-эндпоинт недоступен: приложение на хосте запущено с профилем dev?" >&2
+      exit 1
+    }
 fi
 
-echo "── Проверка стека (http://localhost:8081/actuator/health)"
-if ! timeout 120 bash -c 'until curl -sf http://localhost:8081/actuator/health >/dev/null; do sleep 3; done'; then
-  echo "Стек не отвечает. Поднимите: make load-full или make load-smoke" >&2
+echo "── Проверка приложения (http://localhost:8080/api/v1/health)"
+if ! timeout 120 bash -c 'until curl -sf http://localhost:8080/api/v1/health >/dev/null; do sleep 3; done'; then
+  echo "Приложение не отвечает. Запустите: make run-local (профиль dev)" >&2
   exit 1
 fi
 

@@ -21,10 +21,9 @@
         </root>
     </springProfile>
 
-    <!-- prod и остальные профили: JSON по ECS. MDC уходит полями JSON, service.name/version/
+    <!-- Все профили, кроме dev: JSON по ECS. MDC уходит полями JSON, service.name/version/
          environment — из logging.structured.ecs.*. Конвертер берёт format из системного свойства
-         CONSOLE_LOG_STRUCTURED_FORMAT (logging.structured.format.console=ecs в application-prod.properties),
-         без него — ecs по умолчанию. clientIp из JSON исключён в application-prod.properties. -->
+         CONSOLE_LOG_STRUCTURED_FORMAT (logging.structured.format.console), без него — ecs по умолчанию. -->
     <springProfile name="!dev">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">

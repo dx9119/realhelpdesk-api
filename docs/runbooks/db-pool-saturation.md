@@ -20,7 +20,7 @@
 1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=jdbc_connections_active'`
    — active/idle/max, `hibernate_query_executions_total` (queries/s).
 2. **Медленные запросы**: приложение логирует slow query (порог `hibernate.log_slow_query`,
-   1000 мс): `{container_label_com_docker_compose_service="app"} |= "slow query"`.
+   1000 мс): `grep "slow query" app.log` — приложение пишет их в stdout запускающего терминала.
 3. **Трейсы** (`curl -s -G localhost:3200/api/search --data-urlencode 'q={ duration > 500ms }' --data-urlencode "start=$(( $(date +%s) - 3600 ))" --data-urlencode "end=$(date +%s)" --data-urlencode 'limit=20'`):
    медленные sql-спаны покажут запрос и caller (контроллер/фоновая задача).
 4. **Утечки**: active держится у максимума даже при простое → соединения не

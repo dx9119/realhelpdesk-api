@@ -1,64 +1,27 @@
-// Alloy: сбор логов приложения из docker json-file → Loki
-// и скрейп метрик приложения → remote_write в Mimir.
+// Alloy: скрейп метрик приложения → Mimir.
 //
-// Логи: наследник Promtail — тянет только контейнер сервиса app (фильтр по compose-метке),
-// чтобы postgres/mimir/k6 не засоряли индекс. Логи приложения — текстовый паттерн
-// logback-spring.xml c колонками traceId/spanId (шаг 7), поэтому ссылка на трейс
-// строится по 32-символьному traceId в LogQL-запросах.
+// Приложение запущено НА ХОСТЕ (make run-local), поэтому метрики берутся с
+// host.docker.internal:<management.port> — extra_hosts с host-gateway объявлен
+// для сервиса alloy в docker-compose.obs.yaml.
+//
+// Логи приложения alloy НЕ собирает: хостовый процесс пишет их в stdout
+// запускающего терминала (в CI — в лог шага), контейнера с логами нет. Логи
+// приложения — текстовый паттерн logback-spring.xml c колонками
+// traceId/spanId, поэтому ссылка на трейс строится по 32-символьному traceId.
 //
 // Метрики: скрейпит управляющий порт приложения (management.server.port, HTTP Basic
 // сервисной учёткой METRICS_USER/METRICS_PASSWORD — те же креды, что проверяются
 // в ActuatorSecurityTest) и шлёт remote_write в distributor Mimir.
-//
-// Важно: discovery.docker отдаёт метки вида __meta_docker_* — без relabel_rules они не
-// становятся stream-метками Loki (логи приходят как unknown_service без container).
 
 logging {
   level = "info"
 }
 
-discovery.docker "containers" {
-  host             = "unix:///var/run/docker.sock"
-  refresh_interval = "5s"
-
-  filter {
-    name   = "label"
-    values = ["com.docker.compose.service=app"]
-  }
-}
-
-discovery.relabel "containers" {
-  targets = []
-
-  rule {
-    source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "container"
-  }
-
-  rule {
-    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    target_label  = "container_label_com_docker_compose_service"
-  }
-}
-
-loki.source.docker "containers" {
-  host          = "unix:///var/run/docker.sock"
-  targets       = discovery.docker.containers.targets
-  relabel_rules = discovery.relabel.containers.rules
-  forward_to    = [loki.write.default.receiver]
-}
-
-loki.write "default" {
-  endpoint {
-    url = "http://loki:3100/loki/api/v1/push"
-  }
-}
-
-// Скрейп метрик: один target — app:8081 (управляющий порт в той же сети compose).
+// Скрейп метрик: приложение на хосте — target host.docker.internal:8081
+// (управляющий порт; host-gateway резолвится через extra_hosts сервиса alloy).
 prometheus.scrape "app" {
   targets = [{
-    "__address__"      = "app:8081",
+    "__address__"      = "host.docker.internal:8081",
     "__metrics_path__" = "/actuator/prometheus",
   }]
   scrape_interval = "15s"

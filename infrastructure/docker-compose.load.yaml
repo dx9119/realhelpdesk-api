@@ -3,8 +3,9 @@
 #   make load-full / make load-smoke
 #   docker compose -f docker-compose.yaml -f docker-compose.load.yaml ...
 #
-# Прогон сидирует пул пользователей через /api/v1/auth/register — это
-# внутренний JWT-контур, поэтому load-цели переводят приложение на профиль dev.
+# Приложение в контейнер не поднимается — оно запущено на хосте (make run-local),
+# поэтому k6 ходит на него через host-gateway. Прогон сидирует пул пользователей
+# через /api/v1/auth/register — это внутренний JWT-контур (профиль dev).
 
 name: realhelpdesk
 
@@ -21,18 +22,19 @@ services:
   k6:
     image: grafana/k6:2.3.0
     profiles: [load]
-    depends_on:
-      app:
-        condition: service_healthy
     networks:
       - backend
+    # host-gateway — единственный способ с Linux-хоста достучаться из контейнера
+    # до процесса приложения, запущенного на этом же хосте.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../scripts/load:/scripts:ro
     working_dir: /scripts
     entrypoint: ["k6"]
     command: ["run", "/scripts/user-journey.js"]
     environment:
-      BASE_URL: http://app:8080
+      BASE_URL: http://host.docker.internal:8080
       POOL_SIZE: ${POOL_SIZE:-8}
       TARGET_VUS: ${TARGET_VUS:-10}
       DURATION: ${DURATION:-5m}

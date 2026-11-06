@@ -12,7 +12,7 @@
 #   - создание заявки и смена статуса;
 #   - базовые уведомления (GET /notifications).
 #
-# Требования: приложение на Keycloak-контуре (make dev-profile-keycloak),
+# Требования: приложение на Keycloak-контуре (make run-local-keycloak),
 # SPRING_PROFILES_ACTIVE=dev,keycloak (дефолт шаблона), docker для psql.
 # Перед прогоном удаляет порталы владельца и связанные данные — прогон
 # идемпотентен (имя портала фиксировано, лимит порталов на пользователя — 2).
@@ -96,7 +96,7 @@ kc_post() { # kc_post <token> <endpoint> <body> — возвращает "ста
 
 step "Готовность Keycloak и realm $REALM"
 if [ "$(curl -s -o /dev/null -w '%{http_code}' "$KEYCLOAK/realms/$REALM/.well-known/openid-configuration")" != "200" ]; then
-  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make dev-profile-keycloak"
+  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make run-local-keycloak"
   exit 1
 fi
 echo "  OK   discovery realm'а доступен"
