@@ -134,8 +134,8 @@ realm-роли `ROLE_USER`/`ROLE_OPERATOR` повышают роль в БД.
 
 Защита от автоматики: подписи HMAC (`CAPTCHA_HMAC_SECRET` — секрет, минимум
 32 символа), одноразовость challenge и токена, минимальное время заполнения
-формы (`CAPTCHA_MIN_FILL_SECONDS`, дефолт 0; в рабочем контуре
-рекомендуется 3) и honeypot-поле `website` (его заполнение = `honeypot` в ответе). При отказе в
+формы (`CAPTCHA_MIN_FILL_SECONDS`, дефолт 0; для публичной формы — 3) и
+honeypot-поле `website` (его заполнение = `honeypot` в ответе). При отказе в
 проблеме-JSON поле `code` — `pow_failed`, `wrong_answer`, `replayed`,
 `too_fast`, `honeypot` и т.д. (полный список — [`api.md`](api.md)).
 Метрики: `captcha.challenge.issued{type}` и

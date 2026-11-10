@@ -37,7 +37,7 @@ services:
     mem_limit: 512m
     ports:
       # Только loopback: query API /prometheus и ruler (хостовой порт 9090,
-      # как у прежнего Prometheus — make obs-alerts и curl не меняются по адресу).
+      # как у прежнего Prometheus — curl не меняется по адресу).
       - "127.0.0.1:9090:8090"
     volumes:
       - ./observability/mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro

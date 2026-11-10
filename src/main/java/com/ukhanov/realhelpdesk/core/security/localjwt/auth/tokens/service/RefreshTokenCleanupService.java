@@ -85,7 +85,7 @@ public class RefreshTokenCleanupService {
 
             int deleted = inactive.deleted() + active.deleted();
             if (deleted > 0) {
-                // INFO, а не DEBUG: в prod должно быть видно, что ротация работает
+                // INFO, а не DEBUG: факт ротации должен быть виден при штатном уровне логов
                 logger.info(
                         "Ротация refresh-токенов: удалено строк — отозванных {} ({} батчей), протухших {} ({} батчей)",
                         inactive.deleted(), inactive.batches(), active.deleted(), active.batches());

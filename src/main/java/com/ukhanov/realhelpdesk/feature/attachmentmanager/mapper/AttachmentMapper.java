@@ -28,7 +28,7 @@ public interface AttachmentMapper {
     AttachmentModel toEntity(CreateAttachmentParam param);
 
     // staticProperties передаётся через @Context, а не внедряется в бин: маппер собирает downloadUrl относительно
-    // публичного origin раздачи, и один и тот же бин работает с разным base-url в dev и prod
+    // публичного origin раздачи (static.base-url), и один бин работает с любым адресом из конфигурации
     @Mapping(target = "ticketId", source = "ticketId")
     @Mapping(target = "messageId", source = "attachment.message.id")
     @Mapping(target = "uploadedById", source = "attachment.uploadedBy.id")

@@ -196,7 +196,7 @@ class ActuatorSecurityIT extends AbstractIntegrationTest {
 ### Репозиторий на PostgreSQL 18
 
 Слайс репозитория берёт datasource контейнера (`replace = NONE`) и работает на
-боевой схеме Liquibase:
+схеме Liquibase из `db/changelog/db.changelog-master.xml`:
 
 ```java
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

@@ -174,8 +174,7 @@ services:
   keycloak:
     profiles: [local-tools]
     # Версия закреплена: обновление — осознанная правка с ревью, не latest.
-    # start-dev: HTTP без TLS и кэш в памяти — локальный стенд; в рабочем
-    # контуре Keycloak разворачивается отдельно (см. README).
+    # start-dev: HTTP без TLS и кэш в памяти — только локальный стенд.
     image: quay.io/keycloak/keycloak:26.6
     mem_limit: 768m
     ports:

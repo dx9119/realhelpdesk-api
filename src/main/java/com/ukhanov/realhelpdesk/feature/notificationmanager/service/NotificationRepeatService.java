@@ -109,7 +109,7 @@ public class NotificationRepeatService {
         }
         notificationPublisher.wakeAfterCommit(woken);
         emailRemindersAfterCommit(repeated);
-        // INFO, а не DEBUG: в prod должно быть видно, что механика напоминаний работает (B6)
+        // INFO, а не DEBUG: факт работы напоминаний должен быть виден при штатном уровне логов (B6)
         logger.info("Созданы повторные оповещения: получателей={}", woken.size());
     }
 

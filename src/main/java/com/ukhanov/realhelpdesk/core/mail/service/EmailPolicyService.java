@@ -72,7 +72,7 @@ public class EmailPolicyService {
         UserModel user = currentUserProvider.getCurrentUserModel();
 
         repository.deleteByEmail(user.getEmail());
-        // «Почему не пришло письмо» — первый вопрос при разборе, и ответ должен быть в prod-логе
+        // «Почему не пришло письмо» — первый вопрос при разборе, и ответ должен быть в логе
         logger.info("Пользователь {} вернул email-оповещения", user.getId());
     }
 

@@ -77,8 +77,8 @@ public class EmailDeliveryService {
     private final BusinessMetrics businessMetrics;
 
     /**
-     * Письмо адресату по типу шаблона: в prod-логе видно тип письма и получателя, адрес остаётся только в DEBUG (PII в
-     * prod не тащим).
+     * Письмо адресату по типу шаблона: в INFO видно тип письма и получателя, адрес остаётся только в DEBUG (PII не
+     * тащим).
      */
     public void sendEmail(String recipient, EmailTemplateId template, Map<String, Object> model,
             NotificationEvent sourceEvent)
@@ -86,7 +86,7 @@ public class EmailDeliveryService {
         sendEmail(recipient, template, model, sourceEvent, null);
     }
 
-    /** То же, но с получателем-пользователем: {@code userId} попадает в prod-лог вместо адреса. */
+    /** То же, но с получателем-пользователем: {@code userId} попадает в INFO вместо адреса. */
     public void sendEmail(String recipient, EmailTemplateId template, Map<String, Object> model,
             NotificationEvent sourceEvent, Long userId)
             throws MessagingException, EmailAccessDeniedException, UnsupportedEncodingException {
@@ -116,7 +116,7 @@ public class EmailDeliveryService {
         sendEmail(userEmail, template, model, sourceEvent, null);
     }
 
-    /** Письмо конкретному пользователю: userId попадает в prod-лог, адрес остаётся в DEBUG. */
+    /** Письмо конкретному пользователю: userId попадает в INFO, адрес остаётся в DEBUG. */
     public void sendUserNotification(String userEmail, EmailTemplateId template, Map<String, Object> model,
             NotificationEvent sourceEvent, Long userId)
             throws MessagingException, EmailAccessDeniedException, UnsupportedEncodingException {

@@ -115,12 +115,12 @@ challenge и токена плюс минута).
 
 | Переменная | Назначение | Диапазон / дефолт |
 |---|---|---|
-| `CAPTCHA_ENABLED` | Включение проверки токена; `false` — fail-open | дефолт `false`; в prod — `true` (требование preflight) |
+| `CAPTCHA_ENABLED` | Включение проверки токена; `false` — fail-open | дефолт `false`; включается явным `true` |
 | `CAPTCHA_HMAC_SECRET` | Секрет подписи challenge и токенов | ≥ 32 байт, генерируется `make env` |
 | `CAPTCHA_POW_DIFFICULTY` | Число ведущих нулевых бит SHA-256 | 1..26, дефолт 18 |
 | `CAPTCHA_CHALLENGE_TTL_SECONDS` | Срок жизни задания | дефолт 300 |
 | `CAPTCHA_TOKEN_TTL_SECONDS` | Срок жизни выданного токена | дефолт 300 |
-| `CAPTCHA_MIN_FILL_SECONDS` | Минимум секунд от выдачи задания до отправки формы; `0` — проверка отключена | дефолт 0; в рабочем контуре рекомендуется 3 (`.env.prod.example`) |
+| `CAPTCHA_MIN_FILL_SECONDS` | Минимум секунд от выдачи задания до отправки формы; `0` — проверка отключена | дефолт 0; для публичной формы — 3 |
 | `CAPTCHA_EMOJI_ENABLED` | Эскалация на эмодзи-уровень (kill-switch) | дефолт `true` |
 | `CAPTCHA_RISK_FAILURE_THRESHOLD` | Провалов одного IP для мягкого риска | 1..1000, дефолт 5 |
 | `CAPTCHA_RISK_FAILURE_WINDOW_SECONDS` | Окно подсчёта провалов | 10..86400, дефолт 600 |

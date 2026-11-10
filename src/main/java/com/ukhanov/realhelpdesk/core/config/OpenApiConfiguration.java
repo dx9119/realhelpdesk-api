@@ -13,7 +13,7 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
  * Конфигурация OpenAPI-спеки (springdoc собирает её из контроллеров и DTO).
  *
  * <p>
- * {@link SecurityScheme} описывает авторизацию Bearer JWT (контур keycloak — прод и dev по умолчанию): в swagger-ui
+ * {@link SecurityScheme} описывает авторизацию Bearer JWT (контур keycloak — профиль по умолчанию): в swagger-ui
  * появляется кнопка Authorize, токен подставляется во все запросы. Глобальный security-requirement помечает все
  * операции как требующие аутентификации. Контур без keycloak принимает токен в HttpOnly-cookie ({@code accessToken}) —
  * кнопка Authorize на него не действует, это описано в {@code docs/api.md} и в описании спеки.

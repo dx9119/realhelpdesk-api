@@ -56,7 +56,7 @@ application-local.properties
 *.key
 *.pem
 
-# Локальные секреты (шаблоны — infrastructure/.env.dev.example, .env.prod.example)
+# Локальные секреты (шаблон — infrastructure/.env.dev.example)
 infrastructure/.env
 
 # Файлы Docker (если не коммитите образы)
@@ -75,7 +75,7 @@ hs_err_pid*
 # Файлы профилирования
 java_pid*
 
-# Артефакты бэкапов (make prod-backup)
+# Артефакты бэкапов
 backups/
 
 # Артефакты локальных прогонов (make dev-openapi / dev-openapi-types): спека и типы
