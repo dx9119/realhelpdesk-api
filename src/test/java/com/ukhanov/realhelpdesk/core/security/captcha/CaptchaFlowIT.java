@@ -1,10 +1,9 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha;
+package com.ukhanov.realhelpdesk.core.security.captcha;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,25 +20,33 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.ChallengeResponse;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
+import com.ukhanov.realhelpdesk.config.TestAuthenticationConfiguration;
+import com.ukhanov.realhelpdesk.core.security.captcha.dto.ChallengeResponse;
+import com.ukhanov.realhelpdesk.core.security.captcha.utils.PowHash;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Сквозной поток PoW-капчи по реальному HTTP: challenge → решение в тесте (тот же PowHash, что на сервере) → solve →
- * регистрация токеном. Проверяются и отказы: replay токена, токен чужого действия, honeypot, неверный nonce,
- * отсутствующий токен. Профиль test: капча включена, difficulty=8 (решается за миллисекунды), minimum-fill=0.
+ * бизнес-операция с captcha-токеном. Потребитель капчи в единственном (keycloak) контуре один — выдача кода
+ * подтверждения email ({@code POST /api/v1/email/codes}, действие {@code email-code}): он за аутентификацией, поэтому
+ * тест предъявляет тестовый bearer-токен. Проверяются и отказы: отсутствующий токен, replay токена, токен чужого
+ * действия, неверный nonce. Профиль test: капча включена, difficulty=8 (решается за миллисекунды), minimum-fill=0.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
                 "email.domain=example.com"})
-@DisplayName("PoW-капча: полный поток challenge → solve → register (HTTP)")
+@DisplayName("PoW-капча: полный поток challenge → solve → выдача кода email (HTTP)")
 class CaptchaFlowIT extends AbstractIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final String ACTION_REGISTER = "register";
+
+    /** Действие потребителя капчи: выдача кода подтверждения email. */
+    private static final String ACTION_EMAIL_CODE = "email-code";
+
+    /** Действие без потребителя в единственном контуре: годится как «чужое» для проверки wrong_action. */
+    private static final String ACTION_FOREIGN = "register";
 
     private static GreenMail greenMail;
 
@@ -72,29 +79,26 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("challenge → верный nonce → solve → регистрация с токеном: 201")
-    void register_validCaptchaToken_returnsCreated() throws Exception {
+    @DisplayName("challenge → верный nonce → solve → выдача кода с токеном: 202")
+    void sendCode_validCaptchaToken_returnsAccepted() throws Exception {
 
         // given
-        // when
-        Challenge challenge = challenge(ACTION_REGISTER);
-        String token = solve(challenge);
+        String token = solve(challenge(ACTION_EMAIL_CODE));
 
-        HttpResponse<String> register = registerBody(registerJson(token, null, uniqueEmail()));
+        // when
+        HttpResponse<String> response = sendCode(token);
 
         // then
-        assertThat(register.statusCode()).isEqualTo(201);
+        assertThat(response.statusCode()).isEqualTo(202);
     }
 
     @Test
-    @DisplayName("Регистрация без captcha-токена → 400 с code=missing_token")
-    void register_noCaptchaToken_returnsMissingToken() throws Exception {
+    @DisplayName("Выдача кода без captcha-токена → 400 с code=missing_token")
+    void sendCode_noCaptchaToken_returnsMissingToken() throws Exception {
 
         // given
         // when
-        String body = registerJson(null, null, uniqueEmail());
-
-        HttpResponse<String> response = registerBody(body);
+        HttpResponse<String> response = sendCode(null);
 
         // then
         assertThat(response.statusCode()).isEqualTo(400);
@@ -103,29 +107,29 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("Повторное использование токена → 400 с code=replayed")
-    void register_reusedCaptchaToken_returnsReplayed() throws Exception {
+    void sendCode_reusedCaptchaToken_returnsReplayed() throws Exception {
 
         // given
+        String token = solve(challenge(ACTION_EMAIL_CODE));
         // when
-        String token = solve(challenge(ACTION_REGISTER));
+        assertThat(sendCode(token).statusCode()).isEqualTo(202);
+
+        HttpResponse<String> replay = sendCode(token);
+
         // then
-        assertThat(registerBody(registerJson(token, null, uniqueEmail())).statusCode()).isEqualTo(201);
-
-        HttpResponse<String> replay = registerBody(registerJson(token, null, uniqueEmail()));
-
         assertThat(replay.statusCode()).isEqualTo(400);
         assertThat(code(replay)).isEqualTo("replayed");
     }
 
     @Test
-    @DisplayName("Токен действия email-code предъявлен на регистрацию → 400 с code=wrong_action")
-    void register_tokenOfOtherAction_returnsWrongAction() throws Exception {
+    @DisplayName("Токен действия register предъявлен на выдачу кода → 400 с code=wrong_action")
+    void sendCode_tokenOfOtherAction_returnsWrongAction() throws Exception {
 
         // given
-        // when
-        String token = solve(challenge("email-code"));
+        String token = solve(challenge(ACTION_FOREIGN));
 
-        HttpResponse<String> response = registerBody(registerJson(token, null, uniqueEmail()));
+        // when
+        HttpResponse<String> response = sendCode(token);
 
         // then
         assertThat(response.statusCode()).isEqualTo(400);
@@ -133,31 +137,16 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Заполненное honeypot-поле website → 400 с code=honeypot даже с валидным токеном")
-    void register_filledHoneypot_returnsHoneypot() throws Exception {
-
-        // given
-        // when
-        String token = solve(challenge(ACTION_REGISTER));
-
-        HttpResponse<String> response = registerBody(registerJson(token, "https://spam.example", uniqueEmail()));
-
-        // then
-        assertThat(response.statusCode()).isEqualTo(400);
-        assertThat(code(response)).isEqualTo("honeypot");
-    }
-
-    @Test
     @DisplayName("solve с нерешённым nonce → 400 с code=pow_failed")
     void solve_wrongNonce_returnsPowFailed() throws Exception {
 
         // given
-        // when
-        Challenge challenge = challenge(ACTION_REGISTER);
+        Challenge challenge = challenge(ACTION_EMAIL_CODE);
         String wrongNonce = nonceThatDoesNotSolve(challenge);
 
+        // when
         HttpResponse<String> response = post("/api/v1/captcha/solve",
-                "{\"challengeId\":\"" + challenge.jwt + "\",\"nonce\":\"" + wrongNonce + "\"}");
+                "{\"challengeId\":\"" + challenge.jwt + "\",\"nonce\":\"" + wrongNonce + "\"}", null);
 
         // then
         assertThat(response.statusCode()).isEqualTo(400);
@@ -183,7 +172,7 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
     }
 
     private Challenge challenge(String action) throws Exception {
-        HttpResponse<String> response = post("/api/v1/captcha/challenge", "{\"action\":\"" + action + "\"}");
+        HttpResponse<String> response = post("/api/v1/captcha/challenge", "{\"action\":\"" + action + "\"}", null);
         assertThat(response.statusCode()).as("challenge выдаётся").isEqualTo(200);
         JsonNode body = JSON.readTree(response.body());
         assertThat(body.get("type").asText()).isEqualTo(ChallengeResponse.TYPE_POW);
@@ -202,7 +191,7 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
         assertThat(nonce).as("решение найдено в тестовом пределе").isNotNull();
 
         HttpResponse<String> response = post("/api/v1/captcha/solve",
-                "{\"challengeId\":\"" + challenge.jwt() + "\",\"nonce\":\"" + nonce + "\"}");
+                "{\"challengeId\":\"" + challenge.jwt() + "\",\"nonce\":\"" + nonce + "\"}", null);
         assertThat(response.statusCode()).as("solve принимает верное решение: %s", response.body()).isEqualTo(200);
         return JSON.readTree(response.body()).get("captchaToken").asText();
     }
@@ -218,38 +207,32 @@ class CaptchaFlowIT extends AbstractIntegrationTest {
         throw new IllegalStateException("не-решение не найдено");
     }
 
-    private String registerJson(String captchaToken, String website, String email) {
-        StringBuilder body = new StringBuilder(
-                "{\"firstName\":\"Flow\",\"lastName\":\"Test\",\"email\":\"" + email
-                        + "\",\"password\":\"Sup3rSecret123!\"");
+    /** Бизнес-операция, защищённая капчей: выдача кода подтверждения email (нужен bearer). */
+    private HttpResponse<String> sendCode(String captchaToken) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url("/api/v1/email/codes")))
+                .header("Content-Type", "application/json")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("Authorization", "Bearer " + TestAuthenticationConfiguration.testToken())
+                .POST(HttpRequest.BodyPublishers.ofString("{}"));
         if (captchaToken != null) {
-            body.append(",\"captchaToken\":\"").append(captchaToken).append("\"");
+            builder.header("X-Captcha-Token", captchaToken);
         }
-        if (website != null) {
-            body.append(",\"website\":\"").append(website).append("\"");
-        }
-        return body.append("}").toString();
-    }
-
-    private HttpResponse<String> registerBody(String json) throws Exception {
-        return post("/api/v1/auth/register", json);
-    }
-
-    private String uniqueEmail() {
-        return "captcha-flow-" + UUID.randomUUID() + "@example.com";
+        return send(builder.build());
     }
 
     private String code(HttpResponse<String> response) throws Exception {
         return JSON.readTree(response.body()).path("code").asText(null);
     }
 
-    private HttpResponse<String> post(String path, String json) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url(path)))
+    private HttpResponse<String> post(String path, String json, String bearer) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url(path)))
                 .header("Content-Type", "application/json")
                 .header("X-Requested-With", "XMLHttpRequest")
-                .POST(HttpRequest.BodyPublishers.ofString(json))
-                .build();
-        return send(request);
+                .POST(HttpRequest.BodyPublishers.ofString(json));
+        if (bearer != null) {
+            builder.header("Authorization", "Bearer " + bearer);
+        }
+        return send(builder.build());
     }
 
     private HttpResponse<String> send(HttpRequest request) throws Exception {

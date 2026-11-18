@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha;
+package com.ukhanov.realhelpdesk.core.security.captcha;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.UUID;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -28,8 +27,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.ChallengeResponse;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
+import com.ukhanov.realhelpdesk.config.TestAuthenticationConfiguration;
+import com.ukhanov.realhelpdesk.core.security.captcha.dto.ChallengeResponse;
+import com.ukhanov.realhelpdesk.core.security.captcha.utils.PowHash;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,9 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Сквозной поток эскалации на эмодзи-уровень по реальному HTTP: провалы с разных IP одной подсети доводят риск до
  * {@code captcha.risk-subnet-offender-threshold=2} (отдельный контекст приложения), следующий challenge приходит как
  * эмодзи-задание, неверный ответ отклоняется (wrong_answer), правильный ответ (подбирается локально по HMAC с тестовым
- * секретом) решает captcha-токен и завершается регистрацией 201. Клиентский IP берётся из {@code X-Forwarded-For}
- * (доверие заголовкам включено в контексте), поэтому подсеть задаётся тестом. Контекст свой — не мешает PoW-потоку
- * CaptchaFlowIT с завышенным порогом.
+ * секретом) решает captcha-токен и завершается выдачей кода подтверждения email — единственного потребителя капчи в
+ * keycloak-контуре. Клиентский IP берётся из {@code X-Forwarded-For} (доверие заголовкам включено в контексте), поэтому
+ * подсеть задаётся тестом. Контекст свой — не мешает PoW-потоку CaptchaFlowIT с завышенным порогом.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"spring.profiles.active=test", "email.notify=admin@example.com", "email.from=noreply@example.com",
@@ -50,7 +50,8 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final String ACTION_REGISTER = "register";
+    /** Действие потребителя капчи: выдача кода подтверждения email. */
+    private static final String ACTION_EMAIL_CODE = "email-code";
     /** Два разных IP одной подсети /24: второй провал доводит подсеть до порога распределённости. */
     private static final String CLIENT_IP = "203.0.113.10";
     private static final String SECOND_CLIENT_IP = "203.0.113.11";
@@ -90,27 +91,25 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Провалы PoW → эмодзи-challenge → неверный ответ → правильный ответ → регистрация: 201")
-    void register_escalatedChallengeWrongThenCorrect_returnsCreated() throws Exception {
+    @DisplayName("Провалы PoW → эмодзи-challenge → неверный ответ → правильный ответ → выдача кода: 202")
+    void sendCode_escalatedChallengeWrongThenCorrect_returnsAccepted() throws Exception {
 
         // given
-        // when
         escalateRiskToEmoji();
-        EmojiChallenge challenge = emojiChallenge(ACTION_REGISTER);
+        EmojiChallenge challenge = emojiChallenge(ACTION_EMAIL_CODE);
 
+        // when
         HttpResponse<String> wrong = solveEmoji(challenge.jwt(), List.of(0, 1));
         List<Integer> answer = correctAnswer(challenge);
         HttpResponse<String> solved = solveEmoji(challenge.jwt(), answer);
         String token = JSON.readTree(solved.body()).get("captchaToken").asText();
-        HttpResponse<String> register = post("/api/v1/auth/register",
-                "{\"firstName\":\"Emoji\",\"lastName\":\"Flow\",\"email\":\""
-                        + uniqueEmail() + "\",\"password\":\"Sup3rSecret123!\",\"captchaToken\":\"" + token + "\"}");
+        HttpResponse<String> sendCode = sendCode(token);
 
         // then
         assertThat(wrong.statusCode()).as("ответ из двух ячеек никогда не бывает верным").isEqualTo(400);
         assertThat(code(wrong)).isEqualTo("wrong_answer");
         assertThat(solved.statusCode()).as("solve принимает верный ответ: %s", solved.body()).isEqualTo(200);
-        assertThat(register.statusCode()).isEqualTo(201);
+        assertThat(sendCode.statusCode()).as("код принят в отправку: %s", sendCode.body()).isEqualTo(202);
     }
 
     @Test
@@ -118,10 +117,10 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
     void challenge_afterEscalation_carriesEmojiGrid() throws Exception {
 
         // given
-        // when
         escalateRiskToEmoji();
 
-        EmojiChallenge challenge = emojiChallenge(ACTION_REGISTER);
+        // when
+        EmojiChallenge challenge = emojiChallenge(ACTION_EMAIL_CODE);
 
         // then
         assertThat(challenge.prompt()).isNotBlank();
@@ -144,7 +143,7 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
         String[] offenders = {CLIENT_IP, SECOND_CLIENT_IP};
         for (String offender : offenders) {
             HttpResponse<String> challenge = post("/api/v1/captcha/challenge",
-                    "{\"action\":\"" + ACTION_REGISTER + "\"}", offender);
+                    "{\"action\":\"" + ACTION_EMAIL_CODE + "\"}", offender);
             assertThat(challenge.statusCode()).isEqualTo(200);
             JsonNode body = JSON.readTree(challenge.body());
             String jwt = body.get("challengeId").asText();
@@ -176,7 +175,7 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
     }
 
     private EmojiChallenge emojiChallenge(String action) throws Exception {
-        HttpResponse<String> response = post("/api/v1/captcha/challenge", "{\"action\":\"" + action + "\"}");
+        HttpResponse<String> response = post("/api/v1/captcha/challenge", "{\"action\":\"" + action + "\"}", CLIENT_IP);
         assertThat(response.statusCode()).as("challenge выдаётся").isEqualTo(200);
         JsonNode body = JSON.readTree(response.body());
         assertThat(body.get("type").asText()).as("рискованный IP получает эмодзи-задание")
@@ -237,7 +236,20 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
     private HttpResponse<String> solveEmoji(String challengeJwt, List<Integer> answer) throws Exception {
         StringBuilder body = new StringBuilder("{\"challengeId\":\"").append(challengeJwt).append("\",\"answer\":[");
         body.append(answer.stream().sorted().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse(""));
-        return post("/api/v1/captcha/solve", body.append("]}").toString());
+        return post("/api/v1/captcha/solve", body.append("]}").toString(), CLIENT_IP);
+    }
+
+    /** Бизнес-операция, защищённая капчей: выдача кода подтверждения email (нужен bearer). */
+    private HttpResponse<String> sendCode(String captchaToken) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url("/api/v1/email/codes")))
+                .header("Content-Type", "application/json")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("Authorization", "Bearer " + TestAuthenticationConfiguration.testToken())
+                .header("X-Captcha-Token", captchaToken)
+                .header("X-Forwarded-For", CLIENT_IP)
+                .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                .build();
+        return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private JsonNode jwtPayload(String jwt) throws Exception {
@@ -245,16 +257,8 @@ class CaptchaEmojiFlowIT extends AbstractIntegrationTest {
         return JSON.readTree(Base64.getUrlDecoder().decode(parts[1]));
     }
 
-    private String uniqueEmail() {
-        return "emoji-flow-" + UUID.randomUUID() + "@example.com";
-    }
-
     private String code(HttpResponse<String> response) throws Exception {
         return JSON.readTree(response.body()).path("code").asText(null);
-    }
-
-    private HttpResponse<String> post(String path, String json) throws Exception {
-        return post(path, json, CLIENT_IP);
     }
 
     private HttpResponse<String> post(String path, String json, String clientIp) throws Exception {

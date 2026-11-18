@@ -84,7 +84,6 @@ class PortalAccessGraphTest {
         user.setFirstName("Имя");
         user.setLastName("Фамилия");
         user.setEmail(email);
-        user.setPasswordHash("hash");
         return userRepository.save(user);
     }
 

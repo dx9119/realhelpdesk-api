@@ -102,10 +102,9 @@ class ApplicationConfigSchemaTest {
 
     /**
      * Ключи {@code infrastructure/.env.dev.example}, которых нет в схеме приложения. {@code JAVA_} — JVM-флаги запуска
-     * (heap dump, JFR, JMX, -Xmx), их читает JVM, а не Spring. {@code KC_}/{@code KEYCLOAK_} — контур Keycloak: ключи
-     * читает профильный {@code application-keycloak.properties} (он не входит в схему — базовый конфиг обязан работать
-     * без Keycloak) и сервис {@code keycloak} профиля local-tools; исключение по префиксу, потому что набор ключей
-     * растёт вместе с версией Keycloak.
+     * (heap dump, JFR, JMX, -Xmx), их читает JVM, а не Spring. {@code KC_}/{@code KEYCLOAK_} — настройки самого сервиса
+     * Keycloak (профиль local-tools): {@code KC_HOSTNAME}, креды администратора и БД realm'а приложение не читает, а
+     * набор ключей растёт вместе с версией Keycloak.
      */
     private static final Set<String> NON_SCHEMA_ENV_PREFIXES = Set.of("JAVA_", "KC_", "KEYCLOAK_");
 
@@ -123,9 +122,8 @@ class ApplicationConfigSchemaTest {
      * Секреты в {@code infrastructure/.env.dev.example}: они содержат и базовые значения, и пустые строки секретов —
      * поэтому при сверке со схемой они исключаются (их место в контракте — обязательность, а не значение).
      */
-    private static final Set<String> ENV_EXAMPLE_SECRET_KEYS = Set.of("JWT_SECRET", "CAPTCHA_HMAC_SECRET",
-            "DB_PASSWORD", "MAIL_PASSWORD",
-            "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD");
+    private static final Set<String> ENV_EXAMPLE_SECRET_KEYS = Set.of("CAPTCHA_HMAC_SECRET", "DB_PASSWORD",
+            "MAIL_PASSWORD", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "METRICS_PASSWORD");
 
     /**
      * Секреты локального Keycloak: сервис keycloak живёт в профиле local-tools, его креды нужны только локальному

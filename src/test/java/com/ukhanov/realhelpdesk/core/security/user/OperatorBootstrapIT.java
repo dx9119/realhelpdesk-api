@@ -75,7 +75,6 @@ class OperatorBootstrapIT extends AbstractIntegrationTest {
             user.setFirstName("Тест");
             user.setLastName("Тестов");
             user.setEmail(email);
-            user.setPasswordHash("hash");
             user.setEmailVerified(verified);
             return user;
         }

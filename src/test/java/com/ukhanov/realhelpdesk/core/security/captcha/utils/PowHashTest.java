@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils;
+package com.ukhanov.realhelpdesk.core.security.captcha.utils;
 
 import java.util.HexFormat;
 

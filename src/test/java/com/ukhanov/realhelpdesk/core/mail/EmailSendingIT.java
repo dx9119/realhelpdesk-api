@@ -103,6 +103,9 @@ class EmailSendingIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void configureMailSender() {
+        // Контейнер PostgreSQL общий для всех IT, а @SpringBootTest-классы (EmailMetricsIT) пишут журнал
+        // вне транзакции: без очистки countLogs видит чужие письма того же адреса.
+        emailLogRepository.deleteAll();
         greenMail.reset();
         javaMailSender.setHost("localhost");
         javaMailSender.setPort(greenMail.getSmtp().getPort());
@@ -320,7 +323,6 @@ class EmailSendingIT extends AbstractIntegrationTest {
         user.setFirstName("Имя");
         user.setLastName("Фамилия");
         user.setEmail(RECIPIENT);
-        user.setPasswordHash("hash");
         user.setVerifyEmailToken(verifyEmailToken);
         return userDomainService.saveUser(user);
     }

@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service;
+package com.ukhanov.realhelpdesk.core.security.captcha.service;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -13,11 +13,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.config.CaptchaProperties;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaException;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaReason;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaTokenService.CaptchaTokenClaims;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaTokenService.ChallengeClaims;
+import com.ukhanov.realhelpdesk.core.security.captcha.config.CaptchaProperties;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaException;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaReason;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.CaptchaTokenService.CaptchaTokenClaims;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.CaptchaTokenService.ChallengeClaims;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

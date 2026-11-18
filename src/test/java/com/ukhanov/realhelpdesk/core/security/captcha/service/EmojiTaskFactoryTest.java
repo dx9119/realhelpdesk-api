@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service;
+package com.ukhanov.realhelpdesk.core.security.captcha.service;
 
 import java.util.HashSet;
 import java.util.List;
@@ -8,7 +8,7 @@ import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.EmojiTaskFactory.EmojiTask;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.EmojiTaskFactory.EmojiTask;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

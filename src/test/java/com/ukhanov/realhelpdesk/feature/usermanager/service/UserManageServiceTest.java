@@ -1,34 +1,21 @@
 package com.ukhanov.realhelpdesk.feature.usermanager.service;
 
-import java.util.Map;
-
-import jakarta.persistence.EntityNotFoundException;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
-import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
-import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
-import com.ukhanov.realhelpdesk.core.observability.AuthMetrics;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.TokenStatus;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.service.GetTokenService;
+import com.ukhanov.realhelpdesk.core.http.EntityTag;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserPlatformSource;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserRole;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserStatus;
 import com.ukhanov.realhelpdesk.core.security.user.service.UserDomainService;
-import com.ukhanov.realhelpdesk.feature.usermanager.dto.NewPasswdRequest;
-import com.ukhanov.realhelpdesk.feature.usermanager.dto.RecoveryRequest;
+import com.ukhanov.realhelpdesk.feature.usermanager.dto.PatchUserInfoRequest;
 import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoRequest;
 import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoResponse;
 import com.ukhanov.realhelpdesk.feature.usermanager.exception.UserManageException;
@@ -37,14 +24,11 @@ import com.ukhanov.realhelpdesk.feature.usermanager.mapper.UserMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Тесты сервиса профиля пользователя (UserManageService)")
@@ -54,24 +38,14 @@ class UserManageServiceTest {
     private CurrentUserProvider currentUserProvider;
     @Mock
     private UserDomainService userDomainService;
-    @Mock
-    private EmailDeliveryService emailDeliveryService;
-    @Mock
-    private PasswordEncoder passwordEncoder;
-    @Mock
-    private GetTokenService getTokenService;
 
     private final UserMapper userMapper = Mappers.getMapper(UserMapper.class);
-
-    @Captor
-    private ArgumentCaptor<Map<String, Object>> modelCaptor;
 
     private UserManageService service;
 
     @BeforeEach
     void setUp() {
-        service = new UserManageService(currentUserProvider, userDomainService, emailDeliveryService, passwordEncoder,
-                new AuthMetrics(new SimpleMeterRegistry()), getTokenService, userMapper);
+        service = new UserManageService(currentUserProvider, userDomainService, userMapper);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -92,7 +66,7 @@ class UserManageServiceTest {
         assertThat(response.firstName()).isEqualTo("firstName");
         assertThat(response.email()).isEqualTo("email@example.com");
         assertThat(response).usingRecursiveComparison().isEqualTo(userMapper.toResponse(user));
-        verifyNoInteractions(emailDeliveryService, passwordEncoder, getTokenService);
+        verifyNoInteractions(userDomainService);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -131,111 +105,74 @@ class UserManageServiceTest {
         assertThatThrownBy(() -> service.updateUserInfo(null, null)).isInstanceOf(NullPointerException.class);
     }
 
-    // ────────────────────────────────────────────────────────────────
-    // sendResetLink
-    // ────────────────────────────────────────────────────────────────
-
     @Test
-    @DisplayName("sendResetLink → неизвестный email → EntityNotFoundException, письмо не отправляется")
-    void sendResetLink_unknownEmail_throwsEntityNotFound() {
+    @DisplayName("updateUserInfo → устаревший If-Match → 412, сохранение не выполняется")
+    void updateUserInfo_staleIfMatch_throwsPreconditionFailed() {
         // given
-        when(userDomainService.getUserByEmail("unknown@example.com"))
-                .thenThrow(new EntityNotFoundException("User not found"));
-        RecoveryRequest request = new RecoveryRequest("unknown@example.com");
+        UserModel existing = createDefaultUser();
+        when(currentUserProvider.getCurrentUserModel()).thenReturn(existing);
+        UserInfoRequest request = new UserInfoRequest("NewFirst", "NewLast", null, null);
 
         // when / then
-        assertThatThrownBy(() -> service.sendResetLink(request)).isInstanceOf(EntityNotFoundException.class);
-        verifyNoMoreInteractions(emailDeliveryService);
-    }
-
-    @Test
-    @DisplayName("sendResetLink → null-запрос → NPE")
-    void sendResetLink_nullRequest_throwsNpe() {
-        // given / when / then
-        assertThatThrownBy(() -> service.sendResetLink(null)).isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    @DisplayName("sendResetLink → известный email → письмо со свежим кодом сброса")
-    void sendResetLink_knownEmail_sendsPasswordResetEmailWithFreshToken() throws Exception {
-        // given
-        UserModel user = createDefaultUser();
-        when(userDomainService.getUserByEmail("email@example.com")).thenReturn(user);
-
-        // when
-        service.sendResetLink(new RecoveryRequest("email@example.com"));
-
-        // then
-        verify(userDomainService).saveUser(user);
-        assertThat(user.getRecoveryPasswdToken()).isNotEqualTo(88L);
-
-        verify(emailDeliveryService).sendEmail(eq("email@example.com"), eq(EmailTemplateId.PASSWORD_RESET),
-                modelCaptor.capture(),
-                eq(NotificationEvent.RECOVERY_PASSWORD), eq(user.getId()));
-        verifyNoMoreInteractions(emailDeliveryService);
-        assertThat(modelCaptor.getValue()).containsEntry("code", String.valueOf(user.getRecoveryPasswdToken()));
+        assertThatThrownBy(() -> service.updateUserInfo(request, "user-9999"))
+                .isInstanceOf(UserManageException.class)
+                .hasMessageContaining("устарели");
+        verifyNoMoreInteractions(userDomainService);
     }
 
     // ────────────────────────────────────────────────────────────────
-    // setNewPasswd
+    // patchUserInfo
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("setNewPasswd → меняет пароль и отзывает старые токены")
-    void setNewPasswd_validCode_updatesPasswordAndInvalidatesOldTokens() throws Exception {
+    @DisplayName("patchUserInfo → меняются только переданные поля")
+    void patchUserInfo_partialRequest_updatesOnlyPresentFields() throws UserManageException {
         // given
-        Long code = 55L;
-        UserModel user = createDefaultUser();
-        user.setRecoveryPasswdToken(code);
-        int tokenVersionBefore = user.getTokenVersion();
-        when(userDomainService.getUserByRecoveryPasswdToken(code)).thenReturn(user);
-        // Старые активные refresh-токены (с разных устройств) отзываются одним bulk-UPDATE
-        when(getTokenService.revokeActiveRefreshTokens(user, TokenStatus.PASSWD_CHANGE)).thenReturn(2);
-        when(passwordEncoder.encode("newStrongPass123")).thenReturn("encodedNewPass");
-        NewPasswdRequest request = new NewPasswdRequest("newStrongPass123");
+        UserModel existing = createDefaultUser();
+        when(currentUserProvider.getCurrentUserModel()).thenReturn(existing);
+        when(userDomainService.saveUser(any())).thenReturn(existing);
 
         // when
-        service.setNewPasswd(code, request);
+        service.patchUserInfo(new PatchUserInfoRequest("Patched", null, null, null),
+                EntityTag.of("user", existing.getVersion()));
 
         // then
-        verify(passwordEncoder).encode("newStrongPass123");
-
-        ArgumentCaptor<UserModel> userCaptor = ArgumentCaptor.forClass(UserModel.class);
-        verify(userDomainService).saveUser(userCaptor.capture());
-        UserModel savedUser = userCaptor.getValue();
-        assertThat(savedUser.getPasswordHash()).isEqualTo("encodedNewPass");
-        assertThat(savedUser.getRecoveryPasswdToken()).isNotEqualTo(code);
-        assertThat(savedUser.getTokenVersion()).isEqualTo(tokenVersionBefore + 1);
-        verify(getTokenService).revokeActiveRefreshTokens(user, TokenStatus.PASSWD_CHANGE);
+        verify(userDomainService).saveUser(argThat(user -> "Patched".equals(user.getFirstName())
+                && "lastName".equals(user.getLastName()) && "middleName".equals(user.getMiddleName())
+                && "additionalInfo".equals(user.getAdditionalInfo())));
     }
 
     @Test
-    @DisplayName("setNewPasswd → неизвестный код → EntityNotFoundException")
-    void setNewPasswd_unknownCode_throwsEntityNotFound() {
+    @DisplayName("patchUserInfo → пустой запрос → UserManageException, сохранение не выполняется")
+    void patchUserInfo_emptyRequest_throwsUserManageException() {
         // given
-        Long wrongCode = 66L;
-        when(userDomainService.getUserByRecoveryPasswdToken(wrongCode))
-                .thenThrow(new EntityNotFoundException("Token not found"));
+        PatchUserInfoRequest request = new PatchUserInfoRequest(null, null, null, null);
 
         // when / then
-        assertThatThrownBy(() -> service.setNewPasswd(wrongCode, new NewPasswdRequest("pass")))
-                .isInstanceOf(EntityNotFoundException.class);
-        verifyNoInteractions(passwordEncoder);
+        assertThatThrownBy(() -> service.patchUserInfo(request, null)).isInstanceOf(UserManageException.class)
+                .hasMessageContaining("ни одного поля");
+        verifyNoInteractions(userDomainService);
     }
 
     @Test
-    @DisplayName("setNewPasswd → null-запрос → NPE")
-    void setNewPasswd_nullRequest_throwsNpe() {
+    @DisplayName("patchUserInfo → null-запрос → NPE")
+    void patchUserInfo_nullRequest_throwsNpe() {
         // given / when / then
-        assertThatThrownBy(() -> service.setNewPasswd(55L, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.patchUserInfo(null, null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    @DisplayName("setNewPasswd → null-код → NPE")
-    void setNewPasswd_nullCode_throwsNpe() {
-        // given / when / then
-        assertThatThrownBy(() -> service.setNewPasswd(null, new NewPasswdRequest("pass")))
-                .isInstanceOf(NullPointerException.class);
+    @DisplayName("patchUserInfo → устаревший If-Match → 412, сохранение не выполняется")
+    void patchUserInfo_staleIfMatch_throwsPreconditionFailed() {
+        // given
+        UserModel existing = createDefaultUser();
+        when(currentUserProvider.getCurrentUserModel()).thenReturn(existing);
+
+        // when / then
+        assertThatThrownBy(() -> service.patchUserInfo(new PatchUserInfoRequest(null, null, null, "NewInfo"), "42"))
+                .isInstanceOf(UserManageException.class)
+                .hasMessageContaining("устарели");
+        verifyNoMoreInteractions(userDomainService);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -245,16 +182,15 @@ class UserManageServiceTest {
     private UserModel createDefaultUser() {
         UserModel user = new UserModel();
         user.setId(77L);
+        user.setVersion(0);
         user.setEmail("email@example.com");
         user.setFirstName("firstName");
         user.setLastName("lastName");
         user.setMiddleName("middleName");
         user.setAdditionalInfo("additionalInfo");
-        user.setPasswordHash("oldHash");
         user.setUserStatus(UserStatus.ACTIVE);
         user.setUserRole(UserRole.ROLE_NONE);
-        user.setUserExternalSource(UserPlatformSource.LOCAL);
-        user.setRecoveryPasswdToken(88L);
+        user.setUserPlatformSource(UserPlatformSource.KEYCLOAK);
         return user;
     }
 }

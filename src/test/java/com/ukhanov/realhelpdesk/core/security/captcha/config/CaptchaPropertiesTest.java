@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.config;
+package com.ukhanov.realhelpdesk.core.security.captcha.config;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

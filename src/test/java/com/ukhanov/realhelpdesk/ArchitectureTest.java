@@ -124,7 +124,7 @@ final class ArchitectureTest {
     @ArchTest
     static final ArchRule NO_UTIL_DATE_OUTSIDE_JWT = noClasses()
             .that()
-            .resideOutsideOfPackage("..security.localjwt..")
+            .resideOutsideOfPackage("..security.captcha..")
             .should()
             .dependOnClassesThat()
             .haveFullyQualifiedName("java.util.Date")

@@ -15,6 +15,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.env.Environment;
 
 import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
+import com.ukhanov.realhelpdesk.config.TestAuthenticationConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -94,8 +95,9 @@ class ObservabilityContextIT extends AbstractIntegrationTest {
         // given
         // when
         int healthStatus = get("/api/v1/health").statusCode();
-        HttpResponse<String> login = post("/api/v1/auth/login",
-                "{\"email\":\"nobody@example.com\",\"password\":\"wrong-password\"}");
+        // /api/v1/email/codes требует аутентификации + капчу: пустой токен → captcha-отказ → auth.attempts
+        HttpResponse<String> captchaFailure = postWithAuth("/api/v1/email/codes",
+                "{}", TestAuthenticationConfiguration.tokenFor(TestAuthenticationConfiguration.TEST_EMAIL));
 
         // then
         assertThat(healthStatus).isEqualTo(200);
@@ -111,10 +113,10 @@ class ObservabilityContextIT extends AbstractIntegrationTest {
                 .as("бизнес-gauge открытых заявок регистрируется в конструкторе")
                 .isNotNull();
 
-        // Бизнес-метрика аутентификации (шаг 8): фиксируется на неудачном входе, без email в тегах.
-        assertThat(login.statusCode()).isEqualTo(401);
-        assertThat(meterRegistry.find("auth.attempts").tags("type", "login", "result", "failure").meter())
-                .as("auth.attempts{type=login,result=failure} растёт на отказе во входе")
+        // Бизнес-метрика аутентификации (шаг 8): фиксируется на отказе капчи, без email в тегах.
+        assertThat(captchaFailure.statusCode()).isEqualTo(400);
+        assertThat(meterRegistry.find("auth.attempts").tags("type", "captcha", "result", "failure").meter())
+                .as("auth.attempts{type=captcha,result=failure} растёт на отказе капчи")
                 .isNotNull();
     }
 
@@ -130,6 +132,18 @@ class ObservabilityContextIT extends AbstractIntegrationTest {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + serverPort + path))
                 .timeout(Duration.ofSeconds(15))
                 .header("Content-Type", "application/json")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return send(request);
+    }
+
+    private HttpResponse<String> postWithAuth(String path, String body, String token)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + serverPort + path))
+                .timeout(Duration.ofSeconds(15))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();

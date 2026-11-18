@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service;
+package com.ukhanov.realhelpdesk.core.security.captcha.service;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -14,14 +14,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import com.ukhanov.realhelpdesk.core.observability.AuthMetrics;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.config.CaptchaProperties;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.ChallengeResponse;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.dto.SolveResponse;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaException;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaReason;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.observability.CaptchaMetrics;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.EmojiTaskFactory.EmojiTask;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.utils.PowHash;
+import com.ukhanov.realhelpdesk.core.security.captcha.config.CaptchaProperties;
+import com.ukhanov.realhelpdesk.core.security.captcha.dto.ChallengeResponse;
+import com.ukhanov.realhelpdesk.core.security.captcha.dto.SolveResponse;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaException;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaReason;
+import com.ukhanov.realhelpdesk.core.security.captcha.observability.CaptchaMetrics;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.EmojiTaskFactory.EmojiTask;
+import com.ukhanov.realhelpdesk.core.security.captcha.utils.PowHash;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

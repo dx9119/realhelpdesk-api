@@ -25,10 +25,10 @@ import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailPolicyService;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaException;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaReason;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaService;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaTokenService;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaException;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaReason;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.CaptchaService;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.CaptchaTokenService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

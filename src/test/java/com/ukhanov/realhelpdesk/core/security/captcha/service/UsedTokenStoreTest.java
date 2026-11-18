@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service;
+package com.ukhanov.realhelpdesk.core.security.captcha.service;
 
 import java.time.Duration;
 
@@ -6,7 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.config.CaptchaProperties;
+import com.ukhanov.realhelpdesk.core.security.captcha.config.CaptchaProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;

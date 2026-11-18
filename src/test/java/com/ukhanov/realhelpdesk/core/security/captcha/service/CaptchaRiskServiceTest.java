@@ -1,11 +1,11 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service;
+package com.ukhanov.realhelpdesk.core.security.captcha.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.config.CaptchaProperties;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaRiskService.Risk;
+import com.ukhanov.realhelpdesk.core.security.captcha.config.CaptchaProperties;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.CaptchaRiskService.Risk;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

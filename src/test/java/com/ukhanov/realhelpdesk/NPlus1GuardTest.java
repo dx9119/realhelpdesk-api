@@ -3,7 +3,6 @@ package com.ukhanov.realhelpdesk;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
 
@@ -17,8 +16,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.repository.JwtRefreshTokenRepository;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.repository.UserRepository;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
@@ -41,9 +38,6 @@ class NPlus1GuardTest {
     private UserRepository userRepository;
 
     @Autowired
-    private JwtRefreshTokenRepository jwtRefreshTokenRepository;
-
-    @Autowired
     private PortalRepository portalRepository;
 
     @Autowired
@@ -51,32 +45,6 @@ class NPlus1GuardTest {
 
     @Autowired
     private EntityManager em;
-
-    @Test
-    @DisplayName("#13: загрузка пользователя по id не тянет refresh-токены (LAZY + @BatchSize)")
-    void userFindById_withRefreshTokens_queriesOnce() {
-
-        // given
-        // when
-        UserModel user = saveUser("user1@example.com");
-        for (int i = 0; i < 3; i++) {
-            RefreshTokenModel token = new RefreshTokenModel();
-            token.setTokenRefresh(UUID.randomUUID().toString().replace("-", ""));
-            token.setUser(user);
-            jwtRefreshTokenRepository.save(token);
-        }
-        em.flush();
-        em.clear();
-
-        Statistics stats = statistics();
-        stats.clear();
-
-        UserModel loaded = userRepository.findById(user.getId()).orElseThrow();
-
-        // then
-        assertThat(loaded.getEmail()).isEqualTo("user1@example.com");
-        assertThat((int) stats.getPrepareStatementCount()).isEqualTo(1);
-    }
 
     @Test
     @DisplayName("#5: список порталов грузит составы участников батчем, а не по порталу")
@@ -151,7 +119,6 @@ class NPlus1GuardTest {
         user.setFirstName("Имя");
         user.setLastName("Фамилия");
         user.setEmail(email);
-        user.setPasswordHash("hash");
         return userRepository.save(user);
     }
 

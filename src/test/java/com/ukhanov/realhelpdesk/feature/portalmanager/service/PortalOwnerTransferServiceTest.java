@@ -19,7 +19,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import com.ukhanov.realhelpdesk.core.security.limiter.exception.LimitException;
 import com.ukhanov.realhelpdesk.core.security.limiter.service.LimitService;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.login.service.LoginService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserStatus;
@@ -64,9 +63,6 @@ class PortalOwnerTransferServiceTest {
     private static final Long PORTAL_ID = 100L;
     private static final String OWNER_EMAIL = "owner@example.com";
     private static final String PROPOSED_EMAIL = "new@example.com";
-    private static final String GOOD_PASSWORD = "good-pass-1";
-    private static final String BAD_PASSWORD = "bad-pass-1";
-    private static final String PASSWORD_HASH = "$2a$hash";
 
     @Mock
     private CurrentUserProvider currentUserProvider;
@@ -84,9 +80,6 @@ class PortalOwnerTransferServiceTest {
     private UserDomainService userDomainService;
 
     @Mock
-    private LoginService loginService;
-
-    @Mock
     private LimitService limitService;
 
     @Mock
@@ -102,8 +95,7 @@ class PortalOwnerTransferServiceTest {
     void setUp() throws Exception {
         // Фабрика ответа — настоящая: проверка DTO входит в контракт сервиса, а не в заглушку
         service = new PortalOwnerTransferService(currentUserProvider, portalDomainService, transferRequestRepository,
-                portalHistoryService,
-                userDomainService, loginService, limitService, notificationService,
+                portalHistoryService, userDomainService, limitService, notificationService,
                 new PortalTransferResponseFactory(portalDomainService, userDomainService));
 
         owner = user(OWNER_ID, OWNER_EMAIL);
@@ -119,7 +111,6 @@ class PortalOwnerTransferServiceTest {
         lenient().when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
         lenient().when(userDomainService.getUserById(OWNER_ID)).thenReturn(owner);
         lenient().when(userDomainService.getUserById(PROPOSED_ID)).thenReturn(proposed);
-        lenient().when(loginService.isPasswordValid(GOOD_PASSWORD, PASSWORD_HASH)).thenReturn(true);
         lenient().when(transferRequestRepository.save(any(PortalTransferRequestModel.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING))
@@ -167,28 +158,13 @@ class PortalOwnerTransferServiceTest {
     }
 
     @Test
-    @DisplayName("Инициирование чужим паролем: 401, ничего не сохраняется")
-    void initiate_wrongPassword_rejects() throws Exception {
-
-        // given
-        // when
-        PortalTransferRequest request = initiateRequest(PROPOSED_EMAIL, BAD_PASSWORD);
-
-        // then
-        assertThatThrownBy(() -> service.initiate(PORTAL_ID, request)).isInstanceOf(PortalException.class)
-                .hasMessage("Неверный пароль");
-
-        verifyNoInteractions(transferRequestRepository, portalHistoryService, notificationService);
-    }
-
-    @Test
     @DisplayName("Передача самому себе: ошибка, запроса нет")
     void initiate_selfTransfer_rejects() throws Exception {
 
         // given
         // when
         when(userDomainService.getUserByEmail(OWNER_EMAIL)).thenReturn(owner);
-        PortalTransferRequest request = initiateRequest(OWNER_EMAIL, GOOD_PASSWORD);
+        PortalTransferRequest request = new PortalTransferRequest(OWNER_EMAIL, "Причина", true);
 
         // then
         assertThatThrownBy(() -> service.initiate(PORTAL_ID, request)).isInstanceOf(PortalException.class)
@@ -266,6 +242,21 @@ class PortalOwnerTransferServiceTest {
         verify(portalHistoryService).record(new PortalHistoryRecordCommand(PORTAL_ID,
                 PortalHistoryEvent.TRANSFER_EXPIRED, null, PROPOSED_ID, null, null, null, null));
         verify(notificationService).notifyTransferExpired(portal, stale, owner);
+    }
+
+    @Test
+    @DisplayName("Инициирование не владельцем: 403")
+    void initiate_byStranger_rejects() throws Exception {
+
+        // given
+        // when
+        when(currentUserProvider.getCurrentUserModel()).thenReturn(user(STRANGER_ID, "stranger@example.com"));
+
+        // then
+        assertThatThrownBy(() -> service.initiate(PORTAL_ID, initiateRequest())).isInstanceOf(PortalException.class)
+                .hasMessageContaining("только владелец");
+
+        verifyNoInteractions(transferRequestRepository, portalHistoryService, notificationService);
     }
 
     // ────────────────────────────────────────────────
@@ -358,20 +349,20 @@ class PortalOwnerTransferServiceTest {
     }
 
     @Test
-    @DisplayName("Подтверждение чужим паролем: 401, портал не передан")
-    void confirm_wrongPassword_rejects() throws Exception {
+    @DisplayName("Подтверждение неактивным предлагаемым владельцем: ошибка, портал не передан")
+    void confirm_inactiveProposedOwner_rejects() throws Exception {
 
         // given
         // when
         asProposed();
+        proposed.setUserStatus(UserStatus.BLOCKED);
         PortalTransferRequestModel pending = pendingTransfer(Instant.now().plus(Duration.ofHours(1)));
         when(transferRequestRepository.findByPortalIdAndStatus(PORTAL_ID, PortalTransferStatus.PENDING))
                 .thenReturn(Optional.of(pending));
-        PortalTransferConfirmRequest request = confirmRequest(BAD_PASSWORD);
 
         // then
-        assertThatThrownBy(() -> service.confirm(PORTAL_ID, request)).isInstanceOf(PortalException.class)
-                .hasMessage("Неверный пароль");
+        assertThatThrownBy(() -> service.confirm(PORTAL_ID, confirmRequest())).isInstanceOf(PortalException.class)
+                .hasMessageContaining("не активна");
 
         assertThat(portal.getOwner()).isSameAs(owner);
         assertThat(pending.getStatus()).isEqualTo(PortalTransferStatus.PENDING);
@@ -530,7 +521,6 @@ class PortalOwnerTransferServiceTest {
         user.setEmail(email);
         user.setFirstName("Имя" + id);
         user.setLastName("Фамилия" + id);
-        user.setPasswordHash(PASSWORD_HASH);
         user.setUserStatus(UserStatus.ACTIVE);
         return user;
     }
@@ -553,19 +543,11 @@ class PortalOwnerTransferServiceTest {
     }
 
     private PortalTransferRequest initiateRequest() {
-        return initiateRequest(PROPOSED_EMAIL, GOOD_PASSWORD);
-    }
-
-    private PortalTransferRequest initiateRequest(String email, String password) {
-        return new PortalTransferRequest(email, password, "Причина", true);
+        return new PortalTransferRequest(PROPOSED_EMAIL, "Причина", true);
     }
 
     private PortalTransferConfirmRequest confirmRequest() {
-        return confirmRequest(GOOD_PASSWORD);
-    }
-
-    private PortalTransferConfirmRequest confirmRequest(String password) {
-        return new PortalTransferConfirmRequest(password, "Принято");
+        return new PortalTransferConfirmRequest("Принято");
     }
 
     private PortalTransferRejectRequest rejectRequest() {

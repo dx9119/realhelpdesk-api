@@ -410,7 +410,6 @@ class TicketSpecificationTest {
         user.setEmail(email);
         user.setFirstName(firstName);
         user.setLastName(lastName);
-        user.setPasswordHash("hash");
         em.persist(user);
         return user;
     }

@@ -1,4 +1,4 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.captcha.config;
+package com.ukhanov.realhelpdesk.core.security.captcha.config;
 
 import java.nio.charset.StandardCharsets;
 

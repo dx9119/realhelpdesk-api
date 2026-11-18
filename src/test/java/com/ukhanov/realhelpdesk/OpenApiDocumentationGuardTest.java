@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.ukhanov.realhelpdesk.core.config.OpenApiConfiguration;
 import com.ukhanov.realhelpdesk.core.exception.GlobalExceptionHandler;
 import com.ukhanov.realhelpdesk.core.security.keycloak.config.KeycloakWhiteUrlConfig;
-import com.ukhanov.realhelpdesk.core.security.localjwt.config.WhiteUrlConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -60,6 +59,12 @@ class OpenApiDocumentationGuardTest {
     private static final Set<String> REQUIRED_ERROR_CODES = Set.of("400", "401", "403", "404", "500");
 
     /**
+     * Нижняя граница объёма контракта: равна текущему числу схем, поэтому случайное удаление схемы валит тест.
+     * Осознанное удаление схемы сопровождается правкой этой границы.
+     */
+    private static final int MIN_CONTRACT_SCHEMAS = 49;
+
+    /**
      * Реальные не-200 статусы, возвращаемые контроллерами напрямую: строка вызова в теле метода ↔ код, который обязан
      * быть задокументирован {@code @ApiResponse}. 200 не входит — он дефолтный и не требует аннотации.
      */
@@ -69,16 +74,12 @@ class OpenApiDocumentationGuardTest {
             "HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE", "416");
 
     @Test
-    @DisplayName("Документация в white-list обеих security-цепочек — swagger доступен в dev без аутентификации")
+    @DisplayName("Документация в white-list security-цепочки — swagger доступен в dev без аутентификации")
     void swaggerPaths_bothSecurityContours_arePermitted() {
 
         // given / when / then
-        assertThat(WhiteUrlConfig.WHITE_LIST_URLS).as("контур без keycloak")
-                .contains("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html",
-                        "/swagger-ui/**");
-        assertThat(KeycloakWhiteUrlConfig.WHITE_LIST_URLS).as("контур keycloak")
-                .contains("/v3/api-docs", "/v3/api-docs/**",
-                        "/swagger-ui.html", "/swagger-ui/**");
+        assertThat(KeycloakWhiteUrlConfig.WHITE_LIST_URLS)
+                .contains("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**");
     }
 
     @Test
@@ -190,7 +191,7 @@ class OpenApiDocumentationGuardTest {
             validateSchema(name, entry.getValue(), violations);
         }
 
-        assertThat(schemas).as("схем в контракте").isGreaterThanOrEqualTo(50);
+        assertThat(schemas).as("схем в контракте").isGreaterThanOrEqualTo(MIN_CONTRACT_SCHEMAS);
         assertThat(violations).as("неполнота контракта спеки").isEmpty();
     }
 

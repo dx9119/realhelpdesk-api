@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.domain.message.model.MessageModel;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
@@ -192,45 +191,6 @@ class CreatedAtPrePersistTest {
     }
 
     // ────────────────────────────────────────────────
-    // RefreshTokenModel
-    // ────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("RefreshTokenModel → дата не задана → createdAt = текущее время")
-    void refreshToken_absentCreatedAt_setsCurrentTime() {
-
-        // given
-        // when
-        UserModel owner = user();
-        em.persist(owner);
-
-        RefreshTokenModel token = token(owner);
-
-        em.persist(token);
-
-        // then
-        assertCreatedAtIsNow(reload(token, RefreshTokenModel.class).getCreatedAt());
-    }
-
-    @Test
-    @DisplayName("RefreshTokenModel → дата задана → createdAt не перезаписывается")
-    void refreshToken_presetCreatedAt_keepsOriginal() {
-
-        // given
-        // when
-        UserModel owner = user();
-        em.persist(owner);
-
-        RefreshTokenModel token = token(owner);
-        setCreatedAtDirectly(token, PRESET);
-
-        em.persist(token);
-
-        // then
-        assertThat(reload(token, RefreshTokenModel.class).getCreatedAt()).isEqualTo(PRESET);
-    }
-
-    // ────────────────────────────────────────────────
     // Вспомогательные методы
     // ────────────────────────────────────────────────
 
@@ -250,8 +210,8 @@ class CreatedAtPrePersistTest {
     }
 
     /**
-     * У UserModel и RefreshTokenModel публичного сеттера createdAt нет — поле иммутабельно снаружи и заполняется
-     * только @PrePersist. В тесте задаём его рефлексией.
+     * У UserModel публичного сеттера createdAt нет — поле иммутабельно снаружи и заполняется только @PrePersist. В
+     * тесте задаём его рефлексией.
      */
     private void setCreatedAtDirectly(Object entity, Instant createdAt) {
         try {
@@ -269,7 +229,6 @@ class CreatedAtPrePersistTest {
         user.setEmail("user" + userSequence + "@example.com");
         user.setFirstName("Иван");
         user.setLastName("Петров");
-        user.setPasswordHash("hash");
         return user;
     }
 
@@ -295,13 +254,6 @@ class CreatedAtPrePersistTest {
         message.setAuthor(author);
         message.setMessageText("Текст сообщения");
         return message;
-    }
-
-    private RefreshTokenModel token(UserModel user) {
-        RefreshTokenModel token = new RefreshTokenModel();
-        token.setToken("refresh-token-value");
-        token.setUser(user);
-        return token;
     }
 
     private MessageModel persistedMessage() {

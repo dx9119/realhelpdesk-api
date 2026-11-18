@@ -8,7 +8,6 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
@@ -30,6 +29,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
+import com.ukhanov.realhelpdesk.config.TestAuthenticationConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -40,10 +40,10 @@ import io.micrometer.observation.ObservationRegistry;
 
 /**
  * Интеграционный smoke-тест трейсинга: HTTP-запрос порождает дерево наблюдений с общим корнем — корневой спан
- * http.server.requests и дочерние спаны сервисного слоя (mail.send при регистрации). OTel SDK включён
- * (management.opentelemetry.enabled=true, sampling 1.0): спаны строятся реальным мостом micrometer-tracing, экспорта
- * нет — поэтому тест не требует OTLP collector'а. Регистрация идёт через реальный SMTP (GreenMail — только в
- * интеграционных тестах, failsafe), капча отключена свойством.
+ * http.server.requests и дочерние спаны сервисного слоя (mail.send при выдаче кода подтверждения email). OTel SDK
+ * включён (management.opentelemetry.enabled=true, sampling 1.0): спаны строятся реальным мостом micrometer-tracing,
+ * экспорта нет — поэтому тест не требует OTLP collector'а. Почта идёт через реальный SMTP (GreenMail — только в
+ * интеграционных тестах, failsafe), капча отключена свойством: проверка токена fail-open, и запрос проходит до сервиса.
  *
  * <p>
  * Список наблюдений собирает ObservationHandler, добавленный в закэшированный контекст один раз на JVM: реестр
@@ -125,44 +125,39 @@ class TracingSmokeIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Регистрация создаёт корневой спан http.server.requests и дочерние mail.send с общим traceId в логах")
-    void registerRequest_serverAndMailSpans_shareTraceId(CapturedOutput output)
+    @DisplayName("Выдача кода подтверждения: корневой спан http.server.requests и дочерний mail.send с общим traceId")
+    void sendConfirmCode_serverAndMailSpans_shareTraceId(CapturedOutput output)
             throws IOException, InterruptedException {
 
         // given
-        String email = "trace-smoke-" + UUID.randomUUID() + "@example.com";
-
         // when
-        HttpResponse<String> response = post("/api/v1/auth/register",
-                "{\"firstName\":\"Trace\",\"lastName\":\"Smoke\",\"email\":\"" + email
-                        + "\",\"password\":\"Sup3rSecret123!\"}");
+        HttpResponse<String> response = postWithAuth("/api/v1/email/codes", "{}",
+                TestAuthenticationConfiguration.testToken());
 
         // then
-        assertThat(response.statusCode()).as("регистрация с обходом капчи и живым SMTP").isEqualTo(201);
+        assertThat(response.statusCode()).as("код отправляется асинхронно — 202").isEqualTo(202);
 
         Observation.Context root = awaitRootServerObservation();
         assertThat(root.getName()).as("корень дерева — серверное наблюдение").isEqualTo(SERVER_OBSERVATION);
 
-        // Дерево наблюдений: mail.send — дочерние спаны (parent != null), а не отдельные корни.
+        // Дерево наблюдений: mail.send — дочерний спан (parent != null), а не отдельный корень.
         List<Observation.Context> mailObservations = OBSERVED.stream()
                 .filter(context -> SERVICE_OBSERVATION.equals(context.getName()))
                 .toList();
-        assertThat(mailObservations).as("регистрация отправляет два письма (админу и пользователю)")
-                .hasSizeGreaterThanOrEqualTo(2);
+        assertThat(mailObservations).as("выдача кода отправляет письмо пользователю").isNotEmpty();
         assertThat(mailObservations)
                 .allSatisfy(context -> assertThat(context.getParentObservation())
                         .as("mail.send — дочерний спан, а не корень")
                         .isNotNull());
 
         // Реальный traceId из OTel SDK: строки сервисного слоя и писем — один trace (MailObservation не открывает
-        // Scope,
-        // поэтому spanId в MDC остаётся серверным — дерево наблюдений проверено выше).
+        // Scope, поэтому spanId в MDC остаётся серверным — дерево наблюдений проверено выше).
         String logs = output.getOut() + output.getErr();
-        String[] registered = findCorrelation(logs, "Зарегистрирован пользователь");
+        String[] requested = findCorrelation(logs, "Отправлен код подтверждения email");
         String[] mailed = findCorrelation(logs, "Письмо отправлено");
-        assertThat(registered).as("лог регистрации с колонками traceId/spanId").hasSizeGreaterThan(0);
+        assertThat(requested).as("лог выдачи кода с колонками traceId/spanId").hasSizeGreaterThan(0);
         assertThat(mailed).as("лог отправки письма с колонками traceId/spanId").hasSizeGreaterThan(0);
-        assertThat(registered[0]).as("сервисный слой и письма — один traceId").isEqualTo(mailed[0]);
+        assertThat(requested[0]).as("сервисный слой и письма — один traceId").isEqualTo(mailed[0]);
     }
 
     /**
@@ -200,10 +195,12 @@ class TracingSmokeIT extends AbstractIntegrationTest {
         return new String[0];
     }
 
-    private HttpResponse<String> post(String path, String body) throws IOException, InterruptedException {
+    private HttpResponse<String> postWithAuth(String path, String body, String token)
+            throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + serverPort + path))
                 .timeout(Duration.ofSeconds(15))
                 .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();

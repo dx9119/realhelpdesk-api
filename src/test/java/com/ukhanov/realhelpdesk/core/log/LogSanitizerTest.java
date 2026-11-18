@@ -18,15 +18,6 @@ class LogSanitizerTest {
     }
 
     @Test
-    @DisplayName("Код восстановления пароля в пути маскируется")
-    void uri_passwordResetCode_isMasked() {
-
-        // given / when / then
-        assertThat(LogSanitizer.uri("/api/v1/users/password-resets/-987654321012345"))
-                .isEqualTo("/api/v1/users/password-resets/***");
-    }
-
-    @Test
     @DisplayName("Обычные маршруты не изменяются")
     void uri_regularPaths_areUnchanged() {
 

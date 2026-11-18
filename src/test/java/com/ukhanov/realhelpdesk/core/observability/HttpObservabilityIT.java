@@ -18,6 +18,7 @@ import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 import com.ukhanov.realhelpdesk.AbstractIntegrationTest;
+import com.ukhanov.realhelpdesk.config.TestAuthenticationConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -69,16 +70,20 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
     void get_unknownRoutes_collapsesToNotFound() {
 
         // given
+        // Запрос аутентифицирован: иначе неизвестный путь останавливает security-цепочка (401) и до маршрутизации
+        // MVC дело не доходит.
+        String token = TestAuthenticationConfiguration.testToken();
         // when
-        int first = get(serverPort, "/api/v1/users/password-resets/unknown/extra-one").statusCode();
-        int second = get(serverPort, "/api/v1/users/password-resets/unknown/extra-two").statusCode();
+        int first = getWithAuth(serverPort, "/api/v1/unknown/extra-one", token).statusCode();
+        int second = getWithAuth(serverPort, "/api/v1/unknown/extra-two", token).statusCode();
 
         // then
         assertThat(first).as("первый неизвестный маршрут").isEqualTo(404);
         assertThat(second).as("второй неизвестный маршрут").isEqualTo(404);
 
         long notFoundMeters = metersWith("uri", "NOT_FOUND").size();
-        assertThat(notFoundMeters).as("uri=NOT_FOUND — ровно одна серия").isEqualTo(1);
+        assertThat(notFoundMeters).as("uri=NOT_FOUND — ровно одна серия, uri-значения: %s", uniqueUriValues())
+                .isEqualTo(1);
         assertThat(meterRegistry.find(METER_NAME).meters()).allSatisfy(
                 meter -> assertThat(tagValue(meter, "uri")).as("uri не должен содержать фактический путь")
                         .doesNotContain("extra-"));
@@ -89,9 +94,9 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
     void get_unsupportedMethod_recordsExceptionTag() {
 
         // given
-        // GET на PUT-маршрут восстановления пароля: метод не поддерживается, ответ отдаёт @ControllerAdvice.
+        // GET на POST-only маршрут /api/v1/captcha/challenge: метод не поддерживается, ответ отдаёт @ControllerAdvice.
         // when
-        int status = get(serverPort, "/api/v1/users/password-resets/12345").statusCode();
+        int status = get(serverPort, "/api/v1/captcha/challenge").statusCode();
 
         // then
         assertThat(status).isEqualTo(405);
@@ -118,19 +123,21 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Неудачный вход увеличивает auth.attempts{type=login,result=failure} без email в тегах")
+    @DisplayName("Неудачная капча увеличивает auth.attempts{type=captcha,result=failure} без email в тегах")
     void post_failedLogin_incrementsAuthAttempts() {
 
         // given
         // when
-        double before = counterValue("auth.attempts", "type", "login", "result", "failure");
+        double before = counterValue("auth.attempts", "type", "captcha", "result", "failure");
 
-        HttpResponse<String> response = post(serverPort, "/api/v1/auth/login",
-                "{\"email\":\"nobody@example.com\",\"password\":\"wrong-password\"}");
+        // /api/v1/email/codes требует аутентификации + капчу: предъявляем пустой токен
+        // → captcha-отказ → auth.attempts{type=captcha,result=failure}
+        HttpResponse<String> response = postWithAuth(serverPort, "/api/v1/email/codes",
+                "{}", TestAuthenticationConfiguration.testToken());
 
         // then
-        assertThat(response.statusCode()).isEqualTo(401);
-        assertThat(counterValue("auth.attempts", "type", "login", "result", "failure")).isEqualTo(before + 1);
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(counterValue("auth.attempts", "type", "captcha", "result", "failure")).isEqualTo(before + 1);
 
         meterRegistry.find("auth.attempts")
                 .meters()
@@ -263,10 +270,19 @@ class HttpObservabilityIT extends AbstractIntegrationTest {
                 .build());
     }
 
-    private HttpResponse<String> post(int port, String path, String body) {
+    private HttpResponse<String> getWithAuth(int port, String path, String token) {
+        return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .timeout(Duration.ofSeconds(15))
+                .header("Authorization", "Bearer " + token)
+                .GET()
+                .build());
+    }
+
+    private HttpResponse<String> postWithAuth(int port, String path, String body, String token) {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .timeout(Duration.ofSeconds(15))
                 .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
