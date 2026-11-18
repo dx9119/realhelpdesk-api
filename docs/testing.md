@@ -3,7 +3,7 @@
 Все тесты проводятся только в dev-среде. Юнит-тесты — на хосте, без Docker, в тестовой
 конфигурации `src/test/resources/application.properties`; интеграционные (`*IT`) — тоже на
 хосте, но им нужен Docker (Testcontainers поднимает PostgreSQL 18 и MinIO); e2e — только на
-запущенном dev-приложении (запустить на нужном контуре: `make run-local` / `make run-local-keycloak`,
+запущенном dev-приложении (запустить: `make run-local`,
 инфраструктура — `make dev-run`). В других средах тесты не запускаются.
 
 > **Примечание:** `dev-run` поднимает monitoring (Mimir, Tempo, OTel Collector),
@@ -20,7 +20,7 @@
 | `make dev-openapi` | Снять OpenAPI-спеку с запущенного приложения в `openapi.json` |
 | `make dev-openapi-types` | Сгенерировать TypeScript-типы (`npx openapi-typescript`) |
 | `make dev-run` | Dev-среда: инфраструктура + наблюдаемость в фоне (БД, MinIO, smtp4dev, Keycloak, Mimir/Tempo/OTel) |
-| `make run-local` / `make run-local-keycloak` | Запустить приложение на хосте на нужном контуре (нужно для e2e) |
+| `make run-local` | Запустить приложение на хосте (нужно для e2e) |
 
 ## Архитектура: unit и интеграционные тесты
 
@@ -277,52 +277,31 @@ class EmailLogRepositoryIT extends AbstractIntegrationTest {
 
 ## E2E-сценарии
 
-Проект разделён на два контура аутентификации:
-
-| Контур | Цель | Профиль | Описание |
-|---|---|---|---|
-| **Keycloak** (рекомендуемый) | `make e2e-all` | `dev,keycloak` | Bearer-токены, OAuth2 RS |
-| **JWT in-app** (автономный) | `make e2e-jwt-in-app` | `dev` | Cookie-аутентификация |
-
-`make e2e-all` прогоняет **Keycloak-контур** —
-рекомендуемую схему развёртывания. Внутренний JWT-контур поддерживается для
-автономных инсталляций без внешнего OAuth2-сервера, но новым пользователям не
-предлагается.
+Контур аутентификации один — Keycloak (OAuth2 Resource Server): сценарии
+берут токен direct access grant'ом и ходят в API с `Authorization: Bearer`.
+Cookie-эндпоинтов `/api/v1/auth/*` в приложении нет.
 
 E2E-цели отвечают только за тесты: контейнеры не поднимают и не пересобирают.
-Приложение запускается на хосте заранее — `make run-local-keycloak` (для `e2e-all`)
-или `make run-local` (для `e2e-jwt-in-app`). Цели `make require-keycloak` /
-`make require-local` лишь проверяют доступность приложения; при неверном профиле
+Приложение запускается на хосте заранее — `make run-local`. Цель
+`make require-app` лишь проверяет доступность приложения; без неё
 e2e-прогон не запускается.
 
-### Keycloak-контур (e2e-all)
-
 | Команда | Сценарий | Скрипт |
 |---|---|---|
-| `make e2e-all` | Полный прогон Keycloak-контура | `scripts/e2e-*.sh`, `-kc.sh` |
-| `make e2e-keycloak` | Вход через Keycloak (OAuth2 RS, роли, блокировка) | `scripts/e2e-keycloak.sh` |
+| `make e2e-all` | Полный прогон: вход, порталы, уведомления | `scripts/e2e-*.sh` |
+| `make e2e-keycloak` | Агрегатор: три сценария подряд | `scripts/e2e-keycloak.sh`, `-kc.sh` |
+| `make e2e-keycloak-auth` | Вход через Keycloak (OAuth2 RS, роли, блокировка) | `scripts/e2e-keycloak.sh` |
 | `make e2e-portal-access-kc` | Портал через Keycloak (Bearer, CRUD) | `scripts/e2e-portal-access-kc.sh` |
 | `make e2e-notifications-kc` | Уведомления через Keycloak (Bearer) | `scripts/e2e-notifications-kc.sh` |
-
-### JWT in-app-контур (e2e-jwt-in-app)
-
-| Команда | Сценарий | Скрипт |
-|---|---|---|
-| `make e2e-portal-access` | Права доступа к порталу | `scripts/e2e-portal-access.sh` |
-| `make e2e-jwt` | JWT-поток аутентификации | `scripts/e2e-jwt-flow.sh` |
-| `make e2e-notifications` | In-app оповещения (long polling) | `scripts/e2e-notifications.sh` |
-| `make e2e-portal-transfer` | Передача владения порталом | `scripts/e2e-portal-transfer.sh` |
 | `make e2e-ratelimit` | Рейт-лимиты (ручной прогон; логика покрыта `RateLimitServiceTest`) | `scripts/e2e-ratelimit.sh` |
 
-Сценарии JWT in-app-контура ходят в cookie-эндпоинты `/api/v1/auth/*` и проверяют
-refresh-ротацию, логаут, смену пароля и email-подтверждения. Keycloak-контур
-не проверяет owner-transfer — у Keycloak-пользователей `password_hash` не является
-BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сработает.
+Сценарии не проверяют owner-transfer: передача владения доступна и через
+Bearer-токен, но покрыта юнит-тестами `PortalOwnerTransferServiceTest`.
 
 В `e2e-all` не входит `e2e-ratelimit`: логика бакетов, 429 и `Retry-After`
-целиком покрыта `RateLimitServiceTest`, а прогон тратит 56 последовательных
-запросов. Цель `make e2e-ratelimit` остаётся для ручного прогона после
-изменений в рейт-лимитах (см. [`rate-limits.md`](rate-limits.md)).
+целиком покрыта `RateLimitServiceTest`, а прогон тратит десятки
+последовательных запросов. Цель `make e2e-ratelimit` остаётся для ручного
+прогона после изменений в рейт-лимитах (см. [`rate-limits.md`](rate-limits.md)).
 
 Скрипты создают тестовых пользователей и тратят рейт-лимиты — при повторных
 прогонах может потребоваться перезапустить приложение на хосте
@@ -331,8 +310,8 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
 ## Нагрузочное тестирование (k6)
 
 Полный user journey под нагрузкой: каждый VU повторяет виток
-«профиль → (ре)логин → портал → заявка → сообщение → список сообщений →
-поиск → unread-count → long-poll уведомлений → refresh access»
+«профиль → токен Keycloak → портал → заявка → сообщение → список сообщений →
+поиск → unread-count → long-poll уведомлений»
 с паузой `THINK_TIME` между итерациями. Скрипт —
 `scripts/load/user-journey.js` (k6), обёртка — `scripts/load/run.sh`.
 
@@ -349,24 +328,25 @@ BCrypt-хешем, поэтому `LoginService.isPasswordValid()` не сраб
 ### Как устроено
 
 - **Пул пользователей** — пул до 10 `load-pool-<RUN_ID>-pN@load.test` сидирует
-  `run.sh` (регистрация + psql-верификация email — портал создаёт только
-  `isEmailVerified=true`). VU распределяют пользователей по кругу
-  (`VU1 → p1, VU2 → p2, …`), общий лимит регистрации не превышается.
-- **Рейт-лимиты** — load-цели передают `TRUST_PROXY_HEADERS=true`
-  через запуск приложения на хосте (`RUN_PROFILES=dev,host` с `TRUST_PROXY_HEADERS=true` в `scripts/dev/run-local.sh`): каждая k6-VU шлёт уникальный `X-Forwarded-For` и получает свой
-  bucket рейт-лимитов. Без этого профиля все VU делят один `127.0.0.1` и
-  логин упирается в лимит 10/300с. Включать **только локально** — за таким
-  профилем нет прокси.
+  `run.sh` через Keycloak Admin API: создаёт пользователя с паролем и
+  `emailVerified=true` и назначает realm-роль `ROLE_USER`, которую
+  `KeycloakAuthenticationConverter` переносит в БД при первом входе. VU
+  распределяют пользователей по кругу (`VU1 → p1, VU2 → p2, …`).
+- **Рейт-лимиты** — load-цели запускают приложение с `TRUST_PROXY_HEADERS=true`
+  (`scripts/dev/run-local.sh`): каждая k6-VU шлёт уникальный `X-Forwarded-For`
+  и получает свой bucket рейт-лимитов. Без этого все VU делят один
+  `127.0.0.1` и упираются в общий лимит. Включать **только локально** — за
+  таким запуском нет прокси.
 - **Совместимость с наблюдаемостью** — `load-full`/`load-smoke` поднимают приложение на хосте с `OTLP_TRACING_ENDPOINT` на collector: без этого ключа экспорт трейсов откатился бы на `localhost:4318/v1/traces` (дефолт
   compose-интерполяции), сломав связку с запущенным obs-стеком
   (`make dev-run`). Прогон метрик/трейсов во время load-теста: поднимите
   `make dev-run`, затем `make load-smoke` — смотрите метрики в Mimir
   (`localhost:9090/prometheus`).
-- **Cookie jar** — явная per-VU jar (k6 сбрасывает встроенную между
-  итерациями): access-token из логина живёт между витками, re-login
-  происходит только по 401.
+- **Токены** — каждая итерация VU получает access-токен direct access grant'ом
+  Keycloak; cookie не используются, поэтому переиспользовать между витками
+  нечего — токен запрашивается заново.
 - **Капча** выключена локально (дефолт `CAPTCHA_ENABLED:false` в
-  `application.properties`) — иначе регистрация/логин под нагрузкой не пройдут.
+  `application.properties`) — иначе выдача кода email под нагрузкой не пройдёт.
 
 ### Пороги
 

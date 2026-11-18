@@ -5,24 +5,28 @@
 
 ## Что это значит
 
-Возможен перебор паролей (credential stuffing), сломанный клиент с неверными
-кредами сервисной учётки или рассинхрон паролей у интеграции.
+В приложении `auth.attempts{result="failure"}` фиксирует только провалы капчи
+(`type="captcha"`): вход и пароли обслуживает Keycloak. Всплеск — это боты,
+ломающийся клиент капчи или разъехавшийся контракт challenge/solve. Перебор
+паролей виден в метриках Keycloak, а не приложения.
 
 ## Диагностика
 
-1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=rate(auth_attempts_total[5m])'`
-   — `type` (login/refresh): всплеск login
-   — внешний перебор; refresh — сломанный клиент/интеграция.
-2. **Логи** (без ПДн — email в логи не пишем): `{...="app"} |= "auth" |= "WARN"`
-   — IP из access-лога прокси/алгоритма login; смотреть гео-разнобой.
-3. **Учётки**: по БД (не по логам) — частота неудач по user_id за окно.
-4. **Утечка кредов**: если failures из конкретного autonomous IP/cidr — бан на уровне
-   прокси (rate limit/lockout не реализованы в приложении, см. ограничения).
+1. **Метрики Mimir**: `curl -s -G localhost:9090/prometheus/api/v1/query --data-urlencode 'query=sum by (type, result) (rate(auth_attempts_total[5m]))'`
+   — рост `type="captcha"`, `result="failure"` — автоматика на публичных
+   эндпоинтах капчи; разбирайте по `captcha.verification{reason}`.
+2. **Причина провала**: `sum by (reason) (rate(captcha_verification_total[5m]))`
+   — `pow_failed`/`wrong_answer` — боты или сломанный виджет,
+   `expired`/`replayed` — клиент не укладывается в TTL или дублирует solve.
+3. **Логи** (без ПДн — email в логи не пишем): `{...="app"} |= "captcha" |= "WARN"`.
+4. **Keycloak** (если подозрение на перебор паролей): события входа и
+   `login_failures` в метриках Keycloak — приложение их не считает.
 
 ## Митигация
 
-- Включить/усилить rate limiting на шлюзе для `/api/v1/auth/**`.
-- При подтверждённом переборе — оповестить владельцев учёток, форсить сброс пароля
-  у затронутых (по БД, не по метрикам — тегов с email в метриках нет и не должно).
-- Сломанный интеграционный клиент: обновить креды, включить отдельную сервисную учётку.
-- Проверить, что операторские эндпоинты не в публичном контуре.
+- Включить/усилить rate limiting на шлюзе для `/api/v1/captcha/**`.
+- При подтверждённой атаке — поднять `CAPTCHA_POW_DIFFICULTY` или включить
+  эмодзи-эскалацию (`CAPTCHA_EMOJI_ENABLED=true`, дефолт).
+- Сломанный клиент: проверить, что виджет берёт challenge и решает его в
+  пределах `CAPTCHA_CHALLENGE_TTL_SECONDS` / `CAPTCHA_TOKEN_TTL_SECONDS`.
+- Перебор паролей — настройки brute-force detection в realm'е Keycloak.

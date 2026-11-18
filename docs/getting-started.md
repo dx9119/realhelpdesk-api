@@ -7,12 +7,12 @@
 ## Быстрый старт
 
 ```bash
-make env && make dev-run && make run-local-keycloak
+make env && make dev-run && make run-local
 ```
 
 `make env` создаёт `infrastructure/.env` с секретами, `make dev-run` поднимает
 инфраструктуру и наблюдаемость (приложение в контейнер не собирается),
-`make run-local-keycloak` запускает приложение на хосте на Keycloak-контуре.
+`make run-local` запускает приложение на хосте; токены выпускает Keycloak.
 Адреса
 поднятых сервисов (API, Swagger, Actuator, smtp4dev, Keycloak) —
 [таблица в §2.1](#21-dev-контур-первый-запуск).
@@ -31,7 +31,6 @@ make env
 
 | Секрет | Чем заполнить |
 |---|---|
-| `JWT_SECRET` | случайная строка от 32 символов |
 | `CAPTCHA_HMAC_SECRET` | случайная строка от 32 символов |
 | `DB_PASSWORD` | любой пароль PostgreSQL |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | учётная запись MinIO |
@@ -58,8 +57,7 @@ make env
 
 ```bash
 make dev-run                # инфраструктура + наблюдаемость в фоне: БД, MinIO, smtp4dev, Keycloak, Mimir/Tempo/OTel
-make run-local-keycloak     # приложение на хосте, контур Keycloak (dev,keycloak,host)
-make run-local              # приложение на хосте, контур внутреннего JWT (dev,host)
+make run-local              # приложение на хосте (dev,host); токены выпускает Keycloak
 ```
 
 После старта:
@@ -76,35 +74,30 @@ make run-local              # приложение на хосте, контур
 | smtp4dev UI | `http://127.0.0.1:3000` | письма dev-стенда; SMTP `127.0.0.1:25` |
 | Keycloak | `http://127.0.0.1:8180` | `admin`/`admin` (или `KEYCLOAK_ADMIN*`), realm из `infrastructure/keycloak/` |
 
-Первое обращение к API зависит от контура аутентификации:
+Первое обращение к API: получить токен в Keycloak (direct access grant) и
+передать его заголовком `Authorization: Bearer <token>`:
 
-- **Keycloak** (`dev,keycloak`, по умолчанию): получить токен и передать
-  заголовком `Authorization: Bearer <token>`:
+```bash
+TOKEN=$(curl -s -X POST \
+  http://localhost:8180/realms/realhelpdesk/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=realhelpdesk-api \
+  -d username=user@example.com -d password=user-pass | jq -r .access_token)
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/users/profile
+```
 
-  ```bash
-  TOKEN=$(curl -s -X POST \
-    http://localhost:8180/realms/realhelpdesk/protocol/openid-connect/token \
-    -d grant_type=password -d client_id=realhelpdesk-api \
-    -d username=user@example.com -d password=user-pass | jq -r .access_token)
-  curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/users/profile
-  ```
+Учётная запись заводится в БД при первом запросе с валидным токеном
+(`KeycloakAuthenticationConverter`). Пока email не подтверждён в Keycloak,
+создание портала отвечает `403`.
 
-- **Внутренний JWT** (после `make run-local`): зарегистрировать
-  пользователя `POST /api/v1/auth/register` и подтвердить email — письмо
-  с кодом придёт в smtp4dev; cookies дальше держит браузер или Swagger UI.
-  Пока email не подтверждён, создание портала отвечает `403`.
-
-Переключение контуров: `make run-local` / `make run-local-keycloak` —
-запускают приложение на хосте с нужным `SPRING_PROFILES_ACTIVE` (файлы не
-меняются; подробности — в
-[`configuration.md`](configuration.md#профили-spring)).
+Профиль приложения один — `dev,host`; переключения контура нет. Подробности —
+в [`configuration.md`](configuration.md#профили-spring).
 
 ### 2.2 Повседневные команды
 
 | Сценарий | Команда |
 |---|---|
 | Поднять инфраструктуру и наблюдаемость в фоне (БД, MinIO, smtp4dev, Keycloak, Mimir/Tempo/OTel) | `make dev-run` |
-| Запустить приложение на хосте (JWT-контур / Keycloak-контур) | `make run-local` / `make run-local-keycloak` |
+| Запустить приложение на хосте (`dev,host`) | `make run-local` |
 | Остановить dev-контур | `make dev-down` |
 | Полная очистка (с удалением томов) | `make dev-down--del-volumes` |
 
@@ -156,9 +149,10 @@ run-конфига инлайном задают `MINIO_ENDPOINT=http://127.0.0.
 экспортируются явно, в IDEA берутся из дефолтов схемы (`false`/`0` в
 `application.properties`).
 
-На хосту контур Keycloak не включён: при необходимости задайте
+Keycloak работает в любом запуске: `KC_JWK_SET_URI` из `.env` указывает на
+`keycloak:8080` (compose-сеть), поэтому при запуске на хосте задайте
 `KC_JWK_SET_URI=http://127.0.0.1:8180/realms/realhelpdesk/protocol/openid-connect/certs`
-инлайном.
+инлайном в env-карте IDEA — `make run-local` подставляет loopback-адрес сам.
 
 ---
 
@@ -177,7 +171,7 @@ job: checks — статические проверки
 
 job: e2e — инфраструктура в compose, приложение на хосте (JDK 25)
   └─► make dev-run (инфраструктура + наблюдаемость)
-  └─► make run-local-keycloak (приложение на хосте, в фоне)
+  └─► make run-local (приложение на хосте, в фоне)
   └─► wait health (app) → wait Keycloak → make e2e-all
   └─► при провале — ps + logs контейнеров и хостовые логи в CI-вывод
   └─► always: make dev-down
@@ -205,9 +199,8 @@ make build                       # jar с юнит-тестами (package -Dski
 make clean                       # очистить target/
 ```
 
-E2E-прогон собирается из целей контура вручную: запустить приложение на нужном
-контуре (`make run-local-keycloak` для Keycloak / `make run-local` для JWT)
-→ `make e2e-all`.
+E2E-прогон собирается из целей вручную: запустить приложение на хосте
+(`make run-local`) → `make e2e-all`.
 
 Отдельно: `ApplicationConfigSchemaTest` сверяет парность ключей между
 `application*.properties` (`${VAR}` без дефолтов) и `infrastructure/.env.dev.example` —
@@ -216,28 +209,21 @@ E2E-прогон собирается из целей контура вручн�
 ### E2E-тесты
 
 Шелл-сценарии в `scripts/e2e-*.sh`, ходят в реальный стек по
-`http://localhost:8080` (нужно запустить приложение на хосте:
-`make run-local-keycloak` для Keycloak или `make run-local` для JWT).
-Контуры аутентификации два:
-**Keycloak** (рекомендуемый, `make e2e-all`) и внутренний JWT
-(`make e2e-jwt-in-app`, автономные инсталляции). E2E-цели отвечают только за
+`http://localhost:8080` (нужно запустить приложение на хосте: `make run-local`).
+Контур аутентификации один — Keycloak: токены берутся direct access grant'ом,
+дальше запросы идут с `Authorization: Bearer`. E2E-цели отвечают только за
 тесты: контейнеры они не поднимают и не пересобирают. Приложение нужно запустить
-заранее — `make run-local-keycloak` или `make run-local`; цели
-`make require-keycloak` / `make require-local` проверяют доступность и подсказывают
-нужную команду, а `make e2e-reset-limits` сбрасывает in-memory рейт-лимиты.
+заранее — `make run-local`; цель `make require-app` проверяет доступность и
+подсказывает нужную команду, а `make e2e-reset-limits` сбрасывает in-memory
+рейт-лимиты.
 
 | Команда | Сценарий |
 |---|---|
-| `make e2e-all` | Keycloak-контур целиком: вход, порталы, уведомления |
-| `make e2e-keycloak` | то же отдельной целью (агрегатор Keycloak-контура) |
-| `make e2e-keycloak-auth` | вход через Keycloak (профиль `dev,keycloak`) |
-| `make e2e-portal-access-kc` | порталы через Keycloak (Bearer, CRUD) |
-| `make e2e-notifications-kc` | уведомления через Keycloak (Bearer) |
-| `make e2e-jwt-in-app` | внутренний JWT-контур целиком (cookie, профиль `dev`) |
-| `make e2e-portal-access` | права на портал (роли operator/user; JWT-контур) |
-| `make e2e-jwt` | полный JWT-поток: register → login → refresh → logout |
-| `make e2e-notifications` | in-app оповещения (long polling; JWT-контур) |
-| `make e2e-portal-transfer` | передача владения порталом (JWT-контур) |
+| `make e2e-all` | все сценарии: вход, порталы, уведомления |
+| `make e2e-keycloak` | агрегатор: вход, порталы, уведомления подряд |
+| `make e2e-keycloak-auth` | вход через Keycloak, синхронизация ролей, блокировка |
+| `make e2e-portal-access-kc` | порталы через Bearer-токен Keycloak (CRUD) |
+| `make e2e-notifications-kc` | уведомления через Bearer-токен Keycloak |
 | `make e2e-ratelimit` | отклонения по rate-limit (ручной прогон, вне `e2e-all`) |
 | `make e2e-reset-limits` | сбросить in-memory рейт-лимиты вручную (dev-эндпоинт) |
 
@@ -267,11 +253,10 @@ make load-full   # user journey: TARGET_VUS=10 DURATION=5m POOL_SIZE=8 (env)
 ```
 
 Обе цели сначала поднимают load-стек (служебная цель `.load-up`), затем гоняют
-k6. Стек переводится на внутренний JWT-контур (пул сидируется
-через `/api/v1/auth/register`) и поднимается с
-`TRUST_PROXY_HEADERS=true` — только локально. Скрипты и сценарии —
-`scripts/load/`. Устройство пула пользователей, пороги k6 и параметры —
-в [`testing.md`](testing.md#нагрузочное-тестирование-k6).
+k6. Пул пользователей сидируется через Keycloak Admin API (master realm,
+`admin-cli`), прогон идёт с `TRUST_PROXY_HEADERS=true` — только локально.
+Скрипты и сценарии — `scripts/load/`. Устройство пула пользователей, пороги k6
+и параметры — в [`testing.md`](testing.md#нагрузочное-тестирование-k6).
 
 ---
 
@@ -321,24 +306,19 @@ make dev-openapi-types  # TypeScript-типы → web/src/api/schema.d.ts (ну�
 
 | Скрипт | Назначение | Вызывается из |
 |---|---|---|
-| `run.sh` | Оркестрация прогона: проверяет стек, сидирует пул пользователей через `/auth/register` (с реальной капчей), верифицирует email через `psql`, запускает k6 | `make load-full`, `make load-smoke` |
-| `solve-pow.js` | Решает PoW-задачу капчи (`/captcha/challenge` → `captchaToken`) на Node.js; нужен и при `CAPTCHA_ENABLED=false`, т.к. контракт запроса тот же | `run.sh` |
-| `user-journey.js` | Сценарий k6: пользовательский путь (вход → заявка → вложение → оповещения) с проверками порогов | `docker-compose.load.yaml`, сервис `k6` |
+| `run.sh` | Оркестрация прогона: проверяет стек, сидирует пул пользователей через Keycloak Admin API (создание пользователей, роль `ROLE_USER`), запускает k6 | `make load-full`, `make load-smoke` |
+| `user-journey.js` | Сценарий k6: пользовательский путь (вход → заявка → вложение → оповещения) с проверками порогов; токены — direct access grant Keycloak | `docker-compose.load.yaml`, сервис `k6` |
 
 ### `scripts/e2e-*.sh` — сквозные сценарии
 
 Шелл-сценарии против реального стека (см. §4). Цели Makefile сначала
-проверяют доступность приложения на нужном контуре (`make require-local` /
-`make require-keycloak`) и сбрасывают in-memory рейт-лимиты, поэтому запускать
-их напрямую не следует — проверка контура не выполнится.
+проверяют доступность приложения (`make require-app`) и сбрасывают in-memory
+рейт-лимиты, поэтому запускать их напрямую не следует — проверка готовности
+не выполнится.
 
 | Скрипт | Проверяет |
 |---|---|
-| `e2e-portal-access.sh` | разграничение прав на портал между `operator` и `user` (JWT-контур) |
-| `e2e-jwt-flow.sh` | полный жизненный цикл внутреннего JWT: регистрация, подтверждение email, вход, refresh, выход |
-| `e2e-notifications.sh` | доставку in-app оповещений long polling (повторы — только под `E2E_REPEATS=1`) |
-| `e2e-portal-transfer.sh` | передачу владения порталом и историю передач |
-| `e2e-keycloak.sh` | вход через Keycloak: realm, обмен кода на токены, работу профиля `dev,keycloak` |
+| `e2e-keycloak.sh` | вход через Keycloak: realm, direct access grant, синхронизацию ролей, блокировку |
 | `e2e-portal-access-kc.sh` | порталы через Bearer-токен Keycloak (CRUD) |
 | `e2e-notifications-kc.sh` | уведомления через Bearer-токен Keycloak |
 | `e2e-ratelimit.sh` | бакеты рейт-лимитов, `429` и `Retry-After`; в `e2e-all` не входит — логика покрыта `RateLimitServiceTest` |

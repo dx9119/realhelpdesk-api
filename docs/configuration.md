@@ -1,14 +1,14 @@
 # Конфигурация
 
 Приложение хранит разумные дефолты в `application.properties` в виде
-`${VAR:default}`: несекретные настройки (пороги рейт-лимитов, размеры батчей
-очистки токенов, таймауты SMTP, капча, ключи наблюдаемости) уже имеют значения
-в коде. Без дефолта остались только обязательные переменные: секреты
-(`JWT_SECRET`, `DB_PASSWORD`, `CAPTCHA_HMAC_SECRET`,
-`MINIO_ROOT_USER/PASSWORD`, `METRICS_PASSWORD`, `MAIL_PASSWORD`) и специфичные
-для среды хосты/URL (`MAIL_HOST`, `CORS_ALLOWED_ORIGINS`, `DB_URL`,
-`MINIO_ENDPOINT`, `JWT_ISSUER/AUDIENCE`, `FRONT_DOMAIN`, `MAIL_FROM/NOTIFY`,
-`STATIC_BASE_URL`). Если такая переменная не задана, приложение не стартует и
+`${VAR:default}`: несекретные настройки (пороги рейт-лимитов, таймауты SMTP,
+капча, ключи наблюдаемости) уже имеют значения в коде. Без дефолта остались
+только обязательные переменные: секреты (`DB_PASSWORD`,
+`CAPTCHA_HMAC_SECRET`, `MINIO_ROOT_USER/PASSWORD`, `METRICS_PASSWORD`,
+`MAIL_PASSWORD`) и специфичные для среды хосты/URL (`MAIL_HOST`,
+`CORS_ALLOWED_ORIGINS`, `DB_URL`, `MINIO_ENDPOINT`, `KC_JWK_SET_URI`,
+`KC_ISSUER_URI`, `FRONT_DOMAIN`, `MAIL_FROM/NOTIFY`, `STATIC_BASE_URL`,
+`APP_NAME`). Если такая переменная не задана, приложение не стартует и
 называет причину (`Could not resolve placeholder '<VAR>'`).
 
 ## Где живут значения
@@ -19,12 +19,11 @@
 | `infrastructure/.env.dev.example` | Шаблон локальной разработки: секреты (пустые), специфичные для среды хосты (dev-домены, smtp4dev, адреса compose-сети), Keycloak, JVM-флаги. `make env` копирует его в `.env` | Новый обязательный ключ, новый dev-дефолт |
 | `infrastructure/.env` | Локальный файл, в git не попадает. `make env` создаёт его из dev-шаблона и генерирует пустые секреты случайными значениями. Существующий файл скрипт не меняет. Его читают compose (интерполяция `${VAR}`) и хостовое приложение (`scripts/dev/load-env.sh`) | Локальные значения и секреты |
 
-Секреты: `JWT_SECRET`, `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`,
-`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`,
-`MAIL_PASSWORD` (только для внешнего SMTP),
-`KEYCLOAK_ADMIN_PASSWORD` (если стенд Keycloak доступен не только вам),
-`KEYCLOAK_DB_PASSWORD` (пароль отдельного кластера PostgreSQL для Keycloak,
-сервис `keycloak-postgres`).
+Секреты: `CAPTCHA_HMAC_SECRET`, `DB_PASSWORD`, `MINIO_ROOT_USER`,
+`MINIO_ROOT_PASSWORD`, `METRICS_PASSWORD`, `MAIL_PASSWORD` (только для
+внешнего SMTP), `KEYCLOAK_ADMIN_PASSWORD` (если стенд Keycloak доступен не
+только вам), `KEYCLOAK_DB_PASSWORD` (пароль отдельного кластера PostgreSQL
+для Keycloak, сервис `keycloak-postgres`).
 
 Смена секрета у уже поднятого стека: `DB_PASSWORD` фиксируется при первой
 инициализации тома PostgreSQL, поэтому его правка в `.env` рассогласует
@@ -42,9 +41,9 @@
    (`services.postgres/environment`, `services.minio/environment`) — там они
    подставляются как `${VAR:?}`: пустой или отсутствующий секрет валит старт
    инфраструктуры.
-3. Примените: приложение на хосте перезапускается вручную (`make run-local` /
-   `make run-local-keycloak`) — `.env` перечитывается при старте; контейнеры
-   инфраструктуры пересоздаются `make dev-run`.
+3. Примените: приложение на хосте перезапускается вручную (`make run-local`) —
+   `.env` перечитывается при старте; контейнеры инфраструктуры пересоздаются
+   `make dev-run`.
 
 Обязательная переменная (без дефолта) объявлена в env-шаблоне
 `infrastructure/.env.dev.example`. Несекретный ключ с `${VAR:default}`
@@ -89,28 +88,26 @@
 ## Профили Spring
 
 Профиль задаётся переменной `SPRING_PROFILES_ACTIVE`. Для приложения на
-хосте её формирует `scripts/dev/run-local.sh` из `RUN_PROFILES` (добавляя
-`host`), поэтому контур переключается целью запуска:
+хосте её формирует `scripts/dev/run-local.sh`: `dev,host`. Контур
+аутентификации один — Keycloak, отдельного профиля для него нет.
 
 ```bash
-make run-local          # SPRING_PROFILES_ACTIVE=dev,host          (внутренний JWT-контур)
-make run-local-keycloak # SPRING_PROFILES_ACTIVE=dev,keycloak,host (токены выпускает Keycloak)
+make run-local          # SPRING_PROFILES_ACTIVE=dev,host
 ```
 
 В `infrastructure/.env` переменной `SPRING_PROFILES_ACTIVE` быть не должно:
 `run-local.sh` экспортирует её ДО загрузки `.env`, и значение из файла
-перезаписало бы контур, выбранный make-целью (инвариант проверяет
+перезаписало бы профиль, выбранный скриптом (инвариант проверяет
 `ApplicationConfigSchemaTest`).
 
 | Профиль | Файл | Что включает |
 |---|---|---|
 | `dev` | `application-dev.properties` | Локальная отладка: DEBUG по приложению, SQL-логи Hibernate без значений параметров |
 | `host` | `application-host.properties` | Запуск на хосте поверх `dev` (IDEA/CLI): loopback-адреса БД/MinIO/почты, spring-boot-docker-compose |
-| `keycloak` | `application-keycloak.properties` | Внешний выпуск токенов: OAuth2 Resource Server, JWK и issuer, синхронизация ролей, автосоздание пользователей |
 
-Профиль `keycloak` — надстройка над базовым `dev`, не самостоятельный профиль.
-Без него работает внутренний JWT-контур приложения
-(см. [`authentication.md`](authentication.md)).
+Ключи Keycloak (`KC_JWK_SET_URI`, `KC_ISSUER_URI`, `KC_HOSTNAME`) живут в
+`application.properties` и действуют во всех профилях: внешний выпуск
+токенов — единственный контур (см. [`authentication.md`](authentication.md)).
 
 Профиль `host` — надстройка над `dev`, не самостоятельный профиль.
 Всегда используется как `dev,host` (IDEA, `make run-local`,
@@ -166,9 +163,9 @@ spring-boot-docker-compose: при старте с профилем `host` мо�
 В dev-среде поднимается smtp4dev — тестовый SMTP-сервис (контейнер `smtp`,
 UI на `http://localhost:3000`), профиль compose `local-tools`.
 
-smtp4dev нужен dev и e2e: регистрация, подтверждение email и восстановление
-пароля отправляют письма с кодами, и сценарии (`scripts/e2e-jwt-flow.sh`,
-`scripts/e2e-portal-transfer.sh`) забирают коды через его REST API.
+smtp4dev нужен dev и e2e: подтверждение email, передача владения порталом и
+оповещения отправляют письма, и сценарии забирают их через его REST API
+(`wait_mail` в `scripts/e2e-common.sh`).
 В интеграционных тестах (`mvn verify`) почту принимает GreenMail.
 
 Настройки — `spring.mail.*` в `infrastructure/.env`:

@@ -13,16 +13,15 @@
 |---|---|---|
 | `captcha-challenge` | `POST /captcha/challenge` | 30 / 60 c |
 | `captcha-solve` | `POST /captcha/solve` | 30 / 60 c |
-| `auth-register` | `POST /auth/register` | 10 / 5 мин |
-| `auth-login` | `POST /auth/login` | 10 / 5 мин |
-| `auth-access-token` | `POST /auth/tokens/access` | 30 / 5 мин |
-| `password-reset-request` | `POST /users/password-resets` | 3 / 10 мин |
-| `password-reset-confirm` | `PUT /users/password-resets/{code}` | 5 / 10 мин |
 | `email-code` | `POST /email/codes` | 3 / 10 мин |
 | `notifications-wait` | `GET /notifications/wait` | 30 / 60 c |
 | `portal-transfer-request` | `POST /portals/{id}/owner-transfer` | 5 / 5 мин |
 | `portal-transfer-confirm` | `POST /portals/{id}/owner-transfer/confirm` | 5 / 5 мин |
-| `email-recovery` | письма восстановления (на адрес) | 3 / 24 ч |
+| `email-recovery` | письма с событием `RECOVERY_PASSWORD` (на адрес) | 3 / 24 ч |
+
+`email-recovery` — лимит отправки писем внутри `EmailDeliveryService`, а не
+лимит эндпоинта: восстановление пароля обслуживает Keycloak, поэтому в API
+событие сейчас не порождается.
 
 ## Как добавить лимит
 

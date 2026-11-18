@@ -113,12 +113,12 @@ import static ...;               // static — всегда в конце
   - `WARN` — отказ во входе, лимит запросов, отклонённый токен, доступ запрещён (403), конфликт версий, проглоченная ошибка.
   - `INFO` — завершённое бизнес-событие (создан, изменён, удалён, зарегистрирован, письмо отправлено) и ответ HTTP 4xx. Видно в продакшене.
   - `DEBUG` — трассировка шагов и успешные HTTP-запросы. Видно только в `dev`.
-- Логировать путь через `LogSanitizer.uri(...)`: код восстановления пароля и токен подтверждения email идут в пути запроса. Email, имена файлов вложений и телефоны маскировать через `LogSanitizer.email(...)` / `emails(...)` / `fileName(...)` / `phone(...)` — полный адрес и имя файла в логах это ПДн.
+- Логировать путь через `LogSanitizer.uri(...)`: токен подтверждения email идёт в пути запроса. Email, имена файлов вложений и телефоны маскировать через `LogSanitizer.email(...)` / `emails(...)` / `fileName(...)` / `phone(...)` — полный адрес и имя файла в логах это ПДн.
 - Не дублировать «метод вызван» в сервисе: строку запроса пишет `LoggingFilter`. Query-string не логировать. Исключение логируется один раз на границе (`GlobalExceptionHandler`): 4xx — WARN без стектрейса, 5xx — ERROR со стектрейсом; сервисный лог перед `throw` не повторяет его — только DEBUG.
 - Формат логов: в профиле `dev` — читаемый паттерн (`logback-spring.xml`; в тестах `logback-test.xml`), в остальных профилях — JSON по ECS через `StructuredLogEncoder`.
 - MDC (ключи `requestId` / `clientIp` / `uriRequest` / `role`, плюс `traceId` / `spanId` от OTel):
   - ключи брать только из констант `LoggingFilter.REQUEST_ID` / `CLIENT_IP` / `URI_REQUEST` / `ROLE`, не строками — иначе код и паттерн в `logback-spring.xml` разъедутся; `traceId`/`spanId` при включённом OTel кладёт `Slf4JEventListener`;
-  - `role` по умолчанию `ANONYMOUS` кладёт `LoggingFilter`, после аутентификации значение перезаписывает контурный фильтр — `JwtAuthFilter` (внутренний JWT) или `KeycloakAuthenticationRoleFilter` (профиль `keycloak`), оба без префикса `ROLE_` — как в теге метрики; очистку в `finally` делает `LoggingFilter`;
+  - `role` по умолчанию `ANONYMOUS` кладёт `LoggingFilter`, после аутентификации значение перезаписывает `KeycloakAuthenticationRoleFilter` — без префикса `ROLE_`, как в теге метрики; очистку в `finally` делает `LoggingFilter`;
   - новый MDC-ключ = правка читаемых паттернов в `logback-spring.xml` (dev) и `logback-test.xml` — в JSON-ветке поля берутся из MDC автоматически — плюс константа в `LoggingFilter`;
   - логи в фоновых задачах и в колбэках `DeferredResult`/`SseEmitter` обязаны либо восстановить контекст запроса-инициатора (снимок `MDC.getCopyOfContextMap()` до подмены, в `finally` — прежний контекст потока), либо явно задать технический `requestId`; поток, возвращаемый в пул, не должен уносить чужой MDC;
   - любая строка уровня `WARN` и выше обязана нести `requestId` — иначе инцидент не связать с запросом.
@@ -158,7 +158,7 @@ import static ...;               // static — всегда в конце
 Conventional Commits с русским описанием:
 
 ```
-fix(auth): убрать fallback на сырой refresh-токен в поиске
+fix(captcha): не выдавать токен при провале проверки
 test(model): проверить выставление createdAt у всех сущностей
 style(core): привести импорты к единому порядку
 ```

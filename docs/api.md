@@ -15,11 +15,9 @@ OpenAPI такие вещи выразить не может:
 |---|---|
 | Пагинация: `page` с нуля, `size` ≤ 100, `sortBy` из allow-list | OpenAPI описывает параметры поштучно, но не единое правило для всех списков и не допустимые значения сортировки |
 | `ETag` / `If-Match` → `412`, `@Version` → `409` | Условные заголовки — часть HTTP-семантики, в спеке они не моделируются |
-| `X-Requested-With` обязателен на изменяющих запросах | Требование вне тела и схемы запроса |
 | Набор доступных из ответа заголовков (CORS `expose`) | Client-side ограничение, в контракт не входит |
-| Различие cookie- и Keycloak-контуров | Одна спека на два режима аутентификации; переключение — профили, а не часть контракта |
-| Бизнес-правила: 72 часа на передачу портала, `409` на второй активный запрос, создание портала только с подтверждённым email, неизменяемость вложений | Догика, а не структура сообщения |
-| Машинные `code` провала капчи, коды `416`/`429` и `Retry-After` | У уловия есть статус, но не перечень причин |
+| Бизнес-правила: 72 часа на передачу портала, `409` на второй активный запрос, создание портала только с подтверждённым email, неизменяемость вложений | Логика, а не структура сообщения |
+| Машинные `code` провала капчи, коды `416`/`429` и `Retry-After` | У условия есть статус, но не перечень причин |
 
 Спека для `make dev-openapi` и генерации типов собирается с запущенного
 стенда. Этот документ дополняет её: он описывает соглашения между эндпоинтами,
@@ -35,19 +33,14 @@ OpenAPI такие вещи выразить не может:
 | Коллекции без пагинации | Обёртка `ItemsResponse`: `{ items: [...], total }` (массивы верхнего уровня не используются) |
 | Конкурентность | Ресурсы с изменяемыми полями отдают `ETag` и принимают `If-Match`; устаревшая версия — `412`. Без `If-Match` конфликт ловится `@Version` → `409` |
 | Частичное обновление | `PATCH` меняет только переданные поля (`null` — «не трогать»); `PUT` — полная замена ресурса |
-| CSRF | Все изменяющие запросы (`POST`, `PUT`, `PATCH`, `DELETE`) обязаны нести заголовок `X-Requested-With` (любое непустое значение), иначе `403` problem+json |
-| CORS | Клиент шлёт `credentials: 'include'`; из ответа доступны `Location`, `Content-Disposition`, `Content-Range`, `Accept-Ranges`, `ETag`, `Retry-After` и маркеры 401 (`X-Access-Token-Expired`, `X-Auth-Token-Missing`, `X-Malformed-Token`, `X-Invalid-Token`, `X-Verify-Token-Failed`) |
-| Коды | `200` + ресурс — изменение ресурса; `201` + `Location` — создание; `204` — команда/флаг; `400` — валидация; `401` — нет/истёк токен; `403` — нет прав или нет CSRF-заголовка; `404` — нет ресурса; `409` — конфликт (`@Version`, повторная передача портала); `412` — устаревший `If-Match`; `416` — некорректный `Range`; `429` — лимит |
+| CORS | Клиент передаёт токен заголовком `Authorization`; из ответа доступны `Location`, `Content-Disposition`, `Content-Range`, `Accept-Ranges`, `ETag`, `Retry-After` |
+| Коды | `200` + ресурс — изменение ресурса; `201` + `Location` — создание; `202` — принято в обработку; `204` — команда/флаг; `400` — валидация; `401` — нет/истёк токен; `403` — нет прав; `404` — нет ресурса; `409` — конфликт (`@Version`, повторная передача портала); `412` — устаревший `If-Match`; `416` — некорректный `Range`; `429` — лимит |
 
-Cookie-аутентификация (внутренний JWT-контур, профиль без `keycloak`): токены в
-`HttpOnly` cookie (`accessToken`, refresh ограничен путём
-`/api/v1/auth`). Клиент не хранит токены сам, но обязан слать `credentials: 'include'`.
-
-Контур Keycloak (профиль `keycloak`, включён по умолчанию): токен выпускает
-Keycloak, приложение ожидает `Authorization: Bearer <access_token>` и проверяет
-подпись по JWK. Эндпоинты `/auth/*` в этом профиле не создаются, cookie не
-используются, `credentials: 'include'` не нужен — сравнение контуров в
-[`authentication.md`](authentication.md).
+Аутентификация: токен выпускает Keycloak, приложение ожидает
+`Authorization: Bearer <access_token>` и проверяет подпись по JWK. Cookie не
+используются, `credentials: 'include'` не нужен, CSRF-заголовок не требуется.
+Эндпоинтов `/auth/*` и `/users/password-resets` в API нет — вход, регистрацию
+и пароли обслуживает Keycloak (см. [`authentication.md`](authentication.md)).
 
 ## Служебные
 
@@ -66,25 +59,6 @@ Keycloak, приложение ожидает `Authorization: Bearer <access_tok
 (эмодзи-задание решено неверно), `honeypot` (заполнено невидимое поле
 `website`).
 
-## Аутентификация (`/auth`)
-
-Раздел актуален для внутреннего JWT-контура (профиль без `keycloak`); в
-профиле `keycloak` этих эндпоинтов нет — токен выпускает Keycloak.
-
-| Метод и путь | Тело / параметры | Назначение |
-|---|---|---|
-| `POST /register` | `RegisterRequest` | Регистрация → `201` + `Location: /users/profile`, cookies |
-| `POST /login` | `{ email, password }` | Вход → `200`, cookies |
-| `POST /tokens/access` | refresh-cookie | Новый access-токен и ротация refresh |
-| `GET /tokens/refresh` | — | Статус refresh-токена (`{ tokenStatus, createdAt }`) |
-| `GET /session` | — | Текущая сессия: `{ authenticated, user: UserInfoResponse }` (id пользователя сразу, без отдельного `GET /users/profile`) |
-| `DELETE /session` | — | Логаут, отзыв токенов → `204` |
-
-`RegisterRequest`: `firstName`, `lastName`, `email`, `password`, опц.
-`captchaToken` (токен `POST /captcha/solve`; при включённой капче обязателен),
-honeypot-поле `website` (должно быть пустым/отсутствовать), `externalId`,
-`userPlatformSource`.
-
 ## Пользователи (`/users`)
 
 | Метод и путь | Тело | Назначение |
@@ -92,17 +66,6 @@ honeypot-поле `website` (должно быть пустым/отсутств
 | `GET /profile` | — | Профиль (`UserInfoResponse`), `ETag` |
 | `PUT /profile` | `{ firstName, lastName, middleName, additionalInfo }` | Полная замена профиля → `200` + профиль, `ETag`, `If-Match` |
 | `PATCH /profile` | любое подмножество полей профиля | Частичное обновление → `200` + профиль, `If-Match` |
-| `POST /password-resets` | `{ email }` | Запрос сброса пароля → `204` (письмо уходит синхронно; ошибка SMTP — `503`) |
-| `PUT /password-resets/{code}` | `{ password }` | Установка нового пароля → `204` |
-
-## Операторские операции (`/operator`)
-
-Доступ только у роли `ROLE_OPERATOR` (иначе `403`); запрос изменяющий, поэтому
-обязателен заголовок `X-Requested-With`.
-
-| Метод и путь | Тело | Назначение |
-|---|---|---|
-| `POST /operator/tokens/cleanup` | — | Принудительная очистка отозванных refresh-токенов старше `JWT_REVOKED_TOKEN_RETENTION_SECONDS` → `200` + `{ revokedDeleted, batches }`. Тот же механизм, что у ночного расписания: оценка объёма и удаление батчами с адаптивным размером и паузами |
 
 ## Email (`/email`)
 
@@ -149,9 +112,9 @@ honeypot-поле `website` (должно быть пустым/отсутств
 
 | Метод и путь | Тело | Назначение |
 |---|---|---|
-| `POST /{id}/owner-transfer` | `{ email, password, reason, keepOldOwnerAsMember }` | Инициировать передачу → `201` + `Location` |
+| `POST /{id}/owner-transfer` | `{ email, reason, keepOldOwnerAsMember }` | Инициировать передачу → `201` + `Location` |
 | `GET /{id}/owner-transfer` | — | Активный запрос (владелец или предлагаемый); `404`, если запроса нет |
-| `POST /{id}/owner-transfer/confirm` | `{ password, reason }` | Подтвердить передачу |
+| `POST /{id}/owner-transfer/confirm` | `{ reason }` | Подтвердить передачу |
 | `POST /{id}/owner-transfer/reject` | `{ reason }` | Отклонить |
 | `POST /{id}/owner-transfer/cancel` | — | Отозвать до решения |
 | `GET /{id}/history` | `page, size, sortBy, order` | История портала (`PageResponse<PortalHistoryResponse>`) |
@@ -218,7 +181,8 @@ sizeBytes, uploadedById, uploadedByFullName, createdAt, downloadUrl`.
 Вложения неизменяемы, поэтому `ETag` — `"attachment-{id}"`. `If-Range` с этим
 значением продолжает докачку (`206`), несовпавший валидатор — отдаёт файл целиком
 (`200`). `downloadUrl` собирается с origin'ом из `static.base-url`, если файлы
-вынесены на отдельный домен (тогда нужны CORS и `jwt.cookie.domain`).
+вынесены на отдельный домен (тогда нужны CORS и `Authorization`-заголовок на
+этом origin).
 
 ## Оповещения (`/notifications`)
 

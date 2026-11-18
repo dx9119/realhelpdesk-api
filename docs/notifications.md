@@ -123,7 +123,7 @@ emailDeliveryService.sendEmail(
 `NotificationWaitRegistryTest` (реестр), `NotificationControllerTest`
 (контракт `/stream`), `NotificationPublisherTest` (пробуждение после
 коммита), `NotificationRepeatServiceTest` (доставка повторов),
-`make e2e-notifications` (SSE и long polling по HTTP).
+`make e2e-notifications-kc` (SSE и long polling по HTTP).
 
 Письма: `EmailTemplateIdTest`, `EmailTemplateGuardTest`,
 `EmailTemplateRenderingTest`, `EmailTemplateRenderServiceTest`,
