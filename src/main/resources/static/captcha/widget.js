@@ -1,11 +1,10 @@
 /**
  * RealHelpCaptcha — клиентский виджет капчи (PoW и эмодзи-уровень).
  *
- * Использование (форма регистрации/запроса кода):
+ * Использование (форма запроса кода на email):
  *
- *   const token = await window.RealHelpCaptcha.getToken('register');
- *   // token → поле captchaToken в теле /api/v1/auth/register
- *   // или заголовок X-Captcha-Token для POST /api/v1/email/codes
+ *   const token = await window.RealHelpCaptcha.getToken('email-code');
+ *   // заголовок X-Captcha-Token для POST /api/v1/email/codes
  *
  * Как работает: 1) POST /api/v1/captcha/challenge получает подписанное задание;
  * 2) уровень выбирает сервер — pow (salt + difficulty; nonce добирается
@@ -16,7 +15,8 @@
  * «Другое задание» запрашивает новый challenge. Подписи задания не хранятся
  * на сервере — ответ сверяется по HMAC в challenge.
  *
- * Все POSTы несут заголовок X-Requested-With — так требует CSRF-фильтр.
+ * Все POSTы несут заголовок X-Requested-With — совместимость с клиентами,
+ * которые шлют его на изменяющих запросах; серверу он не нужен.
  */
 (function () {
   'use strict';

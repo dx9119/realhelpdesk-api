@@ -1,26 +1,17 @@
 package com.ukhanov.realhelpdesk.core.security.user.model;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-
-import org.hibernate.annotations.BatchSize;
-
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -52,14 +43,11 @@ public class UserModel {
     @Column(unique = true, nullable = false)
     private String email;
 
+    // Код подтверждения email: выдаётся при запросе кода (/api/v1/email/codes),
+    // сверяется в /api/v1/email/confirmations/{token}. К паролям и токенам доступа отношения не имеет.
     private Long verifyEmailToken;
 
-    private Long recoveryPasswdToken;
-
     private boolean isEmailVerified = false;
-
-    @Column(nullable = false)
-    private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     private UserRole userRole = UserRole.ROLE_USER;
@@ -68,20 +56,7 @@ public class UserModel {
     private UserStatus userStatus = UserStatus.ACTIVE;
 
     @Enumerated(EnumType.STRING)
-    private UserPlatformSource userPlatformSource = UserPlatformSource.LOCAL;
-
-    // Версия access-токенов: инкремент отзывает все ранее выданные access-токены
-    @Column(nullable = false)
-    private int tokenVersion = 0;
-
-    // Связь с JWT Refresh-токенами: LAZY + батч, чтобы загрузка пользователя не
-    // тянула токены (N+1 на каждый findById / findByEmail) и не разрасталась в e-мейл-фолдауте.
-    // Каскад только PERSIST/MERGE: отзыв и очистка токенов идут через JwtRefreshTokenRepository
-    // (@Modifying UPDATE / DELETE), каскадное удаление отсюда не используется.
-    @OneToMany(mappedBy = "user", cascade = {CascadeType.PERSIST,
-            CascadeType.MERGE}, fetch = FetchType.LAZY)
-    @BatchSize(size = 50)
-    private Set<RefreshTokenModel> jwtTokenRefresh = new HashSet<>();
+    private UserPlatformSource userPlatformSource = UserPlatformSource.KEYCLOAK;
 
     // createdAt выставляет только @PrePersist: сеттера снаружи нет (см. CreatedAtPrePersistTest)
     @Column(nullable = false, updatable = false)
@@ -102,7 +77,7 @@ public class UserModel {
     @Version
     private Integer version;
 
-    // Логи не должны раскрывать passwordHash/токены — поэтому ручной toString, а не сгенерированный
+    // Логи не должны раскрывать чувствительные поля — поэтому ручной toString, а не сгенерированный
     @Override
     public String toString() {
         return "UserModel{" + "createdAt=" + createdAt + ", userRole=" + userRole + ", id=" + id + ", firstName='"
@@ -112,21 +87,7 @@ public class UserModel {
                 + userStatus + '}';
     }
 
-    /** Алиас для userPlatformSource: под этим именем поле знает AuthMapper (mapping target = "userExternalSource"). */
-    public UserPlatformSource getUserExternalSource() {
-        return userPlatformSource;
-    }
-
-    public void setUserExternalSource(UserPlatformSource source) {
-        this.userPlatformSource = source;
-    }
-
     public String getFullName() {
         return this.firstName + " " + this.lastName + " " + this.middleName;
-    }
-
-    // Отзывает все ранее выданные access-токены пользователя
-    public void incrementTokenVersion() {
-        this.tokenVersion++;
     }
 }

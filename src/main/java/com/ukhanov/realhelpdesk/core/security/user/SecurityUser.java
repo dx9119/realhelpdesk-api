@@ -1,20 +1,22 @@
 package com.ukhanov.realhelpdesk.core.security.user;
 
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.RefreshTokenModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserStatus;
 
 import lombok.RequiredArgsConstructor;
+
+/**
+ * Реализация {@link UserDetails} для текущего пользователя. Аутентификацию обеспечивает {@code JwtAuthenticationToken}
+ * из Spring Security OAuth2, поэтому этот класс не участвует в цепочке — он оставлен как совместимость.
+ */
 @RequiredArgsConstructor
 public class SecurityUser implements UserDetails {
     private final UserModel user;
@@ -40,17 +42,9 @@ public class SecurityUser implements UserDetails {
         return String.valueOf(user.getUserRole());
     }
 
-    public Optional<String> getLatestJwtRefreshToken() {
-        return this.user.getJwtTokenRefresh() // Получаем список всех refresh-токенов, связанных с пользователем
-                .stream() // список в потоки
-                .max(Comparator.comparing(RefreshTokenModel::getCreatedAt)) // Сравниваем refresh-токены по дате
-                                                                            // создания
-                .map(RefreshTokenModel::getToken); // Преобразуем найденный объект в строковое значение токена
-    }
-
     @Override
     public String getPassword() {
-        return user.getPasswordHash();
+        return null;
     }
 
     @Override
@@ -70,7 +64,6 @@ public class SecurityUser implements UserDetails {
 
     @Override
     public boolean isCredentialsNonExpired() {
-        // Здесь должна быть логика проверки, не истек ли срок действия учетных данных пользователя
         return true;
     }
 

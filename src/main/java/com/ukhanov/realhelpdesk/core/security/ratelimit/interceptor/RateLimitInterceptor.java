@@ -47,7 +47,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         RateLimitProperties.Limit limit = rateLimitProperties.require(rateLimit.key());
 
         String client = clientIpResolver.resolve(request);
-        // ключ — по шаблону маршрута: /password-resets/123 и /password-resets/456 должны считаться одним лимитом
+        // ключ — по шаблону маршрута: /email/confirmations/123 и /email/confirmations/456 должны считаться одним
+        // лимитом
         String key = client + "|" + request.getMethod() + " " + routeOf(request);
         RateLimitService.Decision decision = rateLimitService.check(key, limit.requests(),
                 Duration.ofSeconds(limit.windowSeconds()));

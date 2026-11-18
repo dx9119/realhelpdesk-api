@@ -1,5 +1,0 @@
-package com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model;
-
-public enum TokenStatus {
-    ACTIVE, LOGOUT, BLOCKED, REVOKED, SUSPECTED, PASSWD_CHANGE
-}

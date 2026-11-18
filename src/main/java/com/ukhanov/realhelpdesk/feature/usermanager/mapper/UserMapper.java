@@ -14,7 +14,7 @@ public interface UserMapper {
 
     UserInfoResponse toResponse(UserModel userModel);
 
-    // ignoreByDefault: email, пароль и статусы меняются отдельными потоками (подтверждение, сброс), а не этим
+    // ignoreByDefault: email и статусы меняются отдельными потоками (подтверждение, синхронизация), а не этим
     // эндпоинтом
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "firstName", source = "request.firstName")

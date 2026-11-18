@@ -6,9 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -34,7 +32,7 @@ import lombok.extern.slf4j.Slf4j;
  * БД, где они синхронизированы с realm-ролями токена.
  *
  * <p>
- * Конвертер — единственное место keycloak-контура, которое читает пользователя и пишет в БД, поэтому здесь же решается
+ * Конвертер — единственное место аутентификации, которое читает пользователя и пишет в БД, поэтому здесь же решается
  * весь жизненный цикл учётной записи:
  * </p>
  * <ol>
@@ -48,10 +46,9 @@ import lombok.extern.slf4j.Slf4j;
  * </ol>
  *
  * <p>
- * Роли в authority берутся из БД, а не из токена — так же, как в локальном контуре ({@code JwtAuthFilter}): блокировка
- * пользователя и понижение роли действуют сразу, без ожидания истечения токена. Имена realm-ролей в Keycloak должны
- * совпадать с именами {@link UserRole} ({@code ROLE_USER}, {@code ROLE_OPERATOR}, {@code ROLE_NONE}) — тогда
- * синхронизация не требует таблицы соответствия.
+ * Роли в authority берутся из БД, а не из токена: блокировка пользователя и понижение роли действуют сразу, без
+ * ожидания истечения токена. Имена realm-ролей в Keycloak должны совпадать с именами {@link UserRole}
+ * ({@code ROLE_USER}, {@code ROLE_OPERATOR}, {@code ROLE_NONE}) — тогда синхронизация не требует таблицы соответствия.
  * </p>
  *
  * <p>
@@ -61,7 +58,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-@Profile("keycloak")
 @RequiredArgsConstructor
 public class KeycloakAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
@@ -87,13 +83,6 @@ public class KeycloakAuthenticationConverter implements Converter<Jwt, AbstractA
      */
     private static final List<UserRole> ROLE_PRIORITY = List.of(UserRole.ROLE_OPERATOR, UserRole.ROLE_USER,
             UserRole.ROLE_NONE);
-
-    /**
-     * Признак пароля, заведённого Keycloak'ом: вход по паролю в keycloak-профиле отключён (AuthController не
-     * создаётся), а {@code password_hash} объявлен {@code NOT NULL} — значение не должно быть валидным хешем BCrypt,
-     * чтобы случайно не совпасть с введённым паролем.
-     */
-    private static final String NO_LOCAL_PASSWORD_PREFIX = "keycloak-no-local-password:";
 
     private final UserDomainService userDomainService;
     private final KeycloakProperties keycloakProperties;
@@ -128,7 +117,6 @@ public class KeycloakAuthenticationConverter implements Converter<Jwt, AbstractA
         String fallback = localPart(email);
         user.setFirstName(orDefault(jwt.getClaimAsString(GIVEN_NAME_CLAIM), fallback));
         user.setLastName(orDefault(jwt.getClaimAsString(FAMILY_NAME_CLAIM), fallback));
-        user.setPasswordHash(NO_LOCAL_PASSWORD_PREFIX + UUID.randomUUID());
         user.setUserPlatformSource(UserPlatformSource.KEYCLOAK);
         user.setUserStatus(UserStatus.ACTIVE);
         // Email уже подтверждён Keycloak'ом: письмо с кодом от приложения пользователю не нужно.

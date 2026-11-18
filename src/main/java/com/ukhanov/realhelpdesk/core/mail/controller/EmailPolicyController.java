@@ -20,9 +20,9 @@ import com.ukhanov.realhelpdesk.core.mail.exception.EmailAccessDeniedException;
 import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.mail.service.EmailPolicyService;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaException;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaService;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.service.CaptchaTokenService;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaException;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.CaptchaService;
+import com.ukhanov.realhelpdesk.core.security.captcha.service.CaptchaTokenService;
 import com.ukhanov.realhelpdesk.core.security.ratelimit.annotation.RateLimit;
 
 import io.swagger.v3.oas.annotations.Operation;

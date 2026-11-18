@@ -28,9 +28,9 @@ import lombok.extern.slf4j.Slf4j;
  * <p>
  * Цепочка {@code @Order(0)} (выше основной) перехватывает все пути actuator на обоих портах: health и info отдаются без
  * аутентификации (пробы оркестратора), prometheus — по HTTP Basic сервисной учёткой из
- * {@link PrometheusScrapeProperties}, всё остальное запрещено. Основная цепочка {@code WebSecurityConfiguration} правил
- * на {@code /actuator/**} больше не содержит и сюда не попадает: JwtAuthFilter, CsrfProtectionFilter и CORS
- * настраиваются только в ней, поэтому скрейп не ходит через аутентификацию приложения.
+ * {@link PrometheusScrapeProperties}, всё остальное запрещено. Основная цепочка {@code KeycloakSecurityConfiguration}
+ * правил на {@code /actuator/**} больше не содержит и сюда не попадает: bearer-аутентификация и CORS настраиваются
+ * только в ней, поэтому скрейп не ходит через аутентификацию приложения.
  * </p>
  */
 @Slf4j
@@ -56,7 +56,7 @@ public class ManagementSecurityConfiguration {
         // UnreachableFilterChainException («только одна цепочка на any request, и она должна быть последней»).
         // EndpointRequest проверяет контекст запроса: на основном порту он игнорируется (namespace management
         // отсутствует), а /actuator/** страхует мусорные пути управляющего порта, чтобы они не уходили
-        // в основную цепочку с JWT-фильтром.
+        // в основную цепочку bearer-аутентификации.
         RequestMatcher actuatorMatcher = new OrRequestMatcher(EndpointRequest.toAnyEndpoint(),
                 PathPatternRequestMatcher.withDefaults().matcher("/actuator/**"));
         http.securityMatcher(actuatorMatcher);

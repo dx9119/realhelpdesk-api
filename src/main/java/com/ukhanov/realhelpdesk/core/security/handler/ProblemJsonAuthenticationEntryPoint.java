@@ -17,9 +17,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Ответ на запрос без аутентификации, если он дошёл до Spring Security (основной путь закрывает JwtAuthFilter). Без
- * явного entry point Spring Security использует Http403ForbiddenEntryPoint и отвечает 403 с пустым телом — клиент не
- * может ни отличить «нет доступа» от «не аутентифицирован», ни разобрать problem+json.
+ * Ответ на запрос без аутентификации, если он дошёл до Spring Security. Без явного entry point Spring Security
+ * использует Http403ForbiddenEntryPoint и отвечает 403 с пустым телом — клиент не может ни отличить «нет доступа» от
+ * «не аутентифицирован», ни разобрать problem+json.
  */
 @Slf4j
 @Component

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.ukhanov.realhelpdesk.core.log.LogSanitizer;
-import com.ukhanov.realhelpdesk.core.security.localjwt.captcha.exception.CaptchaException;
+import com.ukhanov.realhelpdesk.core.security.captcha.exception.CaptchaException;
 
 import io.jsonwebtoken.JwtException;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -119,7 +119,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({UsernameNotFoundException.class, BadCredentialsException.class})
-    @ApiResponse(responseCode = "401", description = "Неверный логин или пароль",
+    @ApiResponse(responseCode = "401", description = "Учётная запись не найдена или учётные данные отклонены",
             content = @Content(mediaType = "application/problem+json",
                     schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<ProblemDetail> handleAuthenticationFailure(Exception ex, HttpServletRequest request) {
@@ -130,7 +130,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AuthorizationDeniedException.class)
-    @ApiResponse(responseCode = "403", description = "Доступ запрещён (нет прав или нет CSRF-заголовка)",
+    @ApiResponse(responseCode = "403", description = "Доступ запрещён (нет прав)",
             content = @Content(mediaType = "application/problem+json",
                     schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<ProblemDetail> handleAuthorizationDenied(AuthorizationDeniedException ex,

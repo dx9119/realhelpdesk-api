@@ -1,33 +1,17 @@
 package com.ukhanov.realhelpdesk.feature.usermanager.service;
 
-import java.io.UnsupportedEncodingException;
-import java.security.SecureRandom;
-import java.util.Map;
 import java.util.Objects;
 
-import jakarta.mail.MessagingException;
 import jakarta.transaction.Transactional;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.ukhanov.realhelpdesk.core.http.EntityTag;
-import com.ukhanov.realhelpdesk.core.log.LogSanitizer;
-import com.ukhanov.realhelpdesk.core.mail.model.EmailTemplateId;
-import com.ukhanov.realhelpdesk.core.mail.model.NotificationEvent;
-import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
-import com.ukhanov.realhelpdesk.core.observability.AuthMetrics;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.exception.TokenException;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.model.TokenStatus;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.tokens.service.GetTokenService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.service.UserDomainService;
-import com.ukhanov.realhelpdesk.feature.usermanager.dto.NewPasswdRequest;
 import com.ukhanov.realhelpdesk.feature.usermanager.dto.PatchUserInfoRequest;
-import com.ukhanov.realhelpdesk.feature.usermanager.dto.RecoveryRequest;
 import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoRequest;
 import com.ukhanov.realhelpdesk.feature.usermanager.dto.UserInfoResponse;
 import com.ukhanov.realhelpdesk.feature.usermanager.exception.UserManageException;
@@ -41,14 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class UserManageService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final CurrentUserProvider currentUserProvider;
     private final UserDomainService userDomainService;
-    private final EmailDeliveryService emailDeliveryService;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthMetrics authMetrics;
-    private final GetTokenService getTokenService;
     private final UserMapper userMapper;
 
     public UserInfoResponse getUserInfo() {
@@ -111,57 +89,4 @@ public class UserManageService {
                     HttpStatus.PRECONDITION_FAILED);
         }
     }
-
-    public void sendResetLink(RecoveryRequest request) throws MessagingException, UnsupportedEncodingException {
-        Objects.requireNonNull(request, "RecoveryRequest не должен быть null");
-
-        logger.debug("Запрошено восстановление пароля, email={}", LogSanitizer.email(request.email()));
-
-        UserModel user;
-        try {
-            user = userDomainService.getUserByEmail(request.email());
-        } catch (UsernameNotFoundException ex) {
-            authMetrics.record(AuthMetrics.TYPE_PASSWORD_RESET, AuthMetrics.RESULT_FAILURE);
-            throw ex;
-        }
-
-        Long recoverPasswdToken = RANDOM.nextLong();
-        user.setRecoveryPasswdToken(recoverPasswdToken);
-
-        userDomainService.saveUser(user);
-
-        emailDeliveryService.sendEmail(user.getEmail(), EmailTemplateId.PASSWORD_RESET,
-                Map.of("code", String.valueOf(recoverPasswdToken)), NotificationEvent.RECOVERY_PASSWORD,
-                user.getId());
-        logger.info("Отправлено письмо восстановления пароля, userId={}", user.getId());
-        authMetrics.record(AuthMetrics.TYPE_PASSWORD_RESET, AuthMetrics.RESULT_SUCCESS);
-    }
-
-    @Transactional
-    public void setNewPasswd(Long code, NewPasswdRequest request) throws TokenException {
-        Objects.requireNonNull(code, "Код не должен быть null");
-        Objects.requireNonNull(request, "Запрос не должен быть null");
-
-        UserModel user;
-        try {
-            user = userDomainService.getUserByRecoveryPasswdToken(code);
-        } catch (UsernameNotFoundException ex) {
-            authMetrics.record(AuthMetrics.TYPE_PASSWORD_RESET, AuthMetrics.RESULT_FAILURE);
-            throw ex;
-        }
-
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setRecoveryPasswdToken(RANDOM.nextLong());
-        // Отзываем access-токены, выданные до смены пароля
-        user.incrementTokenVersion();
-
-        userDomainService.saveUser(user);
-
-        // Отзываем все ранее выданные refresh-токены; новый выдастся при следующем входе.
-        // Bulk-UPDATE одним запросом вместо поштучного сохранения
-        int revoked = getTokenService.revokeActiveRefreshTokens(user, TokenStatus.PASSWD_CHANGE);
-        logger.info("Пароль изменён, отозвано refresh-токенов: {}, userId={}", revoked, user.getId());
-        authMetrics.record(AuthMetrics.TYPE_PASSWORD_RESET, AuthMetrics.RESULT_SUCCESS);
-    }
-
 }

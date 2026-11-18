@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.slf4j.MDC;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -21,13 +20,12 @@ import com.ukhanov.realhelpdesk.core.filter.LoggingFilter;
 import com.ukhanov.realhelpdesk.core.observability.HttpServerRequestObservationConvention;
 
 /**
- * Проставляет роль аутентифицированного пользователя в атрибут запроса и в MDC — то, что в локальном контуре делает
- * {@code JwtAuthFilter}.
+ * Проставляет роль аутентифицированного пользователя в атрибут запроса и в MDC.
  *
  * <p>
  * Без этого тег {@code role} метрики {@code http.server.requests} и поле {@code role} в логах остались бы
  * {@code ANONYMOUS} для всех запросов: значение читается из атрибута запроса (наблюдение останавливается уже после
- * очистки {@code SecurityContext}), а роль в keycloak-контуре выставляет Spring Security, а не фильтр приложения.
+ * очистки {@code SecurityContext}), а роль выставляет Spring Security, а не фильтр приложения.
  * </p>
  *
  * <p>
@@ -38,7 +36,6 @@ import com.ukhanov.realhelpdesk.core.observability.HttpServerRequestObservationC
  */
 @Order(KeycloakAuthenticationRoleFilter.ORDER)
 @Component
-@Profile("keycloak")
 public class KeycloakAuthenticationRoleFilter extends OncePerRequestFilter {
 
     /**
@@ -71,7 +68,7 @@ public class KeycloakAuthenticationRoleFilter extends OncePerRequestFilter {
         }
 
         request.setAttribute(HttpServerRequestObservationConvention.ROLE_ATTRIBUTE, role);
-        // Без префикса ROLE_ — как в теге метрики и как это делает JwtAuthFilter локального контура.
+        // Без префикса ROLE_ — как в теге метрики и как в имени роли БД.
         MDC.put(LoggingFilter.ROLE, HttpServerRequestObservationConvention.roleName(role));
     }
 

@@ -40,10 +40,7 @@ public class AppConfig {
             // Файлы: имя при скачивании и докачка по Range
             "Content-Disposition", "Content-Range", "Accept-Ranges", "ETag",
             // 429
-            "Retry-After",
-            // Маркеры причины 401 из JwtAuthFilter: SPA отличает «токен истёк» от «токена нет»
-            "X-Access-Token-Expired", "X-Auth-Token-Missing", "X-Malformed-Token", "X-Invalid-Token",
-            "X-Verify-Token-Failed");
+            "Retry-After");
 
     private static final long CORS_PREFLIGHT_MAX_AGE_SECONDS = 3600L;
 
@@ -111,8 +108,8 @@ public class AppConfig {
         configuration.setAllowedHeaders(List.of("*"));
         // Заголовки, которые клиент может прочитать из ответа: по умолчанию JS доступны
         // только safelisted (Cache-Control, Content-Type и т.п.), всё остальное скрыто.
-        // Маркеры 401 нужны SPA для честного refresh, Location — после 201, файловые
-        // заголовки — для докачки, Retry-After — для подсказки «повторите через N сек».
+        // Location — после 201, файловые заголовки — для докачки, Retry-After — подсказка
+        // «повторите через N сек».
         configuration.setExposedHeaders(EXPOSED_HEADERS);
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(CORS_PREFLIGHT_MAX_AGE_SECONDS);

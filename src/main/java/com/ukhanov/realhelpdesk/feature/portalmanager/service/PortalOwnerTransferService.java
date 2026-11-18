@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import com.ukhanov.realhelpdesk.core.security.limiter.exception.LimitException;
 import com.ukhanov.realhelpdesk.core.security.limiter.service.LimitService;
-import com.ukhanov.realhelpdesk.core.security.localjwt.auth.login.service.LoginService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserStatus;
@@ -38,9 +37,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Передача владения порталом: владелец инициирует запрос (своим паролем и причиной), предлагаемый владелец подтверждает
- * или отклоняет запрос своим паролем, владелец может отозвать запрос до решения. Запрос действует ограниченный срок и
- * закрывается лениво как EXPIRED при следующем обращении.
+ * Передача владения порталом: владелец инициирует запрос (причиной), предлагаемый владелец подтверждает или отклоняет
+ * запрос (причиной), владелец может отозвать запрос до решения. Запрос действует ограниченный срок и закрывается лениво
+ * как EXPIRED при следующем обращении.
+ *
+ * <p>
+ * Аутентификацию и сессию обеспечивает Keycloak: локальной проверки пароля нет. Идентичность владельца подтверждается
+ * наличием валидного bearer-токена и привязкой портала к userId в security-context.
+ * </p>
  *
  * <p>
  * Каждое решение пишется в историю портала одной транзакцией с изменением запроса; оповещения (in-app и email)
@@ -60,13 +64,13 @@ public class PortalOwnerTransferService {
     private final PortalTransferRequestRepository transferRequestRepository;
     private final PortalHistoryService portalHistoryService;
     private final UserDomainService userDomainService;
-    private final LoginService loginService;
     private final LimitService limitService;
     private final PortalTransferNotificationService notificationService;
     private final PortalTransferResponseFactory responseFactory;
+
     /**
-     * Инициирование передачи владельцем: пароль владельца подтверждает личность, активный запрос может быть только
-     * один.
+     * Инициирование передачи владельцем: владелец подтверждает личность через bearer-токен. Активный запрос может быть
+     * только один.
      */
     @Transactional
     public PortalTransferResponse initiate(Long portalId, PortalTransferRequest request) throws PortalException {
@@ -75,10 +79,6 @@ public class PortalOwnerTransferService {
         PortalModel portal = portalDomainService.getPortalById(portalId);
         UserModel initiator = currentUserProvider.getCurrentUserModel();
         requireOwner(portal, initiator);
-
-        if (!loginService.isPasswordValid(request.password(), initiator.getPasswordHash())) {
-            throw new PortalException("Неверный пароль", HttpStatus.UNAUTHORIZED);
-        }
 
         UserModel proposed = findActiveUserByEmail(request.email());
 
@@ -115,7 +115,7 @@ public class PortalOwnerTransferService {
         return responseFactory.toResponse(transfer, portal, initiator, proposed);
     }
 
-    /** Подтверждение передачи предлагаемым владельцем: его пароль и причина; портал переходит новому владельцу. */
+    /** Подтверждение передачи предлагаемым владельцем: портал переходит новому владельцу. */
     @Transactional
     public PortalTransferResponse confirm(Long portalId, PortalTransferConfirmRequest request)
             throws PortalException, LimitException {
@@ -123,11 +123,6 @@ public class PortalOwnerTransferService {
 
         PortalModel portal = portalDomainService.getPortalById(portalId);
         PortalTransferRequestModel transfer = requirePendingForCurrentUser(portalId);
-
-        if (!loginService.isPasswordValid(request.password(),
-                currentUserProvider.getCurrentUserModel().getPasswordHash())) {
-            throw new PortalException("Неверный пароль", HttpStatus.UNAUTHORIZED);
-        }
 
         UserModel proposed = currentUserProvider.getCurrentUserModel();
         if (proposed.getUserStatus() != UserStatus.ACTIVE) {

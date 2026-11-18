@@ -5,8 +5,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Маскирование ПДн и секретных сегментов пути перед записью в лог. Код восстановления пароля и токен подтверждения
- * email передаются в пути запроса — в логах они должны заменяться на ***.
+ * Маскирование ПДн и секретных сегментов пути перед записью в лог. Токен подтверждения email передаётся в пути запроса
+ * — в логах он должен заменяться на ***.
  *
  * <p>
  * {@link #value(String)} готовит к логу значение из внешних данных (заголовок, метаданные вложения): перевод строки в
@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  */
 public final class LogSanitizer {
 
-    private static final Pattern SECRET_SEGMENT = Pattern.compile("(/password-resets/|/email/confirmations/)[^/]+");
+    private static final Pattern SECRET_SEGMENT = Pattern.compile("(/email/confirmations/)[^/]+");
     private static final Pattern EMAIL = Pattern
             .compile("[\\p{L}\\p{N}.!#$%&'*+/=?^_`{|}~-]+@[\\p{L}\\p{N}.-]+\\.[\\p{L}]{2,}");
     private static final int MAX_VALUE_LENGTH = 120;

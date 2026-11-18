@@ -22,6 +22,4 @@ public interface UserRepository extends JpaRepository<UserModel, Long> {
 
     /** Батч-загрузка имён/контактов по списку ID: один запрос вместо N поисков по одному. */
     List<UserDetailsProjection> findProjectedByIdIn(Collection<Long> ids);
-
-    Optional<UserModel> findByRecoveryPasswdToken(Long recoveryPasswdToken);
 }

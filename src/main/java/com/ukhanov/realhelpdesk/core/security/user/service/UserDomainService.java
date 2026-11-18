@@ -111,15 +111,4 @@ public class UserDomainService {
                 .collect(Collectors.toMap(UserModel::getId, user -> user, (first, second) -> first));
     }
 
-    public UserModel getUserByRecoveryPasswdToken(Long code) {
-        Objects.requireNonNull(code, "Код обязателен");
-
-        return userRepository.findByRecoveryPasswdToken(code).orElseThrow(() -> {
-            // Код восстановления не логируем и не подставляем в сообщение исключения —
-            // оно уходит в WARN в GlobalExceptionHandler (audit B12)
-            logger.debug("Пользователь не найден по recoveryToken");
-            return new UsernameNotFoundException("Неизвестный код восстановления");
-        });
-    }
-
 }

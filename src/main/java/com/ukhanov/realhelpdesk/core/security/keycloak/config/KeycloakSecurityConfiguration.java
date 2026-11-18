@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -23,26 +22,23 @@ import com.ukhanov.realhelpdesk.core.security.handler.ProblemJsonAuthenticationE
 import lombok.RequiredArgsConstructor;
 
 /**
- * Безопасность профиля {@code keycloak}: входящие токены проверяет OAuth2 Resource Server, выпускает их Keycloak.
+ * Безопасность приложения: входящие токены проверяет OAuth2 Resource Server, выпускает их Keycloak.
  *
  * <p>
- * Отличие от локального контура ({@code WebSecurityConfiguration}) — в источнике истины: там подпись и срок проверяет
- * фильтр приложения, а пользователь и версия токена читаются из БД; здесь подпись, срок, issuer и audience проверяет
- * Spring Security по JWK Keycloak ({@code jwk-set-uri}/{@code issuer-uri} из {@code application-keycloak.properties}),
- * а пользователь и роль приходят из {@link KeycloakAuthenticationConverter}.
+ * Источник истины — Keycloak: подпись, срок, issuer и audience проверяет Spring Security по JWK
+ * ({@code jwk-set-uri}/{@code issuer-uri} из {@code application.properties}), а пользователь и роль приходят из
+ * {@link KeycloakAuthenticationConverter}. Приложение токен не выпускает и локальный пароль не хранит.
  * </p>
  *
  * <p>
- * Отдельный {@link JwtAuthenticationProvider} собирается здесь явно и не смешивается с
- * {@code DaoAuthenticationProvider} приложения (логин по паролю в этом профиле не используется): провайдер принимает
- * только bearer-токены, поэтому форма входа и Basic-аутентификация на основном порту не работают. CSRF-фильтр
- * приложения тоже не создаётся — в этом профиле нет cookie-аутентификации, которую он защищает.
+ * Отдельный {@link JwtAuthenticationProvider} собирается здесь явно: провайдер принимает только bearer-токены, поэтому
+ * форма входа и Basic-аутентификация на основном порту не работают. CSRF не включается — токен клиент передаёт
+ * заголовком, который браузер не подставляет сам.
  * </p>
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@Profile("keycloak")
 @RequiredArgsConstructor
 public class KeycloakSecurityConfiguration {
 
@@ -53,8 +49,8 @@ public class KeycloakSecurityConfiguration {
 
     @Bean
     public SecurityFilterChain keycloakFilterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
-        // Только JWT-провайдер: пароль в keycloak-профиле не проверяется, а явный провайдер исключает
-        // случайное совпадение с DaoAuthenticationProvider приложения.
+        // Только JWT-провайдер: пароль приложение не проверяет, а явный провайдер исключает
+        // случайное совпадение с DaoAuthenticationProvider управляющего порта.
         JwtAuthenticationProvider jwtAuthenticationProvider = new JwtAuthenticationProvider(jwtDecoder);
         jwtAuthenticationProvider.setJwtAuthenticationConverter(keycloakAuthenticationConverter);
 
@@ -80,8 +76,8 @@ public class KeycloakSecurityConfiguration {
                 .exceptionHandling(
                         exceptionHandling -> exceptionHandling.authenticationEntryPoint(authenticationEntryPoint)
                                 .accessDeniedHandler(accessDeniedHandler))
-                // Cookie-аутентификации в этом профиле нет: CSRF-защита не нужна (и не создаётся —
-                // CsrfProtectionFilter помечен @Profile("!keycloak")).
+                // CSRF-защита не нужна: токен приходит заголовком Authorization, который
+                // браузер сам не подставляет.
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 

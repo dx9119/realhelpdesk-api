@@ -37,7 +37,10 @@ public class LoggingFilter extends OncePerRequestFilter {
     public static final String URI_REQUEST = "uriRequest";
     public static final String ROLE = "role";
 
-    /** Значение по умолчанию: перезаписывается JwtAuthFilter после аутентификации, очищается здесь же в finally. */
+    /**
+     * Значение по умолчанию: перезаписывается KeycloakAuthenticationRoleFilter после аутентификации, очищается здесь же
+     * в finally.
+     */
     private static final String ANONYMOUS_ROLE = "ANONYMOUS";
 
     private final ClientIpResolver clientIpResolver;

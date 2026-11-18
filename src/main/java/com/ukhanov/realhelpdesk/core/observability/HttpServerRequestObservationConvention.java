@@ -25,7 +25,7 @@ import io.micrometer.common.KeyValues;
  */
 public class HttpServerRequestObservationConvention extends DefaultServerRequestObservationConvention {
 
-    /** Атрибут запроса с ролью: его выставляет JwtAuthFilter сразу после аутентификации. */
+    /** Атрибут запроса с ролью: его выставляет KeycloakAuthenticationRoleFilter сразу после аутентификации. */
     public static final String ROLE_ATTRIBUTE = HttpServerRequestObservationConvention.class.getName() + ".role";
 
     /** Имя тега роли в метрике и в спане. */
