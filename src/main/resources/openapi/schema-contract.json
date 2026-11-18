@@ -147,14 +147,6 @@
       "total": "Общее количество порталов"
     }
   },
-  "LoginRequest": {
-    "description": "Вход по email и паролю; при успехе сервер ставит cookie accessToken и refreshToken",
-    "example": { "email": "user@example.com", "password": "P@ssw0rd123" },
-    "fields": {
-      "email": "Email пользователя",
-      "password": "Пароль, минимум 8 символов"
-    }
-  },
   "MessageResponse": {
     "description": "Сообщение в ленте заявки",
     "example": { "id": 17, "messageText": "Добрый день!", "authorId": 3, "authorFullName": "Иван Иванов", "ticketId": 9, "createdAt": "2026-01-15T10:30:00Z" },
@@ -165,13 +157,6 @@
       "authorFullName": "Имя и фамилия автора",
       "ticketId": "Идентификатор заявки",
       "createdAt": "Момент отправки, ISO-8601 UTC"
-    }
-  },
-  "NewPasswdRequest": {
-    "description": "Установка нового пароля по коду из письма восстановления",
-    "example": { "password": "N3wP@ssw0rd!" },
-    "fields": {
-      "password": "Новый пароль, минимум 8 символов"
     }
   },
   "NotificationPreferencesRequest": {
@@ -335,10 +320,9 @@
     }
   },
   "PortalTransferConfirmRequest": {
-    "description": "Подтверждение передачи владения предлагаемым владельцем; требует его пароль",
-    "example": { "password": "P@ssw0rd123", "reason": "Принимаю управление" },
+    "description": "Подтверждение передачи владения предлагаемым владельцем",
+    "example": { "reason": "Принимаю управление" },
     "fields": {
-      "password": "Пароль предлагаемого владельца",
       "reason": "Причина/комментарий к решению"
     }
   },
@@ -351,10 +335,9 @@
   },
   "PortalTransferRequest": {
     "description": "Запрос на передачу владения порталом; предлагаемый владелец решает через confirm/reject",
-    "example": { "email": "newowner@example.com", "password": "P@ssw0rd123", "reason": "Передаю проект коллеге", "keepOldOwnerAsMember": true },
+    "example": { "email": "newowner@example.com", "reason": "Передаю проект коллеге", "keepOldOwnerAsMember": true },
     "fields": {
       "email": "Email предлагаемого владельца",
-      "password": "Пароль инициатора для подтверждения личности",
       "reason": "Причина передачи",
       "keepOldOwnerAsMember": "Оставить ли старого владельца участником портала"
     }
@@ -398,35 +381,6 @@
       "isPublic": "Публичен ли портал"
     }
   },
-  "RecoveryRequest": {
-    "description": "Запрос письма восстановления пароля; отвечает 204, ошибка SMTP — 503",
-    "example": { "email": "user@example.com" },
-    "fields": {
-      "email": "Email аккаунта"
-    }
-  },
-  "RegisterRequest": {
-    "description": "Регистрация в контуре без keycloak; при успехе — 201, Location и cookies",
-    "example": { "firstName": "Иван", "lastName": "Иванов", "email": "user@example.com", "password": "P@ssw0rd123", "captchaToken": "eyJhbGciOiJIUzI1NiJ9.c29sdmVk.sig", "website": "", "externalId": 1001, "userPlatformSource": "LOCAL" },
-    "fields": {
-      "firstName": "Имя, 2-50 символов",
-      "lastName": "Фамилия, 2-50 символов",
-      "captchaToken": "Токен из POST /captcha/solve; обязателен при включённой капче",
-      "website": "Honeypot: поле должно быть пустым или отсутствовать",
-      "email": "Email для входа",
-      "password": "Пароль, минимум 8 символов",
-      "externalId": "Внешний идентификатор пользователя из интеграций",
-      "userPlatformSource": "Источник регистрации; если не указан — LOCAL"
-    }
-  },
-  "SessionResponse": {
-    "description": "Текущая сессия: признак авторизации и профиль (без отдельного GET /users/profile)",
-    "example": { "authenticated": true, "user": { "id": 3, "firstName": "Иван", "lastName": "Иванов", "email": "user@example.com", "userRole": "ROLE_USER", "userStatus": "ACTIVE" } },
-    "fields": {
-      "authenticated": "Авторизован ли запрос",
-      "user": "Профиль пользователя; отсутствует, если не авторизован"
-    }
-  },
   "SolveRequest": {
     "description": "Решение captcha-challenge: nonce для PoW или индексы ячеек для эмодзи",
     "example": { "challengeId": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjaGFsIn0.sig", "nonce": "12345678" },
@@ -437,7 +391,7 @@
     }
   },
   "SolveResponse": {
-    "description": "Успешное решение капчи; токен передаётся в RegisterRequest/заголовок X-Captcha-Token",
+    "description": "Успешное решение капчи; токен передаётся в заголовке X-Captcha-Token",
     "example": { "captchaToken": "eyJhbGciOiJIUzI1NiJ9.dG9rZW4.sig" },
     "fields": {
       "captchaToken": "Токен, подтверждающий решение капчи"
@@ -473,22 +427,6 @@
     "example": { "status": "IN_PROGRESS" },
     "fields": {
       "status": "Новый статус"
-    }
-  },
-  "TokenCleanupResponse": {
-    "description": "Итог принудительной очистки отозванных refresh-токенов",
-    "example": { "revokedDeleted": 120, "batches": 3 },
-    "fields": {
-      "revokedDeleted": "Сколько отозванных токенов удалено",
-      "batches": "Сколько батчей удаления выполнено"
-    }
-  },
-  "TokenStatusResponse": {
-    "description": "Статус refresh-токена и его срок",
-    "example": { "tokenStatus": "ACTIVE", "createdAt": "2026-01-15T10:30:00Z" },
-    "fields": {
-      "tokenStatus": "Статус токена: ACTIVE, LOGOUT, BLOCKED, REVOKED, SUSPECTED, PASSWD_CHANGE",
-      "createdAt": "Момент выпуска токена, ISO-8601 UTC"
     }
   },
   "UnreadCountResponse": {

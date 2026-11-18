@@ -2,9 +2,10 @@
 <configuration>
 
     <!-- dev (локальный запуск): читаемый формат с корреляцией. MDC-ключи: requestId, clientIp, uriRequest
-         (см. LoggingFilter), role (LoggingFilter → JwtAuthFilter), traceId/spanId (кладёт Slf4JEventListener,
-         только при включённом OTel). Значение по умолчанию отделяется от ключа через ":-", поэтому в шаблоне
-         стоит лишний дефис: пустая колонка рисуется двумя дефисами (см. docs/code-style.md, раздел «Логирование»). -->
+         (см. LoggingFilter), role (LoggingFilter → KeycloakAuthenticationRoleFilter), traceId/spanId (кладёт
+         Slf4JEventListener, только при включённом OTel). Значение по умолчанию отделяется от ключа через ":-",
+         поэтому в шаблоне стоит лишний дефис: пустая колонка рисуется двумя дефисами (см. docs/code-style.md,
+         раздел «Логирование»). -->
     <property name="DEBUG_PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5level | %X{requestId:---} | %X{clientIp:---} | %X{uriRequest:---} | %X{role:---} | %X{traceId:---} | %X{spanId:---} | %logger{40} | %msg%n"/>
 
