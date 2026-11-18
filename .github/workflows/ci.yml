@@ -50,7 +50,6 @@ jobs:
         run: |
           cp infrastructure/.env.dev.example infrastructure/.env
           sed -i \
-            -e "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -base64 32)|" \
             -e "s|^CAPTCHA_HMAC_SECRET=.*|CAPTCHA_HMAC_SECRET=$(openssl rand -base64 32)|" \
             -e "s|^DB_PASSWORD=.*|DB_PASSWORD=$(openssl rand -base64 32)|" \
             -e "s|^MINIO_ROOT_USER=.*|MINIO_ROOT_USER=rhd-ci|" \
@@ -60,8 +59,8 @@ jobs:
             infrastructure/.env
       - name: Поднять инфраструктуру и наблюдаемость
         run: make dev-run
-      - name: Запустить приложение на Keycloak-контуре
-        run: nohup make run-local-keycloak > app.log 2>&1 &
+      - name: Запустить приложение на хосте
+        run: nohup make run-local > app.log 2>&1 &
       - name: Дождаться готовности приложения
         run: |
           timeout 240 bash -c 'until curl -sf http://localhost:8080/api/v1/health >/dev/null; do echo "wait..."; sleep 5; done'

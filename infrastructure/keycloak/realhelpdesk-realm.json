@@ -22,7 +22,7 @@
       },
       {
         "name": "ROLE_OPERATOR",
-        "description": "Оператор: дополнительно обслуживание refresh-токенов и служебные операции",
+        "description": "Оператор: служебные операции и доступ к порталам всех пользователей",
         "composite": false,
         "clientRole": false
       },

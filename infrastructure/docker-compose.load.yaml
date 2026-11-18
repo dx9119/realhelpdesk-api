@@ -4,8 +4,9 @@
 #   docker compose -f docker-compose.yaml -f docker-compose.load.yaml ...
 #
 # Приложение в контейнер не поднимается — оно запущено на хосте (make run-local),
-# поэтому k6 ходит на него через host-gateway. Прогон сидирует пул пользователей
-# через /api/v1/auth/register — это внутренний JWT-контур (профиль dev).
+# поэтому k6 ходит на него через host-gateway. Пул пользователей прогон сидирует
+# в Keycloak через Admin API (scripts/load/run.sh): локальной регистрации в
+# приложении нет.
 
 name: realhelpdesk
 

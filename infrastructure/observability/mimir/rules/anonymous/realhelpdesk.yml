@@ -146,13 +146,13 @@ groups:
   - name: realhelpdesk-security
     rules:
       - alert: AuthFailuresSpike
-        # Порог: рост auth.attempts{result=failure} — возможный перебор паролей.
+        # Порог: рост auth.attempts{type=captcha,result=failure} — боты на публичных эндпоинтах.
         expr: |
-          sum by (instance) (rate(auth_attempts_total{result="failure"}[5m])) > 0.1
+          sum by (instance) (rate(auth_attempts_total{type="captcha",result="failure"}[5m])) > 0.1
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Всплеск неудачных попыток аутентификации ({{ $value | humanize }}/с)"
-          description: "У {{ $labels.instance }} неудачные попытки входа идут со скоростью более 6/мин на протяжении 5 минут — возможный перебор паролей или сломанный клиент."
+          summary: "Всплеск провалов капчи ({{ $value | humanize }}/с)"
+          description: "У {{ $labels.instance }} провалы капчи идут со скоростью более 6/мин на протяжении 5 минут — боты, сломанный виджет или разъехавшийся контракт challenge/solve."
           runbook_url: "https://github.com/dx9119/realhelpdesk-api/blob/main/docs/runbooks/auth-failures-spike.md"
