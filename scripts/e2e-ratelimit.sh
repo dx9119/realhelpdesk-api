@@ -5,18 +5,21 @@
 # Лимиты действуют одинаково при включенной и выключенной капче:
 #   POST /captcha/challenge             30 / 60 сек
 #   POST /captcha/solve                 30 / 60 сек
-#   POST /auth/register                10 / 5 мин
-#   POST /auth/login                   10 / 5 мин
-#   POST /users/password-resets         3 / 10 мин
+#   POST /email/codes                    3 / 10 мин (нужен Bearer-токен)
 #
 # Счетчики живут в памяти приложения: если лимит уже исчерпан прошлым
 # запуском, скрипт об этом скажет — перезапустите приложение
-# (перезапустите приложение (Ctrl+C + make run-local)) и повторите. Пока окно /captcha/challenge не истекло
+# (Ctrl+C + make run-local) и повторите. Пока окно /captcha/challenge не истекло
 # (60 сек), проверка капчи не сойдется. Капча должна быть выключена
 # (по умолчанию).
 set -u
 
 BASE=${BASE:-http://localhost:8080/api/v1}
+KEYCLOAK=${KEYCLOAK:-http://localhost:${KEYCLOAK_PORT:-8180}}
+REALM=${REALM:-realhelpdesk}
+CLIENT=${CLIENT:-realhelpdesk-api}
+USER_EMAIL=${USER_EMAIL:-user@example.com}
+USER_PASS=${USER_PASS:-user-pass}
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 BODY="$TMP/body.txt"
@@ -41,10 +44,22 @@ check_ge() {
   fi
 }
 
+# Bearer-токен Keycloak: /email/codes за аутентификацией.
+token=$(curl -s -X POST "$KEYCLOAK/realms/$REALM/protocol/openid-connect/token" \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode 'grant_type=password' --data-urlencode "client_id=$CLIENT" \
+  --data-urlencode "username=$USER_EMAIL" --data-urlencode "password=$USER_PASS" \
+  --data-urlencode 'scope=openid' |
+  python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token",""))')
+if [ -z "$token" ]; then
+  echo "FAIL токен Keycloak не получен — поднимите стек (make dev-run) и приложение (make run-local)"
+  exit 1
+fi
+
 echo "═══ Рейт-лимиты ═══"
 
 step "POST /captcha/challenge: 31 запрос подряд (лимит 30/60с)"
-challenge_body='{"action":"register"}'
+challenge_body='{"action":"email-code"}'
 first=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -H 'Content-Type: application/json' -d "$challenge_body" -o /dev/null -w "%{http_code}" -X POST "$BASE/captcha/challenge")
 if [ "$first" != "200" ]; then
   echo "  FAIL окно /captcha/challenge уже исчерпано (http=$first)"
@@ -67,34 +82,13 @@ check "$(grep -ci '^retry-after:' "$HEADERS")" "1" "заголовок Retry-Aft
 grep -qi 'Слишком много запросов' "$BODY"
 check "$?" "0" "тело ответа с сообщением об ошибке"
 
-step "POST /auth/register: 11 запросов (лимит 10/5мин)"
-r429=0; last=""
-for i in $(seq 1 11); do
-  c=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -o /dev/null -w "%{http_code}" -X POST "$BASE/auth/register" \
-    -H 'Content-Type: application/json' \
-    -d '{"firstName":"Rate","lastName":"Limiter","email":"ratelimit@test.local","password":"Password123!"}')
-  last=$c
-  [ "$c" = "429" ] && r429=$((r429 + 1))
-done
-check_ge "$r429" "1" "после лимита пришел 429"
-check "$last" "429" "последний запрос заблокирован"
-
-step "POST /auth/login: 11 попыток с неверным паролем (лимит 10/5мин)"
-last=""
-for i in $(seq 1 11); do
-  last=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -o /dev/null -w "%{http_code}" -X POST "$BASE/auth/login" \
-    -H 'Content-Type: application/json' \
-    -d '{"email":"nobody@test.local","password":"WrongPass123!"}')
-done
-check "$last" "429" "последняя попытка входа заблокирована"
-
-step "POST /users/password-resets: 4 запроса (лимит 3/10мин)"
+step "POST /email/codes: 4 запроса (лимит 3/10мин)"
 last=""
 for i in $(seq 1 4); do
-  last=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -o /dev/null -w "%{http_code}" -X POST "$BASE/users/password-resets" \
-    -H 'Content-Type: application/json' -d '{"email":"nobody@test.local"}')
+  last=$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -H "Authorization: Bearer $token" \
+    -o /dev/null -w "%{http_code}" -X POST "$BASE/email/codes")
 done
-check "$last" "429" "последний запрос сброса пароля заблокирован"
+check "$last" "429" "последний запрос выдачи кода заблокирован"
 
 step "Эндпоинт без @RateLimit не ограничен"
 check "$(curl -sk -H 'X-Requested-With: XMLHttpRequest' -o /dev/null -w '%{http_code}' "$BASE/health")" "200" "health отвечает 200"

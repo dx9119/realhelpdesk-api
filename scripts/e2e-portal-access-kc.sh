@@ -8,12 +8,11 @@
 #     (isPublic);
 #   - доверенный пользователь читает участников и переименовывает портал;
 #   - посторонний не читает участников (403);
-#   - роль ROLE_USER vs ROLE_OPERATOR на /operator/tokens/cleanup (403/200);
 #   - создание заявки и смена статуса;
 #   - базовые уведомления (GET /notifications).
 #
-# Требования: приложение на Keycloak-контуре (make run-local-keycloak),
-# SPRING_PROFILES_ACTIVE=dev,keycloak (дефолт шаблона), docker для psql.
+# Требования: приложение на хосте (make run-local),
+# SPRING_PROFILES_ACTIVE=dev,host (make run-local), docker для psql.
 # Перед прогоном удаляет порталы владельца и связанные данные — прогон
 # идемпотентен (имя портала фиксировано, лимит порталов на пользователя — 2).
 # Использует существующих пользователей realm:
@@ -96,7 +95,7 @@ kc_post() { # kc_post <token> <endpoint> <body> — возвращает "ста
 
 step "Готовность Keycloak и realm $REALM"
 if [ "$(curl -s -o /dev/null -w '%{http_code}' "$KEYCLOAK/realms/$REALM/.well-known/openid-configuration")" != "200" ]; then
-  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make run-local-keycloak"
+  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make dev-run"
   exit 1
 fi
 echo "  OK   discovery realm'а доступен"
@@ -221,13 +220,6 @@ step "История портала"
 HIST=$(kc_get "$OPER_TOKEN" "/portals/$PORTAL_ID/history?size=10")
 check_contains "VISIBILITY_CHANGED" "$HIST" "история: VISIBILITY_CHANGED"
 check "$(kc_code "$OPER_TOKEN" "/portals/$PORTAL_ID/history")" "200" "GET /portals/{id}/history доверенным"
-
-# ── Операторский эндпоинт ──────────────────────────────────────
-
-step "Права на операторский эндпоинт"
-check "$(kc_code "$OPER_TOKEN" "/operator/tokens/cleanup" "POST")" "200" "ROLE_OPERATOR — POST /operator/tokens/cleanup"
-check "$(kc_code "$USER_TOKEN" "/operator/tokens/cleanup" "POST")" "403" "ROLE_USER — POST /operator/tokens/cleanup"
-check "$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$BASE/operator/tokens/cleanup")" "401" "без токена — 401"
 
 # ── Уведомления (базовые) ─────────────────────────────────────
 

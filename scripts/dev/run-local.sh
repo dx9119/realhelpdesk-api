@@ -6,15 +6,12 @@
 # Если стек не поднят, профиль host поднимет его сам при старте
 # (spring-boot-docker-compose, start-only).
 #
-# Контур задаётся переменной RUN_PROFILES (make run-local / run-local-keycloak),
-# к нему всегда добавляется host — loopback-адреса инфры из
-# application-host.properties.
+# Токены выпускает Keycloak: профиль приложения один — dev, к нему всегда
+# добавляется host (loopback-адреса инфры из application-host.properties).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-# Профиль должен быть задан ДО загрузки .env: load-env.sh по нему подменяет
-# KC_JWK_SET_URI на loopback.
-export SPRING_PROFILES_ACTIVE="${RUN_PROFILES:-dev},host"
+export SPRING_PROFILES_ACTIVE="dev,host"
 # shellcheck source=./load-env.sh
 source scripts/dev/load-env.sh
 

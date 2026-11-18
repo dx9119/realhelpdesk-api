@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# E2E: вход через Keycloak (OAuth2 Resource Server) — профиль приложения keycloak.
+# E2E: вход через Keycloak (OAuth2 Resource Server).
 #
 # Проверяет контур внешнего выпуска токенов на живом стеке:
 #   - realm realhelpdesk импортирован, direct access grant выдаёт токен;
 #   - Bearer-токен Keycloak открывает API, а без токена и с мусорным — 401;
-#   - локальный вход приложения (/api/v1/auth/login) в этом профиле недоступен;
+#   - локального входа в приложении нет (/api/v1/auth/login вне белого списка);
 #   - пользователь из токена заводится в БД с источником KEYCLOAK;
 #   - realm-роль ROLE_OPERATOR из токена переносится в БД (синхронизация роли);
-#   - доступ оператора к /operator/tokens/cleanup различается по роли (403/200);
 #   - публичные эндпоинты (капча, health) остаются без токена;
 #   - блокировка учётной записи в БД закрывает доступ по валидному токену.
 #
-# Требования: приложение на Keycloak-контуре (make run-local-keycloak),
-# SPRING_PROFILES_ACTIVE=dev,keycloak (дефолт шаблона), docker для psql.
+# Требования: приложение на хосте (make run-local), docker для psql.
 # Идемпотентен: пользователи из realm создаются при первом входе, повторный
 # прогон их переиспользует.
 set -u
@@ -57,18 +55,18 @@ keycloak_token() { # keycloak_token <email> <пароль> — печатает 
   python3 -c "import json,sys; print(json.load(open('$TOKEN_FILE')).get('access_token',''))"
 }
 
-echo "═══ Вход через Keycloak (профиль keycloak) ═══"
+echo "═══ Вход через Keycloak ═══"
 
 step "Готовность Keycloak и realm $REALM"
 if [ "$(code "$KEYCLOAK/realms/$REALM/.well-known/openid-configuration")" != "200" ]; then
-  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make run-local-keycloak"
+  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make dev-run"
   exit 1
 fi
 echo "  OK   discovery realm'а доступен"
 
-step "Локальный вход приложения выключен профилем keycloak"
-# В этом профиле AuthController не создаётся, а /api/v1/auth/login не входит в
-# белый список: запрос уходит в 401, а не в 200 локального контура.
+step "Локального входа в приложении нет"
+# Эндпоинта /api/v1/auth/login не существует и он вне белого списка: запрос
+# уходит в 401, а не в 404 — так закрытый API не подтверждает наличие маршрута.
 check "$(code -X POST "$BASE/api/v1/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$USER_EMAIL\",\"password\":\"$USER_PASS\"}")" "401" "POST /api/v1/auth/login"
 
@@ -107,11 +105,6 @@ fi
 # (KeycloakAuthenticationConverter) — до него проверять нечего.
 check "$(code -H "Authorization: Bearer $OPER_TOKEN" "$BASE/api/v1/users/profile")" "200" "первый запрос оператора"
 check "$(sql "select user_role from users where email='$OPER_EMAIL';")" "ROLE_OPERATOR" "realm-роль ROLE_OPERATOR перенесена в БД"
-
-step "Права на операторский эндпоинт"
-check "$(code -H "Authorization: Bearer $OPER_TOKEN" -X POST "$BASE/api/v1/operator/tokens/cleanup")" "200" "ROLE_OPERATOR — очистка токенов"
-check "$(code -H "Authorization: Bearer $USER_TOKEN" -X POST "$BASE/api/v1/operator/tokens/cleanup")" "403" "ROLE_USER — доступ запрещён"
-check "$(code -X POST "$BASE/api/v1/operator/tokens/cleanup")" "401" "без токена — требуется аутентификация"
 
 step "Публичные эндпоинты остаются открытыми"
 check "$(code -X POST "$BASE/api/v1/captcha/challenge" -H 'Content-Type: application/json' \

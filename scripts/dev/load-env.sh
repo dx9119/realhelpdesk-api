@@ -35,7 +35,7 @@ export CLIENT_IP_FORWARDED_INDEX="${CLIENT_IP_FORWARDED_INDEX:-0}"
 # .env приложениям, запущенным вне сети compose, недоступны.
 export MINIO_ENDPOINT="http://127.0.0.1:${MINIO_API_PORT:-9000}"
 
-# Keycloak-контур с хоста: KC_JWK_SET_URI из .env указывает на контейнерное имя
+# Keycloak с хоста: KC_JWK_SET_URI из .env указывает на контейнерное имя
 # keycloak:8080, а OS-env приоритетнее application-host.properties — переопределить
 # его в профильном файле нельзя, поэтому loopback задаётся здесь.
 case "${KC_JWK_SET_URI:-}" in

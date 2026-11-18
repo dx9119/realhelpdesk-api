@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Общие утилиты для всех e2e-скриптов (контур in-app JWT и Keycloak).
+# Общие утилиты для e2e-скриптов Keycloak-контура.
 #
 # Подключайте через: source "$(dirname "$0")/e2e-common.sh"
 #
-# Функции разделены по контурам:
-#   - local_*   — для внутреннего JWT-контура (cookie)
-#   - kc_*      — для Keycloak-контура (Bearer)
-#   - общие     — без префикса
+# Функции разделены на группы:
+#   - kc_*      — работа с Keycloak (direct access grant, Bearer-запросы)
+#   - общие     — без префикса (проверки, почта, JSON)
 
 set -u
 
@@ -102,50 +101,6 @@ json_field_stdin() {
   python3 -c "import sys,json; print(json.load(sys.stdin)$1)" 2>/dev/null || echo ""
 }
 
-# ── Функции для in-app JWT-контура ───────────────────────────
-
-# register_local <email> [first] [last] [password] — регистрация, возвращает HTTP-код
-register_local() {
-  local email="${1:?email required}" jar="$TMP/local-reg.jar"
-  local first="${2:-E2E}" last="${3:-Local}" pass="${4:-Passw0rd!123}"
-  curl -sk -H 'X-Requested-With: XMLHttpRequest' -o /dev/null -w '%{http_code}' -c "$jar" \
-    -X POST "$BASE/auth/register" \
-    -H 'Content-Type: application/json' \
-    -d "{\"firstName\":\"$first\",\"lastName\":\"$last\",\"email\":\"$email\",\"password\":\"$pass\"}"
-}
-
-# login_local <email> [password] [jar] — логин, возвращает код
-login_local() {
-  local email="${1:?email required}" pass="${2:-Passw0rd!123}" jar="${3:-$TMP/local-login.jar}"
-  curl -sk -H 'X-Requested-With: XMLHttpRequest' -o /dev/null -w '%{http_code}' -c "$jar" \
-    -X POST "$BASE/auth/login" \
-    -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$email\",\"password\":\"$pass\"}"
-}
-
-# confirm_email_local <email> [jar] — подтверждение email через smtp4dev, возвращает код
-confirm_email_local() {
-  local email="${1:?email required}" jar="${2:-$TMP/local-confirm.jar}"
-  wait_mail "$email" "Подтверждение" 10 || { echo "  FAIL письмо не пришло для $email"; return 1; }
-  local msg
-  msg=$(curl -s "$SMTP/api/Messages?limit=50" | python3 -c "
-import sys, json
-r = json.load(sys.stdin).get('results', [])
-for m in r:
-    if m.get('deliveredTo') == sys.argv[1] and 'Подтверждение' in m.get('subject',''):
-        print(m['id']); break
-" "$email")
-  local code
-  code=$(curl -s "$SMTP/api/Messages/$msg/PlainText" | grep -oE -- '-?[0-9]{16,}' | head -1)
-  [ -n "$code" ] && curl -sk -H 'X-Requested-With: XMLHttpRequest' -o /dev/null -w '%{http_code}' -b "$jar" \
-    -X POST "$BASE/email/confirmations/$code" || echo "000"
-}
-
-# verify_all_local — массовая верификация всех пользователей (быстрый путь для тестов)
-verify_all_local() {
-  $PSQL "update users set is_email_verified=true;" >/dev/null
-}
-
 # ── Функции для Keycloak-контура ─────────────────────────────
 
 # kc_token <email> <password> — получает access_token через direct access grant
@@ -188,7 +143,7 @@ check_kc_ready() {
     echo "  OK   Keycloak доступен, realm '$REALM' найден"
     return 0
   fi
-  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make run-local-keycloak"
+  echo "  FAIL Keycloak недоступен на $KEYCLOAK — поднимите стек: make dev-run"
   return 1
 }
 
@@ -216,30 +171,6 @@ kc_auth_body() {
   curl -sk "${headers[@]}" "$BASE$endpoint"
 }
 
-# ── Функции для cookie-контура (in-app JWT) ──────────────────
-
-# cookie_jar_code <jar> <endpoint> [method] [body] — запрос с cookie, возвращает код
-cookie_jar_code() {
-  local jar="$1" endpoint="$2" method="${3:-GET}" body="${4:-}"
-  local headers=("-H" "X-Requested-With: XMLHttpRequest" -b "$jar")
-  [ "$method" != "GET" ] && [ "$method" != "DELETE" ] && headers+=("-X" "$method")
-  if [ -n "$body" ]; then
-    headers+=("-H" "Content-Type: application/json" -d "$body")
-  fi
-  curl -sk -o /dev/null -w '%{http_code}' "${headers[@]}" "$BASE$endpoint"
-}
-
-# cookie_jar_body <jar> <endpoint> [method] [body] — запрос с cookie, возвращает тело
-cookie_jar_body() {
-  local jar="$1" endpoint="$2" method="${3:-GET}" body="${4:-}"
-  local headers=("-H" "X-Requested-With: XMLHttpRequest" -b "$jar")
-  [ "$method" != "GET" ] && [ "$method" != "DELETE" ] && headers+=("-X" "$method")
-  if [ -n "$body" ]; then
-    headers+=("-H" "Content-Type: application/json" -d "$body")
-  fi
-  curl -sk "${headers[@]}" "$BASE$endpoint"
-}
-
 # body_file <json> — записывает JSON в файл, возвращает @path (для curl --data-binary)
 body_file() {
   local bf="$TMP/request-body.json"
@@ -252,7 +183,7 @@ body_file() {
 # check_base — базовые проверки доступности стека
 check_base() {
   if [ "$(http_code "$BASE/health")" != "200" ]; then
-    echo "  FAIL $BASE/health недоступен — запустите приложение: make run-local / make run-local-keycloak"
+    echo "  FAIL $BASE/health недоступен — запустите приложение: make run-local"
     exit 1
   fi
   if [ "$($PSQL 'select 1;' | tail -1)" != "1" ]; then

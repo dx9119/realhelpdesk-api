@@ -1,28 +1,30 @@
 // Нагрузочный сценарий «полный user journey» (k6).
 //
 // Что гоняет каждая VU-итерация (steady state):
-//   1. сессия: GET /users/profile, при 401 — повторный POST /auth/login
+//   1. сессия: GET /users/profile, при 401 — повторный выпуск токена в Keycloak
 //   2. портал: ленивое создание POST /portals на первой итерации, далее GET /portals
 //   3. заявка: POST /portals/{id}/tickets → ответ POST .../messages → GET .../messages
 //   4. поиск: GET /tickets?mine=true&search=Load  (горячий путь N+1)
 //   5. уведомления: GET /notifications/unread-count + long polling GET /notifications/wait
-//   6. refresh access: POST /auth/tokens/access каждую 10-ю итерацию
+//   6. обновление токена: direct access grant в Keycloak каждую 10-ю итерацию
 //   7. капча: каждую 10-ю итерацию POST /captcha/challenge → PoW (k6/crypto)
-//      → POST /captcha/solve — нагрузка на эндпоинты новой капчи; load-стек
+//      → POST /captcha/solve — нагрузка на эндпоинты капчи; load-стек
 //      с локальным риск-движком: свежий challenge с unique XFF всегда pow
 //
-// Пользователи НЕ регистрируются в сценарии: пул load-pool-{RUN_ID}-pN@load.test
-// сидирует scripts/load/run.sh (капча решается solve-pow.js, ручная верификация
-// email через psql — порталы создают только верифицированные пользователи).
+// Аутентификация — Bearer-токен Keycloak: приложение не выпускает токены и
+// локального /auth/login не имеет. Пользователи НЕ регистрируются в сценарии:
+// пул load-pool-{RUN_ID}-pN@load.test заводит scripts/load/run.sh через Admin API
+// Keycloak (роль ROLE_USER), а учётная запись в БД появляется при первом запросе
+// (keycloak.auto-create-users). Порталы создают только верифицированные
+// пользователи — email в Keycloak уже подтверждён.
 //
 // Рейт-лимиты: каждый запрос несёт уникальный X-Forwarded-For по номеру VU,
 // поэтому у каждой VU свой bucket лимита. Это работает только когда стек
 // поднят с load-оверлеем (TRUST_PROXY_HEADERS=true): make load-full / make load-smoke.
-// Без него все VU делят 127.0.0.1 и логин упрётся в 10/300с.
+// Без него все VU делят 127.0.0.1.
 //
-// CSRF: изменяющие методы несут X-Requested-With (CsrfProtectionFilter).
 // Параметры через окружение: TARGET_VUS, DURATION, POOL_SIZE, THINK_TIME,
-// WAIT_TIMEOUT_SEC, RUN_ID (см. Makefile и run.sh).
+// WAIT_TIMEOUT_SEC, RUN_ID, KEYCLOAK_URL, REALM (см. Makefile и run.sh).
 
 import http from 'k6/http';
 import { check, group, sleep } from 'k6';
@@ -30,6 +32,9 @@ import { sha256 } from 'k6/crypto';
 
 const BASE = __ENV.BASE_URL || 'http://localhost:8080';
 const API = `${BASE}/api/v1`;
+const KEYCLOAK = __ENV.KEYCLOAK_URL || 'http://localhost:8180';
+const REALM = __ENV.REALM || 'realhelpdesk';
+const CLIENT = __ENV.CLIENT || 'realhelpdesk-api';
 const RUN_ID = __ENV.RUN_ID || 'local';
 const POOL_SIZE = Number(__ENV.POOL_SIZE || 8);
 const TARGET_VUS = Number(__ENV.TARGET_VUS || 10);
@@ -52,7 +57,7 @@ export const options = {
   },
   thresholds: {
     //429 от рейт-лимитов сюда же: если TRUST_PROXY_HEADERS не включён,
-    // порог упадёт с первыми же параллельными логинами — это сигнал, а не шум
+    // порог упадёт с первыми же параллельными запросами — это сигнал, а не шум
     http_req_failed: ['rate<0.01'],
     // глобальный порог мягкий: notifications_wait — намеренный long-poll (timeoutSec=WAIT_TIMEOUT_SEC,
     // по умолчанию 3s) и доминирует в p(95); точные пороги — ниже, по endpoint'ам
@@ -65,21 +70,11 @@ export const options = {
 };
 
 // per-VU состояние: живёт между итерациями в рамках одной VU.
-// Cookie jar — явная и ленивая: встроенная k6-jar сбрасывается между
-// итерациями (без неё каждый виток теряет accessToken и логинится заново),
-// а http.cookieJar() нельзя вызывать в init-контексте — только внутри VU.
 let vuEmail = null;
+let accessToken = null;
 let portalId = null;
-let jar = null;
 
-function getJar() {
-  if (jar === null) {
-    jar = http.cookieJar();
-  }
-  return jar;
-}
-
-function headers() {
+function clientIpHeaders() {
   const octet = 1 + (__VU % 250);
   const net = 10 + Math.floor(__VU / 250);
   return {
@@ -90,8 +85,16 @@ function headers() {
   };
 }
 
+function headers() {
+  const result = clientIpHeaders();
+  if (accessToken !== null) {
+    result.Authorization = `Bearer ${accessToken}`;
+  }
+  return result;
+}
+
 function tag(endpoint) {
-  return { headers: headers(), tags: { endpoint }, jar: getJar() };
+  return { headers: headers(), tags: { endpoint } };
 }
 
 function emailForVU() {
@@ -100,19 +103,36 @@ function emailForVU() {
   return `load-pool-${RUN_ID}-p${n}@load.test`;
 }
 
+/** Direct access grant: приложение токенов не выпускает, источник — Keycloak. */
+function grantToken() {
+  const res = http.post(
+    `${KEYCLOAK}/realms/${REALM}/protocol/openid-connect/token`,
+    {
+      grant_type: 'password',
+      client_id: CLIENT,
+      username: vuEmail,
+      password: PASSWORD,
+      scope: 'openid',
+    },
+    { tags: { endpoint: 'keycloak_token' } },
+  );
+  check(res, { 'keycloak token: 200': (r) => r.status === 200 });
+  if (res.status === 200) {
+    accessToken = res.json('access_token');
+  }
+}
+
 function ensureSession() {
-  let res = http.get(`${API}/users/profile`, tag('profile'));
+  if (accessToken === null) {
+    grantToken();
+  }
+  const res = http.get(`${API}/users/profile`, tag('profile'));
   if (res.status === 200) {
     check(res, { 'profile: 200': () => true });
     return;
   }
-  check(res, { 'profile: 200 или re-login': (r) => r.status === 401 });
-  res = http.post(
-    `${API}/auth/login`,
-    JSON.stringify({ email: vuEmail, password: PASSWORD }),
-    tag('login'),
-  );
-  check(res, { 'login: 200': (r) => r.status === 200 });
+  check(res, { 'profile: 200 или повторный grant': (r) => r.status === 401 });
+  grantToken();
 }
 
 function ensurePortal() {
@@ -178,10 +198,9 @@ function notifications() {
   check(wait, { 'wait: 200': (r) => r.status === 200 });
 }
 
-function maybeRefreshAccess() {
+function maybeRefreshToken() {
   if (__ITER > 0 && __ITER % 10 === 0) {
-    const res = http.post(`${API}/auth/tokens/access`, null, tag('token_refresh'));
-    check(res, { 'refresh: 200': (r) => r.status === 200 });
+    grantToken();
   }
 }
 
@@ -202,6 +221,7 @@ function meetsDifficulty(hash, difficulty) {
 
 // Каждая 10-я итерация гоняет полный флоу капчи — нагрузка на /captcha/*;
 // PoW решается в k6/crypto (Go, миллионы хэшей в секунду — доли секунды).
+// Действие email-code — единственный живой потребитель капчи в приложении.
 function maybeExerciseCaptcha() {
   if (__ITER === 0 || __ITER % 10 !== 0) {
     return;
@@ -251,7 +271,7 @@ export default function () {
     ticketJourney();
     searchTickets();
     notifications();
-    maybeRefreshAccess();
+    maybeRefreshToken();
     maybeExerciseCaptcha();
   });
 

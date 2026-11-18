@@ -10,8 +10,8 @@
 #   - чужое уведомление не читается (404);
 #   - без токена — 401.
 #
-# Требования: приложение на Keycloak-контуре (make run-local-keycloak),
-# SPRING_PROFILES_ACTIVE=dev,keycloak.
+# Требования: приложение на хосте (make run-local),
+# SPRING_PROFILES_ACTIVE=dev,host (make run-local).
 # Перед прогоном удаляет порталы оператора, уведомления и preferences
 # обоих realm-пользователей — прогон идемпотентен (счётчики непрочитанных
 # и имя портала фиксированы).
@@ -124,7 +124,7 @@ await_grep() {
 
 step "Готовность Keycloak"
 if [ "$(curl -s -o /dev/null -w '%{http_code}' "$KEYCLOAK/realms/$REALM/.well-known/openid-configuration")" != "200" ]; then
-  echo "  FAIL Keycloak недоступен — поднимите стек: make run-local-keycloak"
+  echo "  FAIL Keycloak недоступен — поднимите стек: make dev-run"
   exit 1
 fi
 echo "  OK   discovery realm'а доступен"
