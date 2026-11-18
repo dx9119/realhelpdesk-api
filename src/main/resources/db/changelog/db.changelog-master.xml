@@ -26,6 +26,7 @@
     <include file="changes/003-portal-transfer-history.xml" relativeToChangelogFile="true"/>
     <include file="changes/004-jwt-tokens-created-at-index.xml" relativeToChangelogFile="true"/>
     <include file="changes/005-user-platform-source-keycloak.xml" relativeToChangelogFile="true"/>
+    <include file="changes/006-drop-local-jwt-artifacts.xml" relativeToChangelogFile="true"/>
 
     <!-- Фикстуры вне контекста schema: подключены, но применяются только при
          DB_MIGRATIONS_CONTEXTS=schema,seed. -->

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Удаление локального JWT-контура: таблица jwt_tokens и колонки users, которые
+  обслуживали вход по локальному паролю, refresh-токены и восстановление пароля.
+  В keycloak-контуре их не читает ни entity-модель, ни код: Hibernate validate
+  падает на лишних колонках только если они обязательны, а password_hash NOT NULL
+  блокирует вставку пользователя вовсе — миграция обязана идти вместе с кодом.
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="006-drop-local-jwt-artifacts" author="ukhanov">
+        <!-- На базе, где артефакты уже удалены (например, вручную), changeset
+             помечается выполненным: повторный DROP не нужен. -->
+        <preConditions onFail="MARK_RAN">
+            <or>
+                <tableExists tableName="jwt_tokens"/>
+                <columnExists tableName="users" columnName="password_hash"/>
+            </or>
+        </preConditions>
+        <!-- Путь от корня classpath, не от этого файла: рядом лежат и changes/, и sql/. -->
+        <sqlFile path="db/changelog/sql/006-drop-local-jwt-artifacts.sql"
+                 encoding="UTF-8"
+                 splitStatements="true"
+                 endDelimiter=";"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -3,30 +3,28 @@
 -- DB_MIGRATIONS_CONTEXTS=schema и оставляет базу пустой. Сидировать —
 -- DB_MIGRATIONS_CONTEXTS=schema,seed + перезапуск app.
 --
--- Пароли совпадают с realm'ом Keycloak (infrastructure/keycloak/
--- realhelpdesk-realm.json): user-pass / operator-pass. Адреса при этом
--- отличаются от realm-пользователей (user@ / operator@): Keycloak создаёт
--- своих при первом входе, seed с ними не конфликтует.
+-- Паролей у seed-пользователей нет: вход — только через Keycloak, а эти адреса
+-- отличаются от realm-пользователей (user@ / operator@). Чтобы вход под seed-адресом
+-- работал, заведите их в realm (или включите keycloak.auto-create-users) — при первом
+-- входе приложение найдёт существующую учётную запись и не будет создавать новую.
 --
 -- Все вставки идемпотентны (ON CONFLICT / NOT EXISTS) — повторный прогон
 -- безопасен. Чистая схема вместо сида: make dev-down--del-volumes + повторный подъём стека.
 
--- Пользователь: пароль user-pass (BCrypt)
-INSERT INTO users (first_name, last_name, email, is_email_verified, password_hash,
-                   user_role, user_status, user_platform_source, token_version,
+-- Пользователь
+INSERT INTO users (first_name, last_name, email, is_email_verified,
+                   user_role, user_status, user_platform_source,
                    created_at, portal_cunt_limit, portal_shared_users_count_limit, version)
 VALUES ('Иван', 'Пользователь', 'demo-user@example.com', true,
-        '$2a$10$jyedYI3CI3UdvGy6tS9PvODbjUgyS7VU5ZHjqv1CLEEWJ5YK9e8FG',
-        'ROLE_USER', 'ACTIVE', 'LOCAL', 0, now(), 10, 10, 0)
+        'ROLE_USER', 'ACTIVE', 'KEYCLOAK', now(), 10, 10, 0)
 ON CONFLICT (email) DO NOTHING;
 
--- Оператор: пароль operator-pass (BCrypt)
-INSERT INTO users (first_name, last_name, email, is_email_verified, password_hash,
-                   user_role, user_status, user_platform_source, token_version,
+-- Оператор
+INSERT INTO users (first_name, last_name, email, is_email_verified,
+                   user_role, user_status, user_platform_source,
                    created_at, portal_cunt_limit, portal_shared_users_count_limit, version)
 VALUES ('Ольга', 'Оператор', 'demo-operator@example.com', true,
-        '$2a$10$zt/bpJe8CS4e7.iHieQl1eHN16ei6qkQmjQ.5c6uf7tHphMgE3FEm',
-        'ROLE_OPERATOR', 'ACTIVE', 'LOCAL', 0, now(), 10, 10, 0)
+        'ROLE_OPERATOR', 'ACTIVE', 'KEYCLOAK', now(), 10, 10, 0)
 ON CONFLICT (email) DO NOTHING;
 
 -- Портал пользователя
