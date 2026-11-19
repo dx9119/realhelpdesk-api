@@ -82,7 +82,7 @@
               <entry key="MINIO_ROOT_USER" value="minioadmin" />
               <entry key="MULTIPART_MAX_FILE_SIZE" value="20MB" />
               <entry key="MULTIPART_MAX_REQUEST_SIZE" value="25MB" />
-              <entry key="OTEL_SERVICE_VERSION" value="1.0.0" />
+              <entry key="OTEL_SERVICE_VERSION" value="2.0.0" />
               <entry key="OTLP_TRACING_ENDPOINT" value="http://localhost:4318/v1/traces" />
               <entry key="RATE_LIMIT_AUTH_ACCESS_TOKEN_REQUESTS" value="30" />
               <entry key="RATE_LIMIT_AUTH_ACCESS_TOKEN_WINDOW_SECONDS" value="300" />

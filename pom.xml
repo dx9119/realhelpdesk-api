@@ -14,7 +14,7 @@
 
     <groupId>com.ukhanov</groupId>
     <artifactId>realhelpdesk</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <name>RealHelpDesk</name>
     <description>A REST API for building an application management system or an internal request processing system.</description>
 
