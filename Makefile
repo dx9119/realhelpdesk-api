@@ -21,18 +21,24 @@ PROFILES_DEPS ?= --profile infra --profile local-tools
 PROFILES_OBS ?= $(PROFILES_DEPS) --profile monitoring
 PROFILES_LOAD ?= $(PROFILES_DEPS) --profile load
 
+# Параметры образа: GIT_SHA попадает в LABEL org.opencontainers.image.revision,
+# поэтому берётся из HEAD, а не оставляется unknown.
+IMAGE_NAME ?= realhelpdesk
+IMAGE_TAG ?= latest
+GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+
 .DEFAULT_GOAL := help
 
-.PHONY: help build clean test verify run-local run-local-keycloak \
+.PHONY: help build image clean test verify run-local \
         dev-run dev-down dev-down--del-volumes \
         env dev-openapi dev-openapi-types \
         check-ci-all check-code-style check-secrets \
         load-smoke load-full .load-up \
         e2e-reset-limits \
-        e2e-portal-access e2e-ratelimit e2e-jwt e2e-notifications e2e-portal-transfer \
+        e2e-ratelimit \
         e2e-keycloak-auth e2e-portal-access-kc e2e-notifications-kc \
-        e2e-jwt-in-app e2e-keycloak e2e-all \
-        require-app require-local require-keycloak
+        e2e-keycloak e2e-all \
+        require-app
 
 help: ## Показать список команд
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -42,16 +48,18 @@ help: ## Показать список команд
 # Контур задаёт RUN_PROFILES (scripts/dev/run-local.sh добавляет к нему host —
 # loopback-адреса инфры). Инфраструктуру поднимает make dev-run, либо
 # spring-boot-docker-compose сам при старте с профилем host.
-run-local: env ## Приложение на хосте, JWT-контур (профили dev,host)
+run-local: env ## Приложение на хосте (профили dev,host); токены выпускает Keycloak
 	bash scripts/dev/run-local.sh
-
-run-local-keycloak: env ## Приложение на хосте, Keycloak-контур (профили dev,keycloak,host)
-	RUN_PROFILES=dev,keycloak bash scripts/dev/run-local.sh
 
 ## --- Сборка и тесты (Maven, на хосте) ---
 
 build: ## Собрать jar с юнит-тестами (package; интеграционные *IT не входят)
 	$(MVN) -DskipITs package
+
+# Только сборка образа: приложение в Docker не поднимается (см. шапку файла).
+# BuildKit-кэш ~/.m2 из Dockerfile требует DOCKER_BUILDKIT=1 — в Docker 29 включён по умолчанию.
+image: ## Собрать контейнерный образ (IMAGE_NAME/IMAGE_TAG, без запуска и пуша)
+	docker build --build-arg GIT_SHA=$(GIT_SHA) -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
 clean: ## Очистить target/
 	$(MVN) clean
@@ -114,24 +122,15 @@ load-smoke: .load-up ## Короткий smoke-прогон user journey (2 VU, 
 	TARGET_VUS=2 DURATION=1m bash scripts/load/run.sh
 
 ## --- E2E (нужно запущенное приложение на localhost:8080) ---
-# E2E разделены на два контура аутентификации:
-#
-# 1. e2e-jwt-in-app — внутренний JWT-контур (профиль dev, make run-local).
-#    Сценарии ходят в cookie-эндпоинты /api/v1/auth/*, проверяют
-#    refresh-ротацию, логаут, смену пароля, email-подтверждения.
-#
-# 2. e2e-keycloak — внешний OAuth2-контур (профиль dev,keycloak,
-#    make run-local-keycloak). Использует Bearer-токены Keycloak
-#    (direct access grant), не зависит от cookie и локального AuthController
-#    (не создаётся в keycloak-профиле). Owner-transfer не проверяется —
-#    требует пароль пользователя, у Keycloak-пользователей
-#    password_hash = 'keycloak-no-local-password:uuid'.
+# Контур аутентификации один: токены выпускает Keycloak (direct access grant),
+# приложение проверяет их как OAuth2 Resource Server. Локального
+# /api/v1/auth/* в приложении нет.
 #
 # Перед сценариями сбрасываются in-memory бакеты рейт-лимитов
 # (POST /api/v1/dev/ratelimit-reset, @Profile("dev")) — без перезапуска app.
 
 e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпоинт; приложение запущено)
-	@code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+	@code=$$(curl -s -o /dev/null -w '%{http_code}' -X POST \
 	  -H 'X-Requested-With: XMLHttpRequest' \
 	  http://localhost:8080/api/v1/dev/ratelimit-reset); \
 	if [ "$$code" = "204" ] || [ "$$code" = "200" ]; then \
@@ -140,72 +139,37 @@ e2e-reset-limits: ## Сбросить rate-limit бакеты (dev-эндпои�
 	  echo "предупреждение: сброс лимитов не прошёл (HTTP $$code) — приложение запущено? профиль dev?"; \
 	fi
 
-## --- Проверки доступности перед e2e ---
+## --- Проверка доступности перед e2e ---
 # e2e-цели не управляют приложением: они лишь убеждаются, что оно доступно
-# на localhost:8080. Контур задаётся запуском на хосте:
-#   make run-local          # dev,host   — внутренний JWT-контур
-#   make run-local-keycloak # dev,keycloak,host — токены выпускает Keycloak
-# Различить контуры по HTTP нельзя, поэтому несоответствие профиля вскрывается
-# первым же шагом сценария.
+# на localhost:8080 (make run-local поднимает приложение на хосте).
 
 require-app:
 	@code=$$(curl -sk -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/health); \
 	if [ "$$code" != "200" ]; then \
-	  echo "ошибка: приложение недоступно на http://localhost:8080 — поднимите инфраструктуру (make dev-run) и запустите приложение на хосте (make run-local / make run-local-keycloak)"; \
+	  echo "ошибка: приложение недоступно на http://localhost:8080 — поднимите инфраструктуру (make dev-run) и запустите приложение на хосте (make run-local)"; \
 	  exit 1; \
 	fi; \
 	echo "приложение доступно на http://localhost:8080"
 
-require-local: require-app ## Проверить доступность приложения для JWT-контура (профиль dev)
-require-keycloak: require-app ## Проверить доступность приложения для Keycloak-контура (профиль dev,keycloak)
+## --- Keycloak-контур ---
 
-## --- JWT in-app-контур (профиль dev) ---
-
-e2e-portal-access: require-local e2e-reset-limits ## E2E: права на портал
-	bash $(E2E_DIR)/e2e-portal-access.sh
-
-e2e-ratelimit: require-local e2e-reset-limits ## E2E: рейт-лимиты
+e2e-ratelimit: require-app e2e-reset-limits ## E2E: рейт-лимиты
 	bash $(E2E_DIR)/e2e-ratelimit.sh
 
-e2e-jwt: require-local e2e-reset-limits ## E2E: JWT-поток аутентификации
-	bash $(E2E_DIR)/e2e-jwt-flow.sh
-
-e2e-notifications: require-local e2e-reset-limits ## E2E: in-app оповещения (long polling)
-	bash $(E2E_DIR)/e2e-notifications.sh
-
-e2e-portal-transfer: require-local e2e-reset-limits ## E2E: передача владения порталом
-	bash $(E2E_DIR)/e2e-portal-transfer.sh
-
-## --- Keycloak-контур (профиль dev,keycloak) ---
-
-e2e-keycloak-auth: require-keycloak e2e-reset-limits ## E2E: вход через Keycloak (OAuth2 RS, роли, блокировка)
+e2e-keycloak-auth: require-app e2e-reset-limits ## E2E: вход через Keycloak (OAuth2 RS, роли, блокировка)
 	bash $(E2E_DIR)/e2e-keycloak.sh
 
-e2e-portal-access-kc: require-keycloak e2e-reset-limits ## E2E: портал через Keycloak (Bearer, CRUD)
+e2e-portal-access-kc: require-app e2e-reset-limits ## E2E: портал через Keycloak (Bearer, CRUD)
 	bash $(E2E_DIR)/e2e-portal-access-kc.sh
 
-e2e-notifications-kc: require-keycloak e2e-reset-limits ## E2E: уведомления через Keycloak (Bearer)
+e2e-notifications-kc: require-app e2e-reset-limits ## E2E: уведомления через Keycloak (Bearer)
 	bash $(E2E_DIR)/e2e-notifications-kc.sh
 
-## --- Агрегаторы контуров ---
+## --- Агрегатор ---
 # e2e-цели чисто тестовые: контейнеры не поднимают и не пересобирают, только
 # проверяют доступность приложения и запускают сценарии.
-#
-# e2e-all намеренно включает ТОЛЬКО Keycloak-контур: внутренний JWT-контур
-# поддерживается для автономных инсталляций без внешнего OAuth2-сервера, но
-# новым пользователям не предлагается — его сценарии вынесены в отдельную цель.
 
-e2e-jwt-in-app: require-local ## E2E: контур внутреннего JWT (cookie, профиль dev; не входит в e2e-all)
-	$(MAKE) e2e-reset-limits
-	bash $(E2E_DIR)/e2e-portal-access.sh
-	$(MAKE) e2e-reset-limits
-	bash $(E2E_DIR)/e2e-jwt-flow.sh
-	$(MAKE) e2e-reset-limits
-	bash $(E2E_DIR)/e2e-notifications.sh
-	$(MAKE) e2e-reset-limits
-	bash $(E2E_DIR)/e2e-portal-transfer.sh
-
-e2e-keycloak: require-keycloak ## E2E: контур Keycloak (Bearer, профиль dev,keycloak)
+e2e-keycloak: require-app ## E2E: контур Keycloak (Bearer)
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-keycloak.sh
 	$(MAKE) e2e-reset-limits
@@ -213,4 +177,4 @@ e2e-keycloak: require-keycloak ## E2E: контур Keycloak (Bearer, профи
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-notifications-kc.sh
 
-e2e-all: e2e-keycloak ## E2E: Keycloak-контур; внутренний JWT — отдельной целью e2e-jwt-in-app
+e2e-all: e2e-keycloak ## E2E: все сценарии Keycloak-контура

@@ -56,7 +56,7 @@
               <entry key="JWT_TOKEN_CLEANUP_TARGET_BATCH_MS" value="200" />
               <entry key="KC_HOSTNAME" value="http://localhost:8180" />
               <entry key="KC_ISSUER_URI" value="http://localhost:8180/realms/realhelpdesk" />
-              <entry key="KC_JWK_SET_URI" value="http://keycloak:8080/realms/realhelpdesk/protocol/openid-connect/certs" />
+              <entry key="KC_JWK_SET_URI" value="http://127.0.0.1:8180/realms/realhelpdesk/protocol/openid-connect/certs" />
               <entry key="KEYCLOAK_ADMIN" value="admin" />
               <entry key="KEYCLOAK_ADMIN_PASSWORD" value="" />
               <entry key="KEYCLOAK_DB" value="keycloak" />
