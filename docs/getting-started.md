@@ -143,11 +143,11 @@ JVM hot-swap меняет тела методов без рестарта.
 Профиль `host` (`application-host.properties`) переводит адреса на loopback
 (`127.0.0.1:5432`, `9000`, `25`) и поднимает infra через
 spring-boot-docker-compose. OS-env перекрывает профильные файлы: оба
-run-конфига инлайном задают `MINIO_ENDPOINT=http://127.0.0.1:9000` и
-`OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces`;
+run-конфига инлайном задают `MINIO_ENDPOINT=http://127.0.0.1:9000`;
 `TRUST_PROXY_HEADERS`/`CLIENT_IP_FORWARDED_INDEX` в `make run-local`
 экспортируются явно, в IDEA берутся из дефолтов схемы (`false`/`0` в
-`application.properties`).
+`application.properties`). Трейсы в dev идут в Tempo без переменных: адрес
+Collector'а задан дефолтом в `application-dev.properties`.
 
 Keycloak работает в любом запуске: `KC_JWK_SET_URI` из `.env` указывает на
 `keycloak:8080` (compose-сеть), поэтому при запуске на хосте задайте

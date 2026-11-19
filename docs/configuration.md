@@ -102,7 +102,7 @@ make run-local          # SPRING_PROFILES_ACTIVE=dev,host
 
 | Профиль | Файл | Что включает |
 |---|---|---|
-| `dev` | `application-dev.properties` | Локальная отладка: DEBUG по приложению, SQL-логи Hibernate без значений параметров |
+| `dev` | `application-dev.properties` | Локальная отладка: DEBUG по приложению, SQL-логи Hibernate без значений параметров, статистика Hibernate, экспорт трейсов в Tempo (`localhost:4318`) |
 | `host` | `application-host.properties` | Запуск на хосте поверх `dev` (IDEA/CLI): loopback-адреса БД/MinIO/почты, spring-boot-docker-compose |
 
 Ключи Keycloak (`KC_JWK_SET_URI`, `KC_ISSUER_URI`, `KC_HOSTNAME`) живут в
@@ -150,7 +150,9 @@ spring-boot-docker-compose: при старте с профилем `host` мо�
    env — снапшот значений из `infrastructure/.env` (правки `.env`
    не подхватываются, обновляйте env-карту run-конфига) с инлайн-переменными
    `MINIO_ENDPOINT=http://127.0.0.1:9000` и
-   `OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces`.
+   `OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces`. Адрес трейсов в
+   env-карте дублирует дефолт `application-dev.properties` и не обязателен:
+   без него трейсы уходят туда же.
 3. Debug: приложение стартует за несколько секунд, подключаясь к
    `127.0.0.1:5432`/`9000`/`25`.
 

@@ -91,13 +91,14 @@ Alloy логи не собирает — контейнера приложени
 перенаправляйте вывод: `make run-local 2>&1 | tee app.log`, затем
 `grep "<traceId>" app.log`.
 
-Без наблюдаемости (стек без `monitoring`-профиля) endpoint — `localhost:4318/v1/traces` (дефолт
-compose-интерполяции, HTTP OTLP), экспорта трейсов нет (соединение отклоняется, приложение
-работает). `make load-full`/`make load-smoke` передают
-`OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces` инлайном, поэтому
-в комбинации «obs + load» endpoint'ы совпадают — экспорт трейсов не ломается
-при пересоздании app ни одной из команд. Постоянный адрес collector'а для всех
-запусков — `OTLP_TRACING_ENDPOINT` в `infrastructure/.env`.
+Адрес Collector'а для хостового запуска — `http://localhost:4318/v1/traces`
+(HTTP OTLP): он задан дефолтом в `application-dev.properties`, поэтому при
+`make dev-run` + `make run-local` трейсы уходят в Tempo без переменных
+окружения. Без `monitoring`-профиля соединение отклоняется — приложение
+работает, экспорта нет. Переопределение — `OTLP_TRACING_ENDPOINT` в
+`infrastructure/.env` (например, `http://otel-collector:4318/v1/traces` для
+запуска приложения внутри compose-сети); `scripts/dev/load-env.sh`
+экспортирует тот же loopback-адрес, если переменная не задана.
 
 ## Как найти трейс по traceId из лога
 

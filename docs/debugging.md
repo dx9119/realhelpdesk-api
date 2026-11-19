@@ -4,31 +4,28 @@
 
 ## Запуск приложения на хосте (`IDEA`, `make run-local`)
 
-### Ошибка: `Failed to export spans` каждые ~30 секунд
+### Трейсы не доходят до Tempo
 
-Симптом: в логе приложения, запущенного из IDEA (конфигурация
-`RealHelpDeskApplication`) или `make run-local`, периодически появляется:
+В dev-профиле (`SPRING_PROFILES_ACTIVE=dev,host`) экспорт трейсов включён по умолчанию
+на `localhost:4318/v1/traces` — Collector из `make dev-run`. При запущенном стеке
+трейсы попадают в Tempo без дополнительных переменных.
+
+Если Collector не поднят (`make run-local` без `make dev-run`), экспортёр каждые
+~30 секунд пишет в лог:
 
 ```
 ERROR i.o.exporter.internal.http.HttpExporter | Failed to export spans
 java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:4318
 ```
 
-При `make run-local` адрес в ошибке — `localhost:4318` (дефолт compose-интерполяции
-в `services.app.environment`, если `OTLP_TRACING_ENDPOINT` не задан инлайном).
-
-**Причина:** экспортёр трейсов отправляет OTLP-спаны по
-`OTLP_TRACING_ENDPOINT`. При запуске из хостового процесса (IDEA/`run-local`)
-наблюдаемость обычно не нужна — коллектор не участвует в хостовом запуске,
-и соединение отклоняется.
-
 **Влияние:** только трейсы — они никуда не экспортируются. На запросы, БД и
 health-эндпоинты ошибка не влияет.
 
-**Решение:** ошибка не требует устранения — она возникает только при хостовом
-запуске, когда наблюдаемость не нужна. Для контейнерного контура (где коллектор
-есть) трейсы работают автоматически: `make dev-run` поднимает monitoring вместе
-со стеком.
+**Решение:** поднять наблюдаемость `make dev-run`, либо отключить экспорт пустым
+`OTLP_TRACING_ENDPOINT` (noop SDK, спаны остаются в памяти и MDC).
+
+В non-dev профилях экспорт по умолчанию отключён — `OTLP_TRACING_ENDPOINT` без
+дефолта в `application.properties`; адрес Collector'а задаёт `application-dev.properties`.
 
 ## Запуск тестов
 
