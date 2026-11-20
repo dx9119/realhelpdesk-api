@@ -36,7 +36,7 @@ GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
         load-smoke load-full .load-up \
         e2e-reset-limits \
         e2e-ratelimit \
-        e2e-keycloak-auth e2e-portal-access-kc e2e-notifications-kc \
+        e2e-keycloak-auth e2e-portal-access-kc e2e-notifications-kc e2e-knowledgebase-kc \
         e2e-keycloak e2e-all \
         require-app
 
@@ -165,6 +165,9 @@ e2e-portal-access-kc: require-app e2e-reset-limits ## E2E: портал чере
 e2e-notifications-kc: require-app e2e-reset-limits ## E2E: уведомления через Keycloak (Bearer)
 	bash $(E2E_DIR)/e2e-notifications-kc.sh
 
+e2e-knowledgebase-kc: require-app e2e-reset-limits ## E2E: база знаний через Keycloak (Bearer, CRUD, поиск)
+	bash $(E2E_DIR)/e2e-knowledgebase-kc.sh
+
 ## --- Агрегатор ---
 # e2e-цели чисто тестовые: контейнеры не поднимают и не пересобирают, только
 # проверяют доступность приложения и запускают сценарии.
@@ -176,5 +179,7 @@ e2e-keycloak: require-app ## E2E: контур Keycloak (Bearer)
 	bash $(E2E_DIR)/e2e-portal-access-kc.sh
 	$(MAKE) e2e-reset-limits
 	bash $(E2E_DIR)/e2e-notifications-kc.sh
+	$(MAKE) e2e-reset-limits
+	bash $(E2E_DIR)/e2e-knowledgebase-kc.sh
 
 e2e-all: e2e-keycloak ## E2E: все сценарии Keycloak-контура
