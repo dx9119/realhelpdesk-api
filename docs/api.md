@@ -209,3 +209,50 @@ sizeBytes, uploadedById, uploadedByFullName, createdAt, downloadUrl`.
 `NotificationEvent`: `NEW_TICKET, NEW_MESSAGE, NEW_SYSTEM_MESSAGE,
 NEW_TICKET_OR_MESSAGE, NEW_PORTAL, CHANGE_TICKET, RECOVERY_PASSWORD,
 TICKET_DELETED, PORTAL_DELETED, PORTAL_TRANSFER_*, NONE`.
+
+## Категории базы знаний (`/knowledgebase/categories`)
+
+| Метод и путь | Параметры / тело | Назначение |
+|---|---|---|
+| `GET /knowledgebase/categories` | — | `ItemsResponse<CategoryResponse>` — весь справочник |
+| `GET /knowledgebase/categories/{categoryId}` | — | Одна категория, отдаёт `ETag` |
+| `POST /knowledgebase/categories` | `{ name, description }` | Создание → `201` + `Location`; только `ROLE_OPERATOR` |
+| `PUT /knowledgebase/categories/{categoryId}` | `{ name, description }`, `If-Match` | Полная замена; только `ROLE_OPERATOR` |
+| `PATCH /knowledgebase/categories/{categoryId}` | `{ name?, description? }`, `If-Match` | Частичное обновление; только `ROLE_OPERATOR` |
+| `DELETE /knowledgebase/categories/{categoryId}` | — | Удаление → `204`; только `ROLE_OPERATOR` |
+
+Справочник плоский: вложенности и сортировки нет, порядок — по `id`. Имя
+уникально без учёта регистра (`409` на дубль), поэтому переименование
+проверяется с исключением самой изменяемой строки. Категория удаляется только
+пустой: пока на неё ссылается хоть одна статья — включая мягко удалённую, —
+`DELETE` отвечает `409`.
+
+## База знаний (`/knowledgebase/articles`)
+
+| Метод и путь | Параметры / тело | Назначение |
+|---|---|---|
+| `GET /knowledgebase/articles` | `search, categoryId, portalId, page, size, sortBy, order` | Поиск статей, `PageResponse<ArticleResponse>` |
+| `GET /knowledgebase/articles/{articleId}` | — | Одна статья, отдаёт `ETag` |
+| `POST /knowledgebase/articles` | `{ question, answer, categoryId, portalId }` | Создание → `201` + `Location` |
+| `PUT /knowledgebase/articles/{articleId}` | то же, `If-Match` | Полная замена, включая перевод в глобальные (`portalId: null`) |
+| `PATCH /knowledgebase/articles/{articleId}` | любое подмножество полей, `If-Match` | Частичное обновление |
+| `DELETE /knowledgebase/articles/{articleId}` | — | Мягкое удаление → `204` |
+
+Область видимости статьи задаёт права на неё. `portalId` в статье — владелец
+портала; `portalId: null` — глобальная статья, её создаёт и изменяет только
+`ROLE_OPERATOR`. `PATCH` с `portalId: null` означает «не трогать»: перевод
+между порталом и глобальной областью выполняется `PUT`.
+
+Поиск (`search`, до 50 символов) — регистронезависимая подстрока по вопросу и
+ответу. Без `portalId` отдаются глобальные статьи плюс статьи порталов,
+доступных текущему пользователю; явный `portalId` сужает выдачу до одного
+портала и требует доступа к нему (`403` иначе). `sortBy` — `createdAt`,
+`question` или `id`.
+
+Вопрос уникален в пределах области видимости: повтор в том же портале (или
+среди глобальных статей) — `409`. Удаление мягкое: строка остаётся в БД с
+признаком `isDeleted`, из выдачи и из проверки уникальности она исключена.
+
+Чтение статьи портала требует доступа к этому порталу; статья чужого приватного
+портала отдаётся как отсутствующая — `404`, чтобы не раскрывать факт её
+существования.

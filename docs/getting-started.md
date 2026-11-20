@@ -219,11 +219,12 @@ E2E-прогон собирается из целей вручную: запус
 
 | Команда | Сценарий |
 |---|---|
-| `make e2e-all` | все сценарии: вход, порталы, уведомления |
-| `make e2e-keycloak` | агрегатор: вход, порталы, уведомления подряд |
+| `make e2e-all` | все сценарии: вход, порталы, уведомления, база знаний |
+| `make e2e-keycloak` | агрегатор: вход, порталы, уведомления, база знаний подряд |
 | `make e2e-keycloak-auth` | вход через Keycloak, синхронизация ролей, блокировка |
 | `make e2e-portal-access-kc` | порталы через Bearer-токен Keycloak (CRUD) |
 | `make e2e-notifications-kc` | уведомления через Bearer-токен Keycloak |
+| `make e2e-knowledgebase-kc` | база знаний через Bearer-токен Keycloak (CRUD, поиск, права) |
 | `make e2e-ratelimit` | отклонения по rate-limit (ручной прогон, вне `e2e-all`) |
 | `make e2e-reset-limits` | сбросить in-memory рейт-лимиты вручную (dev-эндпоинт) |
 

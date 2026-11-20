@@ -10,6 +10,7 @@ REST API системы управления заявками. Предоста�
 - Формирование сообщений, прикрепление к заявке файловых вложений (MinIO, отдача с поддержкой HTTP `Range` для не стабильных сетей).
 - Передача права владения порталом с подтверждением и полной историей состояний портала.
 - Оповещения: email и in-app (SSE-канал, long polling — фолбэк).
+- База знаний: статьи «вопрос/ответ» с категорией, привязкой к порталу или общие для всех, поиск по вопросу и ответу.
 - Ограничения: квоты пользователя, рейт-лимиты, капча.
 
 ## Технологии
@@ -64,10 +65,11 @@ com.ukhanov.realhelpdesk
 │   ├── security (accesscontrol, captcha, handler, keycloak, limiter, ratelimit, user)
 │   └── storage
 ├── domain — доменная модель: сущности, репозитории и доменные правила
-│   ├── portal, ticket, message, attachment, notification
+│   ├── portal, ticket, message, attachment, notification, knowledgedb
 └── feature — функциональные модули: REST-слой по областям применения
     ├── portalmanager, ticketmanager, messagemanager
     ├── attachmentmanager, notificationmanager, usermanager
+    └── knowledgedbmanager
 ```
 
 Ошибки HTTP-слоя централизованно преобразуются в ответы формата RFC 7807
@@ -198,8 +200,8 @@ Swagger UI работает в dev-контуре (`springdoc.*.enabled` по у
 пользовательскому сценарию через k6.
 
 `make e2e-all` прогоняет все сценарии: вход через Keycloak, базовые CRUD
-порталов и уведомлений. Контур аутентификации один — Keycloak (OAuth2 Resource
-Server), локального JWT и cookie-аутентификации в приложении нет.
+порталов, уведомления и базу знаний. Контур аутентификации один — Keycloak
+(OAuth2 Resource Server), локального JWT и cookie-аутентификации в приложении нет.
 
 E2E-цели не поднимают и не пересобирают контейнеры — они отвечают только за тесты.
 Приложение запускается заранее: `make run-local`.

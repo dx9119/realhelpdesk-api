@@ -288,11 +288,12 @@ e2e-прогон не запускается.
 
 | Команда | Сценарий | Скрипт |
 |---|---|---|
-| `make e2e-all` | Полный прогон: вход, порталы, уведомления | `scripts/e2e-*.sh` |
-| `make e2e-keycloak` | Агрегатор: три сценария подряд | `scripts/e2e-keycloak.sh`, `-kc.sh` |
+| `make e2e-all` | Полный прогон: вход, порталы, уведомления, база знаний | `scripts/e2e-*.sh` |
+| `make e2e-keycloak` | Агрегатор: четыре сценария подряд | `scripts/e2e-keycloak.sh`, `-kc.sh` |
 | `make e2e-keycloak-auth` | Вход через Keycloak (OAuth2 RS, роли, блокировка) | `scripts/e2e-keycloak.sh` |
 | `make e2e-portal-access-kc` | Портал через Keycloak (Bearer, CRUD) | `scripts/e2e-portal-access-kc.sh` |
 | `make e2e-notifications-kc` | Уведомления через Keycloak (Bearer) | `scripts/e2e-notifications-kc.sh` |
+| `make e2e-knowledgebase-kc` | База знаний через Keycloak (Bearer, CRUD, поиск, права) | `scripts/e2e-knowledgebase-kc.sh` |
 | `make e2e-ratelimit` | Рейт-лимиты (ручной прогон; логика покрыта `RateLimitServiceTest`) | `scripts/e2e-ratelimit.sh` |
 
 Сценарии не проверяют owner-transfer: передача владения доступна и через
