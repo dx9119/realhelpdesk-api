@@ -3,12 +3,11 @@
 target/
 bin/
 
-# Файлы IntelliJ IDEA: настройки проекта (компилятор, кодировки, VCS) — коммитим;
+# Файлы IntelliJ IDEA: настройки проекта (кодировки, VCS) — коммитим;
 # личное состояние (workspace.xml, shelf, dataSources) — нет; персональные паттерны
 # дублирует .idea/.gitignore, а codeStyles/inspectionProfiles добавляются negate-строками
 .idea/*
 !.idea/.gitignore
-!.idea/compiler.xml
 !.idea/encodings.xml
 !.idea/jarRepositories.xml
 !.idea/misc.xml
