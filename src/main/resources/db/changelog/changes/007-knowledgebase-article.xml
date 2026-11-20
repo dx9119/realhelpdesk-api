@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  База знаний: справочник категорий + статьи (вопрос/ответ) с привязкой
+  к порталу или глобальные (portal_id IS NULL). Категория — ссылка по id,
+  поэтому DDL категорий идёт в том же changeset перед DDL статей.
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="007-knowledgebase-article" author="ukhanov">
+        <!-- На базе, где таблицы уже есть, changeset помечается выполненным. -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="knowledgebase_articles"/>
+            </not>
+        </preConditions>
+        <!-- Путь от корня classpath, не от этого файла: рядом лежат и changes/, и sql/. -->
+        <sqlFile path="db/changelog/sql/007-knowledgebase-article.sql"
+                 encoding="UTF-8"
+                 splitStatements="true"
+                 endDelimiter=";"/>
+    </changeSet>
+
+</databaseChangeLog>
