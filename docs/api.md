@@ -233,15 +233,17 @@ TICKET_DELETED, PORTAL_DELETED, PORTAL_TRANSFER_*, NONE`.
 |---|---|---|
 | `GET /knowledgebase/articles` | `search, categoryId, portalId, page, size, sortBy, order` | Поиск статей, `PageResponse<ArticleResponse>` |
 | `GET /knowledgebase/articles/{articleId}` | — | Одна статья, отдаёт `ETag` |
-| `POST /knowledgebase/articles` | `{ question, answer, categoryId, portalId }` | Создание → `201` + `Location` |
+| `POST /knowledgebase/articles` | `{ question, answer, categoryId, portalId }` | Создание → `201` + `Location`; портал — владелец/доверенный, глобально — `ROLE_OPERATOR` |
 | `PUT /knowledgebase/articles/{articleId}` | то же, `If-Match` | Полная замена, включая перевод в глобальные (`portalId: null`) |
 | `PATCH /knowledgebase/articles/{articleId}` | любое подмножество полей, `If-Match` | Частичное обновление |
-| `DELETE /knowledgebase/articles/{articleId}` | — | Мягкое удаление → `204` |
+| `DELETE /knowledgebase/articles/{articleId}` | — | Мягкое удаление → `204`; портал — владелец/доверенный, глобально — `ROLE_OPERATOR` |
 
-Область видимости статьи задаёт права на неё. `portalId` в статье — владелец
-портала; `portalId: null` — глобальная статья, её создаёт и изменяет только
-`ROLE_OPERATOR`. `PATCH` с `portalId: null` означает «не трогать»: перевод
-между порталом и глобальной областью выполняется `PUT`.
+Область видимости статьи задаёт права на неё. Статью портала (`portalId` задан)
+создают, меняют и удаляют владелец и доверенные пользователи портала
+(`allowedUserIds`); `portalId: null` — глобальная статья, её создаёт и изменяет
+только `ROLE_OPERATOR`. `PATCH` с `portalId: null` означает «не трогать»: перевод
+между порталом и глобальной областью выполняется `PUT`. Удаление — мягкое:
+статья скрывается из выдачи, строка остаётся в БД.
 
 Поиск (`search`, до 50 символов) — регистронезависимая подстрока по вопросу и
 ответу. Без `portalId` отдаются глобальные статьи плюс статьи порталов,

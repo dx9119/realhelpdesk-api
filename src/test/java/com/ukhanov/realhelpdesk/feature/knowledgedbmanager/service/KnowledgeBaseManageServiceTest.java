@@ -94,7 +94,7 @@ class KnowledgeBaseManageServiceTest {
         // given
         when(mockDomainService.getCategoryById(CATEGORY_ID)).thenReturn(category());
         when(mockPortalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal());
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
         when(mockDomainService.existsArticleByQuestion(PORTAL_ID, "Как оплатить?")).thenReturn(false);
         when(mockDomainService.saveArticle(any())).thenAnswer(invocation -> {
             KnowledgeBaseArticleModel article = invocation.getArgument(0);
@@ -115,19 +115,46 @@ class KnowledgeBaseManageServiceTest {
     }
 
     @Test
-    @DisplayName("createArticle → не владелец портала → 403, сохранения нет")
-    void createArticle_notPortalOwner_throwsForbidden() throws Exception {
+    @DisplayName("createArticle → доверенный пользователь портала, вопрос свободен → статья создана")
+    void createArticle_trustedPortalUser_createsArticle() throws Exception {
 
         // given
         when(mockDomainService.getCategoryById(CATEGORY_ID)).thenReturn(category());
         when(mockPortalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal());
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(false);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
+        when(mockDomainService.existsArticleByQuestion(PORTAL_ID, "Как оплатить?")).thenReturn(false);
+        when(mockDomainService.saveArticle(any())).thenAnswer(invocation -> {
+            KnowledgeBaseArticleModel article = invocation.getArgument(0);
+            article.setId(102L);
+            article.setVersion(0);
+            return article;
+        });
+
+        // when
+        ArticleResponse response = service.createArticle(
+                new CreateArticleRequest("Как оплатить?", "Через кабинет", CATEGORY_ID, PORTAL_ID));
+
+        // then
+        assertThat(response.id()).isEqualTo(102L);
+        assertThat(response.portalId()).isEqualTo(PORTAL_ID);
+        verify(mockAccessValidationService).hasPortalManageAccess(PORTAL_ID);
+        verify(mockAccessValidationService, never()).hasPortalOwner(any());
+    }
+
+    @Test
+    @DisplayName("createArticle → посторонний (не владелец и не доверенный) → 403, сохранения нет")
+    void createArticle_notPortalManager_throwsForbidden() throws Exception {
+
+        // given
+        when(mockDomainService.getCategoryById(CATEGORY_ID)).thenReturn(category());
+        when(mockPortalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal());
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(false);
 
         // when / then
         assertThatThrownBy(() -> service.createArticle(
                 new CreateArticleRequest("Вопрос", "Ответ", CATEGORY_ID, PORTAL_ID)))
                 .isInstanceOf(KnowledgeBaseException.class)
-                .hasMessageContaining("только его владелец");
+                .hasMessageContaining("владелец или доверенный");
         verify(mockDomainService, never()).saveArticle(any());
     }
 
@@ -177,7 +204,7 @@ class KnowledgeBaseManageServiceTest {
         // given
         when(mockDomainService.getCategoryById(CATEGORY_ID)).thenReturn(category());
         when(mockPortalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal());
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
         when(mockDomainService.existsArticleByQuestion(PORTAL_ID, "Вопрос")).thenReturn(true);
 
         // when / then
@@ -213,7 +240,7 @@ class KnowledgeBaseManageServiceTest {
 
         // given
         when(mockDomainService.getArticleById(100L)).thenReturn(article(100L, portal()));
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
 
         // when / then
         assertThatThrownBy(() -> service.replaceArticle(100L,
@@ -230,7 +257,7 @@ class KnowledgeBaseManageServiceTest {
         // given
         KnowledgeBaseArticleModel article = article(100L, portal());
         when(mockDomainService.getArticleById(100L)).thenReturn(article);
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
         when(mockDomainService.getCategoryById(CATEGORY_ID)).thenReturn(category());
         when(mockPortalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal());
         when(mockDomainService.existsArticleByQuestionExcept(100L, PORTAL_ID, "Новый вопрос")).thenReturn(false);
@@ -262,7 +289,7 @@ class KnowledgeBaseManageServiceTest {
         // given
         KnowledgeBaseArticleModel article = article(100L, portal());
         when(mockDomainService.getArticleById(100L)).thenReturn(article);
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
         when(mockDomainService.saveArticle(article)).thenReturn(article);
 
         // when
@@ -283,7 +310,7 @@ class KnowledgeBaseManageServiceTest {
         KnowledgeBaseCategoryModel otherCategory = category();
         otherCategory.setId(6L);
         when(mockDomainService.getArticleById(100L)).thenReturn(article);
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
         when(mockDomainService.getCategoryById(6L)).thenReturn(otherCategory);
         when(mockDomainService.saveArticle(article)).thenReturn(article);
 
@@ -319,7 +346,7 @@ class KnowledgeBaseManageServiceTest {
         // given
         KnowledgeBaseArticleModel article = article(100L, portal());
         when(mockDomainService.getArticleById(100L)).thenReturn(article);
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(true);
 
         // when
         service.deleteArticle(100L);
@@ -328,16 +355,17 @@ class KnowledgeBaseManageServiceTest {
         assertThat(article.isDeleted()).isTrue();
         assertThat(article.getTimeDelete()).isNotNull();
         verify(mockArticleRepository).save(article);
+        verify(mockAccessValidationService, never()).hasPortalOwner(any());
     }
 
     @Test
-    @DisplayName("deleteArticle → не владелец портала → 403, статья не меняется")
-    void deleteArticle_notPortalOwner_throwsForbidden() throws Exception {
+    @DisplayName("deleteArticle → посторонний (не владелец и не доверенный) → 403, статья не меняется")
+    void deleteArticle_notPortalManager_throwsForbidden() throws Exception {
 
         // given
         KnowledgeBaseArticleModel article = article(100L, portal());
         when(mockDomainService.getArticleById(100L)).thenReturn(article);
-        when(mockAccessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(false);
+        when(mockAccessValidationService.hasPortalManageAccess(PORTAL_ID)).thenReturn(false);
 
         // when / then
         assertThatThrownBy(() -> service.deleteArticle(100L)).isInstanceOf(KnowledgeBaseException.class);

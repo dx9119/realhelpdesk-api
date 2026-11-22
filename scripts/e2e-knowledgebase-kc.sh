@@ -7,7 +7,9 @@
 #     обычный пользователь получает 403, чтение доступно всем аутентифицированным;
 #   - имя категории уникально без учёта регистра (409), устаревший If-Match — 412;
 #   - глобальную статью (portalId: null) создаёт только оператор;
-#   - статью портала создаёт и меняет только владелец портала;
+#   - статью портала создаёт, меняет и удаляет владелец или доверенный
+#     пользователь портала (allowedUserIds); отзыв доступа действует сразу;
+#   - посторонний не создаёт, не читает и не удаляет статью чужого портала;
 #   - поиск находит статью по подстроке вопроса и ответа (кириллица, без учёта регистра);
 #   - статья приватного портала не видна в общей выдаче постороннему и не читается по id;
 #   - мягкое удаление убирает статью из выдачи, удаление используемой категории — 409.
@@ -148,10 +150,10 @@ step "Очистка артефактов прошлых прогонов"
 # Статьи удаляются раньше категорий (FK category_id), категории — раньше портала.
 if $PSQL "delete from knowledgebase_articles where lower(question) like '$KB%';
 delete from knowledgebase_categories where lower(name) like '$KB%';
-delete from notifications where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL' and p.name like '$KB%');
-delete from portal_history where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL' and p.name like '$KB%');
-delete from portal_access where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email='$USER_EMAIL' and p.name like '$KB%');
-delete from portals where owner_id in (select id from users where email='$USER_EMAIL') and name like '$KB%';" >/dev/null 2>&1; then
+delete from notifications where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email in ('$USER_EMAIL','$OPER_EMAIL') and p.name like '$KB%');
+delete from portal_history where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email in ('$USER_EMAIL','$OPER_EMAIL') and p.name like '$KB%');
+delete from portal_access where portal_id in (select p.id from portals p join users u on u.id=p.owner_id where u.email in ('$USER_EMAIL','$OPER_EMAIL') and p.name like '$KB%');
+delete from portals where owner_id in (select id from users where email in ('$USER_EMAIL','$OPER_EMAIL')) and name like '$KB%';" >/dev/null 2>&1; then
   echo "  OK   артефакты базы знаний удалены"
 else
   echo "  FAIL очистка БД не удалась — postgres поднят? (make dev-run)"
@@ -255,6 +257,47 @@ check "$(kb_code "$OPER_TOKEN" "/knowledgebase/articles/$PORTAL_ART_ID" "DELETE"
 check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles/$PORTAL_ART_ID" "PUT" \
   "{\"question\":\"$KB Как вернуть деньги?\",\"answer\":\"Через поддержку.\",\"categoryId\":$CAT_ID,\"portalId\":null}")" \
   "403" "PUT перевода статьи портала в глобальные пользователем"
+
+# ── Доверенный пользователь портала ───────────────────────────
+
+step "Доверенный пользователь портала: статьи портала"
+# Владелец — оператор, доверенный — обычный пользователь: только у пользователя нет
+# ROLE_OPERATOR, поэтому проверка «доверенный не создаёт глобальную статью» осмысленна.
+TRUSTED_PORTAL_RESP=$(kb_post "$OPER_TOKEN" "/portals" \
+  "{\"name\":\"$KB-portal-trusted\",\"description\":\"портал доверенного\"}")
+check "${TRUSTED_PORTAL_RESP%%|*}" "201" "POST /portals оператором"
+TRUSTED_PORTAL_ID=$(json_id "${TRUSTED_PORTAL_RESP#*|}")
+require_id "$TRUSTED_PORTAL_ID" "portalId портала доверенного"
+
+USER_ID=$($PSQL "select id from users where email='$USER_EMAIL';" | tail -1)
+require_id "$USER_ID" "id пользователя"
+check "$(kb_code "$OPER_TOKEN" "/portals/$TRUSTED_PORTAL_ID/settings/users" "PUT" "{\"userIds\":[$USER_ID]}")" \
+  "200" "PUT участников портала владельцем"
+
+TRUSTED_ART=$(kb_post "$USER_TOKEN" "/knowledgebase/articles" \
+  "{\"question\":\"$KB Доверенный: как сменить тариф?\",\"answer\":\"В настройках портала.\",\"categoryId\":$CAT_ID,\"portalId\":$TRUSTED_PORTAL_ID}")
+check "${TRUSTED_ART%%|*}" "201" "POST статьи портала доверенным пользователем"
+TRUSTED_ART_ID=$(json_id "${TRUSTED_ART#*|}")
+require_id "$TRUSTED_ART_ID" "articleId статьи доверенного"
+
+TRUSTED_ETAG=$(kb_etag "$USER_TOKEN" "/knowledgebase/articles/$TRUSTED_ART_ID")
+check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles/$TRUSTED_ART_ID" "PATCH" \
+  '{"answer":"В настройках портала, раздел «Тариф»."}' "$TRUSTED_ETAG")" "200" \
+  "PATCH статьи портала доверенным пользователем"
+check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles/$TRUSTED_ART_ID" "DELETE")" "204" \
+  "DELETE статьи портала доверенным пользователем"
+check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles/$TRUSTED_ART_ID")" "404" \
+  "GET удалённой доверенным статьи"
+check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles" "POST" \
+  "{\"question\":\"$KB Доверенный: глобальная?\",\"answer\":\"Не должно создаться.\",\"categoryId\":$CAT_ID,\"portalId\":null}")" \
+  "403" "POST глобальной статьи доверенным пользователем"
+
+# Снимаем участника: права доверенного отзываются сразу, без перевыпуска токена.
+check "$(kb_code "$OPER_TOKEN" "/portals/$TRUSTED_PORTAL_ID/settings/users" "PUT" '{"userIds":[]}')" "200" \
+  "PUT пустого списка участников портала"
+check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles" "POST" \
+  "{\"question\":\"$KB Отозванный доступ?\",\"answer\":\"Не должно создаться.\",\"categoryId\":$CAT_ID,\"portalId\":$TRUSTED_PORTAL_ID}")" \
+  "403" "POST статьи портала после отзыва доступа"
 
 # ── Удаление ──────────────────────────────────────────────────
 

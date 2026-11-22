@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -43,9 +44,10 @@ public class KnowledgeBaseController {
     private final KnowledgeBaseManageService knowledgeBaseManageService;
 
     @Operation(summary = "Создание статьи базы знаний",
-            description = "Создаёт статью в портале или глобально (для операторов). "
-                    + "Возвращает id и Location на созданный ресурс.")
+            description = "Создаёт статью в портале (владелец или доверенный пользователь портала) "
+                    + "или глобально (только оператор). Возвращает id и Location на созданный ресурс.")
     @PostMapping
+    @PreAuthorize("@knowledgeBaseAccessValidationService.canCreate(#request.portalId())")
     @ApiResponse(responseCode = "201", description = "Создано (заголовок Location — на созданный ресурс)")
     public ResponseEntity<ArticleResponse> createArticle(@Valid @RequestBody CreateArticleRequest request)
             throws KnowledgeBaseException, PortalException {
@@ -58,6 +60,7 @@ public class KnowledgeBaseController {
                     + "плюс статьи порталов, доступных текущему пользователю. "
                     + "Если передан portalId — поиск только в этом портале.")
     @GetMapping
+    @PreAuthorize("@knowledgeBaseAccessValidationService.canSearch(#criteria.portalId())")
     public PageResponse<ArticleResponse> searchArticles(
             @Valid @ParameterObject @ModelAttribute KnowledgeBaseSearchCriteria criteria,
             @Valid @ParameterObject @ModelAttribute PageCriteria pageCriteria)
@@ -68,6 +71,7 @@ public class KnowledgeBaseController {
 
     @Operation(summary = "Статья по ID", description = "Возвращает детальную информацию о статье.")
     @GetMapping("/{articleId}")
+    @PreAuthorize("@knowledgeBaseAccessValidationService.canRead(#articleId)")
     public ResponseEntity<ArticleResponse> getArticle(@PathVariable Long articleId)
             throws KnowledgeBaseException, PortalException {
         ArticleResponse response = knowledgeBaseManageService.getArticle(articleId);
@@ -75,9 +79,11 @@ public class KnowledgeBaseController {
     }
 
     @Operation(summary = "Полная замена статьи",
-            description = "Заменяет вопрос, ответ, категорию и портал целиком. If-Match с версией из GET "
+            description = "Заменяет вопрос, ответ, категорию и портал целиком. Менять статью портала может владелец "
+                    + "или доверенный пользователь портала, глобальную — только оператор. If-Match с версией из GET "
                     + "защищает от потери чужого изменения.")
     @PutMapping("/{articleId}")
+    @PreAuthorize("@knowledgeBaseAccessValidationService.canManage(#articleId)")
     public ResponseEntity<ArticleResponse> replaceArticle(@PathVariable Long articleId,
             @Valid @RequestBody UpdateArticleRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch)
@@ -87,9 +93,12 @@ public class KnowledgeBaseController {
     }
 
     @Operation(summary = "Частичное обновление статьи (PATCH)",
-            description = "Меняет только переданные поля (null — не трогать). If-Match с версией из GET обязателен "
-                    + "для защиты от потери чужого изменения. Перевод статьи в глобальные через PATCH недоступен.")
+            description = "Меняет только переданные поля (null — не трогать). Менять статью портала может владелец "
+                    + "или доверенный пользователь портала, глобальную — только оператор. If-Match с версией из GET "
+                    + "обязателен для защиты от потери чужого изменения. "
+                    + "Перевод статьи в глобальные через PATCH недоступен.")
     @PatchMapping("/{articleId}")
+    @PreAuthorize("@knowledgeBaseAccessValidationService.canManage(#articleId)")
     public ResponseEntity<ArticleResponse> patchArticle(@PathVariable Long articleId,
             @Valid @RequestBody PatchArticleRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch)
@@ -98,8 +107,12 @@ public class KnowledgeBaseController {
         return ResponseEntity.ok().eTag(EntityTag.of("kb-article", response.version())).body(response);
     }
 
-    @Operation(summary = "Удаление статьи", description = "Мягкое удаление статьи. Возвращает 204 без тела.")
+    @Operation(summary = "Удаление статьи",
+            description = "Мягкое удаление: статья скрывается из выдачи, строка остаётся в БД. Удалять статью портала "
+                    + "может владелец или доверенный пользователь портала, глобальную — только оператор. "
+                    + "Возвращает 204 без тела.")
     @DeleteMapping("/{articleId}")
+    @PreAuthorize("@knowledgeBaseAccessValidationService.canManage(#articleId)")
     @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")
     public ResponseEntity<Void> deleteArticle(@PathVariable Long articleId)
             throws KnowledgeBaseException, PortalException {

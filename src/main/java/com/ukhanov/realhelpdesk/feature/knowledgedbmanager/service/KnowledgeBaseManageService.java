@@ -42,9 +42,10 @@ import lombok.extern.slf4j.Slf4j;
  * Жизненный цикл статей базы знаний: создание, замена, частичное обновление, мягкое удаление и поиск.
  *
  * <p>
- * Область видимости статьи задаёт и права на неё: статья портала доступен на запись только её владельцу, глобальная
- * (portal = null) — только оператору. Роль всегда читается из БД через {@link CurrentUserProvider}, поэтому понижение
- * роли вступает в силу сразу, не дожидаясь истечения токена.
+ * Область видимости статьи задаёт и права на неё: статью портала меняет владелец или доверенный пользователь портала
+ * ({@code allowedUserIds}), глобальную (portal = null) — только оператор. Роль всегда читается из БД через
+ * {@link CurrentUserProvider}, поэтому понижение роли вступает в силу сразу, не дожидаясь истечения токена. Те же
+ * правила объявлены в {@code @PreAuthorize} контроллера; проверки здесь повторяются для вызовов в обход HTTP.
  * </p>
  *
  * <p>
@@ -200,8 +201,8 @@ public class KnowledgeBaseManageService {
     }
 
     /**
-     * Портал статьи по id из запроса. {@code manage=true} требует прав владельца портала, {@code false} — только
-     * доступа на чтение. null возвращается только для глобальной статьи, и тогда права проверяются на роль оператора.
+     * Портал статьи по id из запроса. Права на портал проверяет {@code @PreAuthorize} в контроллере
+     * ({@code KnowledgeBaseAccessValidationService}); сервис повторяет проверку для вызовов в обход HTTP.
      */
     private PortalModel resolvePortal(Long portalId, boolean manage) throws KnowledgeBaseException, PortalException {
         if (portalId == null) {
@@ -210,11 +211,11 @@ public class KnowledgeBaseManageService {
         }
 
         boolean allowed = manage
-                ? accessValidationService.hasPortalOwner(portalId)
+                ? accessValidationService.hasPortalManageAccess(portalId)
                 : accessValidationService.hasPortalAccess(portalId);
         if (!allowed) {
             throw KnowledgeBaseException.forbidden(manage
-                    ? "Изменять статьи портала может только его владелец"
+                    ? "Изменять статьи портала может только его владелец или доверенный пользователь"
                     : "Портал недоступен");
         }
         return portalDomainService.getPortalById(portalId);
@@ -226,8 +227,9 @@ public class KnowledgeBaseManageService {
             requireOperator();
             return;
         }
-        if (!accessValidationService.hasPortalOwner(portal.getId())) {
-            throw KnowledgeBaseException.forbidden("Изменять статьи портала может только его владелец");
+        if (!accessValidationService.hasPortalManageAccess(portal.getId())) {
+            throw KnowledgeBaseException.forbidden(
+                    "Изменять статьи портала может только его владелец или доверенный пользователь");
         }
     }
 
