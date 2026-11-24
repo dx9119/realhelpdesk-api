@@ -10,7 +10,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ukhanov.realhelpdesk.domain.knowledgedb.model.KnowledgeBaseCategoryModel;
-import com.ukhanov.realhelpdesk.domain.knowledgedb.repository.KnowledgeBaseCategoryRepository;
 import com.ukhanov.realhelpdesk.domain.knowledgedb.service.KnowledgeBaseDomainService;
 import com.ukhanov.realhelpdesk.feature.knowledgedbmanager.dto.CategoryResponse;
 import com.ukhanov.realhelpdesk.feature.knowledgedbmanager.dto.CreateCategoryRequest;
@@ -31,16 +30,13 @@ import static org.mockito.Mockito.when;
 class KnowledgeBaseCategoryServiceTest {
 
     @Mock
-    private KnowledgeBaseCategoryRepository mockCategoryRepository;
-    @Mock
     private KnowledgeBaseDomainService mockDomainService;
 
     private KnowledgeBaseCategoryService service;
 
     @BeforeEach
     void setUp() throws KnowledgeBaseException {
-        service = new KnowledgeBaseCategoryService(mockCategoryRepository, mockDomainService,
-                new KnowledgeBaseMapperImpl());
+        service = new KnowledgeBaseCategoryService(mockDomainService, new KnowledgeBaseMapperImpl());
     }
 
     @Test
@@ -80,11 +76,12 @@ class KnowledgeBaseCategoryServiceTest {
     }
 
     @Test
-    @DisplayName("listCategories → возвращает все категории справочника")
-    void listCategories_anyState_returnsAll() throws KnowledgeBaseException {
+    @DisplayName("listCategories → возвращает только активные категории справочника")
+    void listCategories_anyState_returnsActive() throws KnowledgeBaseException {
 
         // given
-        when(mockCategoryRepository.findAll()).thenReturn(List.of(category(1L, "Оплата"), category(2L, "Доступ")));
+        when(mockDomainService.getActiveCategories()).thenReturn(List.of(category(1L, "Оплата"),
+                category(2L, "Доступ")));
 
         // when
         List<CategoryResponse> result = service.listCategories();
@@ -168,33 +165,21 @@ class KnowledgeBaseCategoryServiceTest {
     }
 
     @Test
-    @DisplayName("deleteCategory → на категорию ссылается статья → 409, удаления нет")
-    void deleteCategory_categoryInUse_throwsConflict() throws KnowledgeBaseException {
-
-        // given
-        when(mockDomainService.getCategoryById(5L)).thenReturn(category(5L, "Оплата"));
-        when(mockDomainService.hasArticles(5L)).thenReturn(true);
-
-        // when / then
-        assertThatThrownBy(() -> service.deleteCategory(5L)).isInstanceOf(KnowledgeBaseException.class)
-                .hasMessageContaining("Нельзя удалить");
-        verify(mockCategoryRepository, never()).delete(any());
-    }
-
-    @Test
-    @DisplayName("deleteCategory → свободная категория → удаляется")
-    void deleteCategory_unused_deletes() throws KnowledgeBaseException {
+    @DisplayName("deleteCategory → ставит флаги видимости, физическое удаление не вызывается")
+    void deleteCategory_active_marksSoftDeleted() throws KnowledgeBaseException {
 
         // given
         KnowledgeBaseCategoryModel category = category(5L, "Оплата");
         when(mockDomainService.getCategoryById(5L)).thenReturn(category);
-        when(mockDomainService.hasArticles(5L)).thenReturn(false);
+        when(mockDomainService.saveCategory(category)).thenReturn(category);
 
         // when
         service.deleteCategory(5L);
 
         // then
-        verify(mockCategoryRepository).delete(category);
+        assertThat(category.isDeleted()).isTrue();
+        assertThat(category.getTimeDelete()).isNotNull();
+        verify(mockDomainService).saveCategory(category);
     }
 
     @Test

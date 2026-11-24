@@ -91,7 +91,8 @@ public class KnowledgeBaseCategoryController {
     }
 
     @Operation(summary = "Удаление категории",
-            description = "Удаляет категорию из справочника. 409, если на неё ссылается активная статья.")
+            description = "Скрывает категорию из справочника (флаг видимости): строка остаётся в БД, "
+                    + "так как на неё ссылаются статьи. Имя после этого свободно.")
     @DeleteMapping("/{categoryId}")
     @PreAuthorize("hasRole('OPERATOR')")
     @ApiResponse(responseCode = "204", description = "Без содержимого (команда выполнена)")

@@ -22,6 +22,7 @@ import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.accesscontrol.service.AccessValidationService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
+import com.ukhanov.realhelpdesk.domain.knowledgedb.service.KnowledgeBaseDomainService;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
 import com.ukhanov.realhelpdesk.domain.portal.service.PortalDomainService;
 import com.ukhanov.realhelpdesk.domain.portal.service.PortalHistoryService;
@@ -52,6 +53,9 @@ class PortalDeletionServiceTest {
     private PortalDomainService portalDomainService;
 
     @Mock
+    private KnowledgeBaseDomainService knowledgeBaseDomainService;
+
+    @Mock
     private AccessValidationService accessValidationService;
 
     @Mock
@@ -76,8 +80,9 @@ class PortalDeletionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PortalDeletionService(currentUserProvider, portalDomainService, accessValidationService,
-                portalHistoryService, emailDeliveryService, notificationPublisher, transactionTemplate);
+        service = new PortalDeletionService(currentUserProvider, portalDomainService, knowledgeBaseDomainService,
+                accessValidationService, portalHistoryService, emailDeliveryService, notificationPublisher,
+                transactionTemplate);
 
         UserModel user = new UserModel();
         user.setId(USER_ID);
@@ -114,6 +119,23 @@ class PortalDeletionServiceTest {
         assertThat(modelCaptor.getValue())
                 .containsEntry("portalId", PORTAL_ID)
                 .containsEntry("deletedByEmail", USER_EMAIL);
+    }
+
+    @Test
+    @DisplayName("Удаление портала → статьи его базы знаний скрываются каскадом")
+    void deletePortals_owner_softDeletesKnowledgeBaseArticles() throws Exception {
+
+        // given
+        PortalModel portal = portal(PORTAL_ID);
+        when(accessValidationService.hasPortalOwner(PORTAL_ID)).thenReturn(true);
+        when(portalDomainService.getPortalById(PORTAL_ID)).thenReturn(portal);
+        when(portalDomainService.savePortal(any())).thenReturn(portal);
+
+        // when
+        service.deletePortals(Set.of(PORTAL_ID));
+
+        // then
+        verify(knowledgeBaseDomainService).softDeleteArticlesByPortalId(eq(PORTAL_ID), any());
     }
 
     @Test

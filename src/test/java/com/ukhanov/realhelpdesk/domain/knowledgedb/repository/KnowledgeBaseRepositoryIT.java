@@ -1,5 +1,6 @@
 package com.ukhanov.realhelpdesk.domain.knowledgedb.repository;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -26,12 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Проверки на реальном PostgreSQL: уникальность имени категории, поиск по спецификации с {@code @EntityGraph}, защита
- * категории от удаления и поведение внешнего ключа при удалении портала.
+ * Проверки на реальном PostgreSQL: уникальность имени категории, поиск по спецификации с {@code @EntityGraph}, мягкое
+ * удаление категорий и каскад флагов на статьи портала.
  *
  * <p>
  * Профиль {@code test} активируется явно: схему создаёт Liquibase из миграций, а Hibernate её только сверяет
- * ({@code ddl-auto=validate}). Так проверяется и сама миграция {@code 007-knowledgebase-article}.
+ * ({@code ddl-auto=validate}). Так проверяются миграции {@code 007-knowledgebase-article} и
+ * {@code 008-knowledgebase-category-soft-delete}.
  * </p>
  */
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -131,16 +133,68 @@ class KnowledgeBaseRepositoryIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("existsByCategoryId → мягко удалённая статья тоже блокирует категорию")
-    void existsByCategoryId_onlyDeleted_returnsTrue() {
+    @DisplayName("Мягко удалённая категория не занимает имя и не находится среди видимых")
+    void category_softDelete_freesName() {
 
         // given
-        KnowledgeBaseArticleModel article = article("Вопрос", billing, portal);
-        article.setDeleted(true);
+        billing.setDeleted(true);
+        billing.setTimeDelete(Instant.now());
         em.flush();
+        em.clear();
 
         // when / then
-        assertThat(articleRepository.existsByCategoryId(billing.getId())).isTrue();
+        assertThat(categoryRepository.existsByName("Оплата")).isFalse();
+        assertThat(categoryRepository.findByIdAndIsDeletedFalse(billing.getId())).isEmpty();
+        assertThat(categoryRepository.findById(billing.getId())).isPresent();
+        assertThat(categoryRepository.findAllActive()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Частичный уникальный индекс → имя удалённой категории свободно для новой")
+    void category_softDelete_freesNameForCreate() {
+
+        // given
+        billing.setDeleted(true);
+        em.flush();
+
+        KnowledgeBaseCategoryModel replacement = new KnowledgeBaseCategoryModel();
+        replacement.setName("Оплата");
+
+        // when
+        categoryRepository.saveAndFlush(replacement);
+        em.clear();
+
+        // then
+        assertThat(categoryRepository.findAllActive()).extracting(KnowledgeBaseCategoryModel::getName)
+                .containsExactly("Оплата");
+        assertThat(categoryRepository.findById(replacement.getId())).get()
+                .satisfies(created -> assertThat(created.isDeleted()).isFalse());
+    }
+
+    @Test
+    @DisplayName("softDeleteAllByPortalId → ставит флаги только видимым статьям портала")
+    void articles_softDeleteAllByPortalId_marksOnlyVisible() {
+
+        // given
+        KnowledgeBaseArticleModel visible = article("Видимая", billing, portal);
+        KnowledgeBaseArticleModel other = article("Чужая", billing, null);
+        Instant moment = Instant.parse("2026-11-22T10:00:00Z");
+        em.flush();
+
+        // when
+        int updated = articleRepository.softDeleteAllByPortalId(portal.getId(), moment);
+        em.flush();
+        em.clear();
+
+        // then
+        assertThat(updated).isEqualTo(1);
+        assertThat(articleRepository.findById(visible.getId())).get()
+                .satisfies(hidden -> {
+                    assertThat(hidden.isDeleted()).isTrue();
+                    assertThat(hidden.getTimeDelete()).isEqualTo(moment);
+                });
+        assertThat(articleRepository.findById(other.getId())).get()
+                .satisfies(kept -> assertThat(kept.isDeleted()).isFalse());
     }
 
     @Test

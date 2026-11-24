@@ -12,7 +12,9 @@
 #   - посторонний не создаёт, не читает и не удаляет статью чужого портала;
 #   - поиск находит статью по подстроке вопроса и ответа (кириллица, без учёта регистра);
 #   - статья приватного портала не видна в общей выдаче постороннему и не читается по id;
-#   - мягкое удаление убирает статью из выдачи, удаление используемой категории — 409.
+#   - DELETE статей и категорий — мягкое удаление: строка остаётся, ресурс исчезает
+#     из выдачи и GET отвечает 404, имя категории после скрытия свободно;
+#   - удаление портала скрывает его статьи БЗ каскадом флагов.
 #
 # Требования: приложение на хосте (make run-local),
 # SPRING_PROFILES_ACTIVE=dev,host (make run-local), docker для psql.
@@ -299,28 +301,51 @@ check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles" "POST" \
   "{\"question\":\"$KB Отозванный доступ?\",\"answer\":\"Не должно создаться.\",\"categoryId\":$CAT_ID,\"portalId\":$TRUSTED_PORTAL_ID}")" \
   "403" "POST статьи портала после отзыва доступа"
 
-# ── Удаление ──────────────────────────────────────────────────
+# ── Мягкое удаление: статьи и категории ───────────────────────
 
-step "Удаление статьи и категории"
-check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$CAT_ID" "DELETE")" "409" "DELETE категории с активными статьями"
-
+step "Мягкое удаление: статьи и категории"
+# DELETE статьи → 204, GET → 404, выдача без статьи
 check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles/$PORTAL_ART_ID" "DELETE")" "204" "DELETE статьи портала владельцем"
-check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles/$PORTAL_ART_ID")" "404" "GET удалённой статьи"
-check "$(page_has_id "$(kb_get "$USER_TOKEN" "/knowledgebase/articles?portalId=$PORTAL_ID")" "$PORTAL_ART_ID")" "no" "выдача без удалённой статьи"
+check "$(kb_code "$USER_TOKEN" "/knowledgebase/articles/$PORTAL_ART_ID")" "404" "GET удалённой статьи портала"
+check "$(page_has_id "$(kb_get "$USER_TOKEN" "/knowledgebase/articles?portalId=$PORTAL_ID")" "$PORTAL_ART_ID")" "no" "выдача без удалённой статьи портала"
 
-# Мягко удалённая строка всё ещё ссылается на категорию по FK — категория остаётся занятой.
-check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$CAT_ID" "DELETE")" "409" "DELETE категории с мягко удалённой статьёй"
-
+# DELETE глобальной статьи → 204
 check "$(kb_code "$OPER_TOKEN" "/knowledgebase/articles/$ART_ID" "DELETE")" "204" "DELETE глобальной статьи оператором"
-check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$CAT_ID" "DELETE")" "409" "DELETE категории, пока в ней остались статьи"
+check "$(kb_code "$OPER_TOKEN" "/knowledgebase/articles/$ART_ID")" "404" "GET удалённой глобальной статьи"
 
-# Пустая категория удаляется: ограничение — только по фактическим статьям, не по всей истории.
+# DELETE категории → ВСЕГДА 204 (soft-delete), имя освобождается, GET → 404
+check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$CAT_ID" "DELETE")" "204" "DELETE категории (soft-delete)"
+check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$CAT_ID")" "404" "GET удалённой категории"
+# Имя теперь свободно — создаём новую с тем же именем
+NEW_CAT=$(kb_post "$OPER_TOKEN" "/knowledgebase/categories" "{\"name\":\"$KB Оплата\"}")
+check "${NEW_CAT%%|*}" "201" "POST категории с именем, только что освобождённым soft-delete"
+NEW_CAT_ID=$(json_id "${NEW_CAT#*|}")
+require_id "$NEW_CAT_ID" "categoryId новой категории"
+
+# Пустая категория: soft-delete всё равно 204
 EMPTY_CAT=$(kb_post "$OPER_TOKEN" "/knowledgebase/categories" "{\"name\":\"$KB Пустая\"}")
 check "${EMPTY_CAT%%|*}" "201" "POST пустой категории"
 EMPTY_CAT_ID=$(json_id "${EMPTY_CAT#*|}")
 require_id "$EMPTY_CAT_ID" "categoryId пустой категории"
-check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$EMPTY_CAT_ID" "DELETE")" "204" "DELETE пустой категории"
-check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$EMPTY_CAT_ID")" "404" "GET удалённой категории"
+check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$EMPTY_CAT_ID" "DELETE")" "204" "DELETE пустой категории (soft-delete)"
+check "$(kb_code "$OPER_TOKEN" "/knowledgebase/categories/$EMPTY_CAT_ID")" "404" "GET удалённой пустой категории"
+
+# Удаление портала: каскад soft-delete статей БЗ
+step "Удаление портала: каскад soft-delete"
+# Видимая статья портала — её флаги и проверяем после удаления портала.
+CASCADE_ART=$(kb_post "$USER_TOKEN" "/knowledgebase/articles" \
+  "{\"question\":\"$KB Каскад при удалении портала\",\"answer\":\"Должна скрыться.\",\"categoryId\":$NEW_CAT_ID,\"portalId\":$PORTAL_ID}")
+check "${CASCADE_ART%%|*}" "201" "POST видимой статьи удаляемого портала"
+CASCADE_ART_ID=$(json_id "${CASCADE_ART#*|}")
+require_id "$CASCADE_ART_ID" "articleId статьи для каскада"
+
+# Порталы удаляются через POST /portals/bulk-delete
+check "$(curl -sk -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $USER_TOKEN" \
+  -H 'Content-Type: application/json' -d "{\"ids\":[$PORTAL_ID]}" -X POST "$BASE/portals/bulk-delete")" "200" "bulk-delete портала владельцем"
+check "$(kb_code "$USER_TOKEN" "/portals/$PORTAL_ID")" "404" "GET удалённого портала"
+# Каскад: у статьи портала проставлен флаг, строка осталась в БД
+CASCADE_STATE=$($PSQL "select is_deleted || '|' || (time_delete is not null) from knowledgebase_articles where id=$CASCADE_ART_ID;" | tail -1)
+check "$CASCADE_STATE" "true|true" "каскад: у статьи портала проставлен is_deleted и time_delete"
 
 echo
 if [ "$COUNT_FAIL" -eq 0 ]; then

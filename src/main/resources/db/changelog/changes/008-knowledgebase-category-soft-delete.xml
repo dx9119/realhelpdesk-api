@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Мягкое удаление категорий базы знаний: флаг видимости is_deleted/time_delete
+  и частичный уникальный индекс по имени среди неудалённых строк.
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="008-knowledgebase-category-soft-delete" author="ukhanov">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="knowledgebase_categories" columnName="is_deleted"/>
+            </not>
+        </preConditions>
+        <sqlFile path="db/changelog/sql/008-knowledgebase-category-soft-delete.sql"
+                 encoding="UTF-8"
+                 splitStatements="true"
+                 endDelimiter=";"/>
+    </changeSet>
+
+</databaseChangeLog>

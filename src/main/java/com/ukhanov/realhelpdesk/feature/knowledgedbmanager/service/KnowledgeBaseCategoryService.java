@@ -1,5 +1,6 @@
 package com.ukhanov.realhelpdesk.feature.knowledgedbmanager.service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -9,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ukhanov.realhelpdesk.core.http.EntityTag;
 import com.ukhanov.realhelpdesk.domain.knowledgedb.model.KnowledgeBaseCategoryModel;
-import com.ukhanov.realhelpdesk.domain.knowledgedb.repository.KnowledgeBaseCategoryRepository;
 import com.ukhanov.realhelpdesk.domain.knowledgedb.service.KnowledgeBaseDomainService;
 import com.ukhanov.realhelpdesk.feature.knowledgedbmanager.dto.CategoryResponse;
 import com.ukhanov.realhelpdesk.feature.knowledgedbmanager.dto.CreateCategoryRequest;
@@ -25,9 +25,9 @@ import lombok.extern.slf4j.Slf4j;
  * Справочник категорий базы знаний.
  *
  * <p>
- * Удаление категории запрещено, пока на неё ссылается хотя бы одна неотмёрзшая статья: ссылка в статье по
- * {@code category_id}, «висячий» FK означал бы статью без категории. Имя уникально регистронезависимо, поэтому
- * переименование проверяется с исключением самой изменяемой строки.
+ * Удаление — мягкое: {@code isDeleted} и {@code timeDelete}, строка остаётся в БД, потому что на неё по FK
+ * {@code category_id} ссылаются статьи, включая мягко удалённые. Удалённая категория исчезает из справочника, из
+ * {@code GET} по id и не занимает имя: уникальность проверяется частичным индексом только среди видимых строк.
  * </p>
  */
 @Slf4j
@@ -36,13 +36,15 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional(readOnly = true)
 public class KnowledgeBaseCategoryService {
 
-    private final KnowledgeBaseCategoryRepository categoryRepository;
     private final KnowledgeBaseDomainService knowledgeBaseDomainService;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
 
     public List<CategoryResponse> listCategories() {
         logger.debug("Запрос списка категорий базы знаний");
-        return categoryRepository.findAll().stream().map(knowledgeBaseMapper::toResponse).toList();
+        return knowledgeBaseDomainService.getActiveCategories()
+                .stream()
+                .map(knowledgeBaseMapper::toResponse)
+                .toList();
     }
 
     public CategoryResponse getCategory(Long categoryId) throws KnowledgeBaseException {
@@ -115,13 +117,10 @@ public class KnowledgeBaseCategoryService {
     public void deleteCategory(Long categoryId) throws KnowledgeBaseException {
         KnowledgeBaseCategoryModel category = knowledgeBaseDomainService.getCategoryById(categoryId);
 
-        if (knowledgeBaseDomainService.hasArticles(categoryId)) {
-            throw KnowledgeBaseException
-                    .conflict("Нельзя удалить категорию «" + category.getName() + "»: на неё ссылается статья");
-        }
-
-        categoryRepository.delete(category);
-        logger.info("Удалена категория {}", categoryId);
+        category.setDeleted(true);
+        category.setTimeDelete(Instant.now());
+        knowledgeBaseDomainService.saveCategory(category);
+        logger.info("Категория {} удалена мягко", categoryId);
     }
 
     private void requireNameFree(Long categoryId, String name) throws KnowledgeBaseException {

@@ -33,6 +33,13 @@ public class KnowledgeBaseCategoryModel {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    // Флаг видимости: DELETE скрывает категорию, строка остаётся — на неё по FK
+    // ссылаются статьи, включая мягко удалённые
+    @Column(nullable = false)
+    private boolean isDeleted = false;
+
+    private Instant timeDelete;
+
     @Version
     private Integer version;
 

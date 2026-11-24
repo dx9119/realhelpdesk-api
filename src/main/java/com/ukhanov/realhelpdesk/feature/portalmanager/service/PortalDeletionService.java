@@ -18,6 +18,7 @@ import com.ukhanov.realhelpdesk.core.mail.service.EmailDeliveryService;
 import com.ukhanov.realhelpdesk.core.security.accesscontrol.service.AccessValidationService;
 import com.ukhanov.realhelpdesk.core.security.user.CurrentUserProvider;
 import com.ukhanov.realhelpdesk.core.security.user.model.UserModel;
+import com.ukhanov.realhelpdesk.domain.knowledgedb.service.KnowledgeBaseDomainService;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalHistoryEvent;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalHistoryRecordCommand;
 import com.ukhanov.realhelpdesk.domain.portal.model.PortalModel;
@@ -42,6 +43,7 @@ public class PortalDeletionService {
 
     private final CurrentUserProvider currentUserProvider;
     private final PortalDomainService portalDomainService;
+    private final KnowledgeBaseDomainService knowledgeBaseDomainService;
     private final AccessValidationService accessValidationService;
     private final PortalHistoryService portalHistoryService;
     private final EmailDeliveryService emailDeliveryService;
@@ -90,9 +92,14 @@ public class PortalDeletionService {
                     return null;
                 }
                 PortalModel portal = portalDomainService.getPortalById(portalId);
-                portal.setTimeDelete(Instant.now());
+                Instant timeDelete = Instant.now();
+                portal.setTimeDelete(timeDelete);
                 portal.setDeleted(true);
                 portalDomainService.savePortal(portal);
+
+                // Каскад флагов: статьи портала скрываются вместе с ним, иначе удалённый портал продолжал бы
+                // отдавать свою базу знаний по id статьи.
+                knowledgeBaseDomainService.softDeleteArticlesByPortalId(portalId, timeDelete);
 
                 portalHistoryService.record(new PortalHistoryRecordCommand(portalId, PortalHistoryEvent.PORTAL_DELETED,
                         user.getId(), null, null, "name", portal.getName(), null));

@@ -189,32 +189,6 @@ class PortalDomainServiceTest {
     }
 
     // ────────────────────────────────────────────────
-    // deletePortalById
-    // ────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("deletePortalById → вызывает удаление и возвращает true")
-    void deletePortalById_existingPortal_delegatesToRepository() {
-
-        // given
-        // when
-        boolean result = service.deletePortalById(PORTAL_ID);
-
-        // then
-        assertThat(result).isTrue();
-        verify(mockPortalRepository).deleteById(PORTAL_ID);
-    }
-
-    @Test
-    @DisplayName("deletePortalById → null id → NPE")
-    void deletePortalById_nullId_throwsNPE() {
-
-        // given / when / then
-        assertThatThrownBy(() -> service.deletePortalById(null)).isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("portalId не должен быть null");
-    }
-
-    // ────────────────────────────────────────────────
     // Вспомогательные методы
     // ────────────────────────────────────────────────
 

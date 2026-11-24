@@ -1,5 +1,7 @@
 package com.ukhanov.realhelpdesk.domain.knowledgedb.service;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -124,16 +126,28 @@ class KnowledgeBaseDomainServiceTest {
     // ────────────────────────────────────────────────
 
     @Test
-    @DisplayName("getCategoryById → категория не найдена → KnowledgeBaseException 404")
+    @DisplayName("getCategoryById → мягко удалённая категория не находится → 404")
     void getCategoryById_missing_throwsNotFound() {
 
-        // given
-        when(mockCategoryRepository.findById(42L)).thenReturn(Optional.empty());
+        // given — репозиторий ищет только среди видимых категорий
+        when(mockCategoryRepository.findByIdAndIsDeletedFalse(42L)).thenReturn(Optional.empty());
 
         // when / then
         assertThatThrownBy(() -> service.getCategoryById(42L))
                 .isInstanceOf(KnowledgeBaseException.class)
                 .hasMessageContaining("не найдена");
+    }
+
+    @Test
+    @DisplayName("getActiveCategories → делегирует в findAllActive")
+    void getActiveCategories_anyState_delegates() {
+
+        // given
+        when(mockCategoryRepository.findAllActive()).thenReturn(List.of(new KnowledgeBaseCategoryModel()));
+
+        // when / then
+        assertThat(service.getActiveCategories()).hasSize(1);
+        verify(mockCategoryRepository).findAllActive();
     }
 
     @Test
@@ -174,17 +188,6 @@ class KnowledgeBaseDomainServiceTest {
     }
 
     @Test
-    @DisplayName("hasArticles → в категории есть статья → true")
-    void hasArticles_articleExists_returnsTrue() {
-
-        // given
-        when(mockArticleRepository.existsByCategoryId(5L)).thenReturn(true);
-
-        // when / then
-        assertThat(service.hasArticles(5L)).isTrue();
-    }
-
-    @Test
     @DisplayName("getArticlesPage → делегирует в findAll со спецификацией")
     void getArticlesPage_criteriaGiven_delegatesToFindAll() {
 
@@ -198,5 +201,25 @@ class KnowledgeBaseDomainServiceTest {
 
         // then
         assertThat(result.getContent()).isEmpty();
+    }
+
+    // ────────────────────────────────────────────────
+    // Каскад мягкого удаления
+    // ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("softDeleteArticlesByPortalId → устанавливает isDeleted и timeDelete")
+    void softDeleteArticlesByPortalId_portalGiven_appliesFlags() {
+
+        // given
+        Instant now = Instant.now();
+        when(mockArticleRepository.softDeleteAllByPortalId(5L, now)).thenReturn(2);
+
+        // when
+        int result = service.softDeleteArticlesByPortalId(5L, now);
+
+        // then
+        assertThat(result).isEqualTo(2);
+        verify(mockArticleRepository).softDeleteAllByPortalId(5L, now);
     }
 }

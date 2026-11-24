@@ -219,13 +219,15 @@ TICKET_DELETED, PORTAL_DELETED, PORTAL_TRANSFER_*, NONE`.
 | `POST /knowledgebase/categories` | `{ name, description }` | Создание → `201` + `Location`; только `ROLE_OPERATOR` |
 | `PUT /knowledgebase/categories/{categoryId}` | `{ name, description }`, `If-Match` | Полная замена; только `ROLE_OPERATOR` |
 | `PATCH /knowledgebase/categories/{categoryId}` | `{ name?, description? }`, `If-Match` | Частичное обновление; только `ROLE_OPERATOR` |
-| `DELETE /knowledgebase/categories/{categoryId}` | — | Удаление → `204`; только `ROLE_OPERATOR` |
+| `DELETE /knowledgebase/categories/{categoryId}` | — | Мягкое удаление (флаг видимости) → `204`; только `ROLE_OPERATOR` |
 
 Справочник плоский: вложенности и сортировки нет, порядок — по `id`. Имя
-уникально без учёта регистра (`409` на дубль), поэтому переименование
-проверяется с исключением самой изменяемой строки. Категория удаляется только
-пустой: пока на неё ссылается хоть одна статья — включая мягко удалённую, —
-`DELETE` отвечает `409`.
+уникально без учёта регистра среди видимых категорий (`409` на дубль), поэтому
+переименование проверяется с исключением самой изменяемой строки. Удаление —
+мягкое: `DELETE` всегда отвечает `204`, строка остаётся в БД с признаком
+`isDeleted`, категория исчезает из справочника и из `GET` по id (`404`), а её
+имя освобождается — частичный уникальный индекс действует только среди
+`is_deleted = false`.
 
 ## База знаний (`/knowledgebase/articles`)
 
@@ -258,3 +260,7 @@ TICKET_DELETED, PORTAL_DELETED, PORTAL_TRANSFER_*, NONE`.
 Чтение статьи портала требует доступа к этому порталу; статья чужого приватного
 портала отдаётся как отсутствующая — `404`, чтобы не раскрывать факт её
 существования.
+
+Удаление портала (`POST /portals/bulk-delete`) — мягкое: портал скрывается, а его
+статьи БЗ каскадно скрываются через `isDeleted`/`timeDelete`.
+

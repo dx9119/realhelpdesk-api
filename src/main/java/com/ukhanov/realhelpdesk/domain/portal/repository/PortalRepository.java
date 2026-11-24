@@ -20,9 +20,15 @@ public interface PortalRepository extends JpaRepository<PortalModel, Long> {
      * Портал вместе с составом допущенных пользователей: состав читается почти в каждой операции (проверка прав,
      * рассылка, оповещения), а после закрытия транзакции сущность становится detached — LAZY-коллекция там уже не
      * догрузится. Для одного портала это один JOIN, а не N+1.
+     *
+     * <p>
+     * Только неудалённые: мягкое удаление — это флаг видимости, поэтому удалённый портал не должен читаться ни по id,
+     * ни через проверки прав.
+     * </p>
      */
     @EntityGraph(attributePaths = "allowedUserIds")
-    Optional<PortalModel> findWithAccessById(Long id);
+    @Query("SELECT p FROM PortalModel p WHERE p.id = :id AND p.isDeleted = false")
+    Optional<PortalModel> findWithAccessById(@Param("id") Long id);
 
     @Query("SELECT p FROM PortalModel p WHERE p.owner.id = :ownerId AND p.isDeleted = false ORDER BY p.createdAt DESC")
     List<PortalModel> findAllByOwnerIdOrderByCreatedAtDesc(@Param("ownerId") Long ownerId);

@@ -28,6 +28,7 @@
     <include file="changes/005-user-platform-source-keycloak.xml" relativeToChangelogFile="true"/>
     <include file="changes/006-drop-local-jwt-artifacts.xml" relativeToChangelogFile="true"/>
     <include file="changes/007-knowledgebase-article.xml" relativeToChangelogFile="true"/>
+    <include file="changes/008-knowledgebase-category-soft-delete.xml" relativeToChangelogFile="true"/>
 
     <!-- Фикстуры вне контекста schema: подключены, но применяются только при
          DB_MIGRATIONS_CONTEXTS=schema,seed. -->

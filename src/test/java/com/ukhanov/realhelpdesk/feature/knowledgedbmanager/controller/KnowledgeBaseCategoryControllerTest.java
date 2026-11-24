@@ -234,8 +234,8 @@ class KnowledgeBaseCategoryControllerTest {
     }
 
     @Test
-    @DisplayName("DELETE /categories/{id} → 204")
-    void deleteCategory_unused_returns204() throws Exception {
+    @DisplayName("DELETE /categories/{id} → 204 (soft-delete, проверка на статьи не нужна)")
+    void deleteCategory_softDelete_returns204() throws Exception {
 
         // given / when
         MvcTestResult result = mockMvc.delete().uri("/api/v1/knowledgebase/categories/{id}", CATEGORY_ID).exchange();
@@ -243,22 +243,6 @@ class KnowledgeBaseCategoryControllerTest {
         // then
         assertThat(result).hasStatus(HttpStatus.NO_CONTENT);
         verify(mockCategoryService).deleteCategory(CATEGORY_ID);
-    }
-
-    @Test
-    @DisplayName("DELETE /categories/{id} → на категорию ссылается статья → 409")
-    void deleteCategory_inUse_returns409() throws Exception {
-
-        // given
-        org.mockito.Mockito.doThrow(KnowledgeBaseException.conflict("Нельзя удалить категорию"))
-                .when(mockCategoryService)
-                .deleteCategory(CATEGORY_ID);
-
-        // when
-        MvcTestResult result = mockMvc.delete().uri("/api/v1/knowledgebase/categories/{id}", CATEGORY_ID).exchange();
-
-        // then
-        assertThat(result).hasStatus(HttpStatus.CONFLICT);
     }
 
     private CategoryResponse response() {

@@ -66,14 +66,6 @@ public class PortalDomainService {
         return portalRepository.findAccessibleByUserId(userId, pageable);
     }
 
-    @Transactional
-    public boolean deletePortalById(Long portalId) {
-        Objects.requireNonNull(portalId, "portalId не должен быть null");
-        logger.info("Удаление портала по ID: {}", portalId);
-        portalRepository.deleteById(portalId);
-        return true;
-    }
-
     public List<PortalModel> getAllSharedPortals(Long userId) {
         Objects.requireNonNull(userId, "userId не должен быть null");
         logger.debug("Получение всех доступных порталов для пользователя с ID: {}", userId);

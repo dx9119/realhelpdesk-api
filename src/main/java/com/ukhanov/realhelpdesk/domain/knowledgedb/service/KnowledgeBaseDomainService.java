@@ -1,5 +1,7 @@
 package com.ukhanov.realhelpdesk.domain.knowledgedb.service;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -74,9 +76,14 @@ public class KnowledgeBaseDomainService {
         return articleRepository.save(article);
     }
 
+    /** Справочник для UI: только видимые категории. */
+    public List<KnowledgeBaseCategoryModel> getActiveCategories() {
+        return categoryRepository.findAllActive();
+    }
+
     public KnowledgeBaseCategoryModel getCategoryById(Long categoryId) throws KnowledgeBaseException {
         Objects.requireNonNull(categoryId, "categoryId не должен быть null");
-        return categoryRepository.findById(categoryId)
+        return categoryRepository.findByIdAndIsDeletedFalse(categoryId)
                 .orElseThrow(() -> KnowledgeBaseException.notFound("Категория с ID " + categoryId + " не найдена"));
     }
 
@@ -97,12 +104,13 @@ public class KnowledgeBaseDomainService {
         return articles;
     }
 
-    /**
-     * Есть ли в категории хоть одна статья — защита от удаления непустого справочника. Мягко удалённые статьи
-     * считаются: FK {@code category_id} ссылается на строку независимо от {@code is_deleted}.
-     */
-    public boolean hasArticles(Long categoryId) {
-        Objects.requireNonNull(categoryId, "categoryId не должен быть null");
-        return articleRepository.existsByCategoryId(categoryId);
+    /** Каскад флагов при удалении портала: его статьи скрываются вместе с ним. */
+    @Transactional
+    public int softDeleteArticlesByPortalId(Long portalId, Instant timeDelete) {
+        Objects.requireNonNull(portalId, "portalId не должен быть null");
+        Objects.requireNonNull(timeDelete, "timeDelete не должен быть null");
+        int deleted = articleRepository.softDeleteAllByPortalId(portalId, timeDelete);
+        logger.info("Мягко удалено {} статей портала {}", deleted, portalId);
+        return deleted;
     }
 }

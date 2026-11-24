@@ -1,5 +1,6 @@
 package com.ukhanov.realhelpdesk.domain.knowledgedb.repository;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -58,7 +60,15 @@ public interface KnowledgeBaseArticleRepository
     boolean existsPortalQuestion(@Param("question") String question, @Param("portalId") Long portalId,
             @Param("excludeId") Long excludeId);
 
-    // Удаление категории запрещено, пока на неё ссылается хоть одна статья — включая мягко удалённую:
-    // FK category_id не знает про is_deleted, и такой DELETE падал бы 500-й ошибкой целостности
-    boolean existsByCategoryId(Long categoryId);
+    /**
+     * Каскадное мягкое удаление статей портала: удалённый портал не должен оставлять видимые статьи. Уже удалённые
+     * строки не трогаются — иначе {@code time_delete} перезаписывался бы при повторном удалении.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+                UPDATE KnowledgeBaseArticleModel a
+                SET a.isDeleted = true, a.timeDelete = :timeDelete
+                WHERE a.portal.id = :portalId AND a.isDeleted = false
+            """)
+    int softDeleteAllByPortalId(@Param("portalId") Long portalId, @Param("timeDelete") Instant timeDelete);
 }
