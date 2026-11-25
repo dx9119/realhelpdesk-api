@@ -47,6 +47,9 @@
         <spotbugs-maven-plugin.version>4.9.6.0</spotbugs-maven-plugin.version>
         <spotbugs.version>4.9.6</spotbugs.version>
         <jacoco.version>0.8.14</jacoco.version>
+        <!-- Axelix: локальный trial — Master на хосте, self-registration через localhost -->
+        <axelix.version>1.3.2</axelix.version>
+
         <!-- Пустое свойство для поздней подстановки @{argLine} (совместимость JaCoCo + Mockito agent) -->
         <argLine/>
     </properties>
@@ -167,6 +170,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- Axelix: actuator-эндпоинты /actuator/axelix-* на управляющем порту,
+             аутентификация — токеном Master (см. ManagementSecurityConfiguration) -->
+        <dependency>
+            <groupId>com.axelixlabs</groupId>
+            <artifactId>axelix-spring-boot-4-starter</artifactId>
+            <version>${axelix.version}</version>
         </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>
@@ -514,6 +524,20 @@
                 </executions>
             </plugin>
 
+            <plugin>
+                <groupId>com.axelixlabs</groupId>
+                <artifactId>axelix-maven-plugin</artifactId>
+                <version>${axelix.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>axelix-generate-project-info</goal>
+                        </goals>
+                        <!-- validate — раньше spring-boot:run (test-compile), чтобы генерация работала и при dev-запуске -->
+                        <phase>validate</phase>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 

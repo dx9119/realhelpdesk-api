@@ -28,9 +28,10 @@ import lombok.extern.slf4j.Slf4j;
  * <p>
  * Цепочка {@code @Order(0)} (выше основной) перехватывает все пути actuator на обоих портах: health и info отдаются без
  * аутентификации (пробы оркестратора), prometheus — по HTTP Basic сервисной учёткой из
- * {@link PrometheusScrapeProperties}, всё остальное запрещено. Основная цепочка {@code KeycloakSecurityConfiguration}
- * правил на {@code /actuator/**} больше не содержит и сюда не попадает: bearer-аутентификация и CORS настраиваются
- * только в ней, поэтому скрейп не ходит через аутентификацию приложения.
+ * {@link PrometheusScrapeProperties}, {@code /actuator/axelix-*} — по токену Master (проверяет стартер Axelix), всё
+ * остальное запрещено. Основная цепочка {@code KeycloakSecurityConfiguration} правил на {@code /actuator/**} больше не
+ * содержит и сюда не попадает: bearer-аутентификация и CORS настраиваются только в ней, поэтому скрейп не ходит через
+ * аутентификацию приложения.
  * </p>
  */
 @Slf4j
@@ -78,6 +79,11 @@ public class ManagementSecurityConfiguration {
             } else {
                 authorize.requestMatchers(EndpointRequest.to("prometheus")).permitAll();
             }
+            // Axelix: /actuator/axelix-* обслуживает стартер, он проверяет токен Master сам.
+            // Здесь только пропуск без Basic-кредов скрейпа; CSRF в цепочке уже отключён,
+            // поэтому POST/DELETE-действия Master проходят.
+            authorize.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/actuator/axelix-*"))
+                    .permitAll();
             // env, heapdump, threaddump, configprops и всё прочее — закрыты,
             // даже если однажды попадут в exposure.
             authorize.anyRequest().denyAll();
