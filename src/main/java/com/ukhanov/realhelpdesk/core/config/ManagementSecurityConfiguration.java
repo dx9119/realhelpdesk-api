@@ -80,9 +80,10 @@ public class ManagementSecurityConfiguration {
                 authorize.requestMatchers(EndpointRequest.to("prometheus")).permitAll();
             }
             // Axelix: /actuator/axelix-* обслуживает стартер, он проверяет токен Master сам.
-            // Здесь только пропуск без Basic-кредов скрейпа; CSRF в цепочке уже отключён,
-            // поэтому POST/DELETE-действия Master проходят.
-            authorize.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/actuator/axelix-*"))
+            // Здесь только пропуск без Basic-кредов скрейпа; /** обязателен: у эндпоинтов Master
+            // есть подпути (/axelix-metrics/{name}, /axelix-scheduled-tasks/execute), а PathPattern
+            // одиночной * через / не матчит. CSRF в цепочке отключён — POST/DELETE проходят.
+            authorize.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/actuator/axelix-*/**"))
                     .permitAll();
             // env, heapdump, threaddump, configprops и всё прочее — закрыты,
             // даже если однажды попадут в exposure.

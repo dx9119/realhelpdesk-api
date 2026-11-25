@@ -22,18 +22,45 @@ fi
 while IFS= read -r line || [[ -n "$line" ]]; do
   case "$line" in
     '' | '#'*) continue ;;
-    [A-Za-z_]*=*) export "$line" ;;
+    [A-Za-z_]*=*)
+      key=${line%%=*}
+      value=${line#*=}
+      # ${VAR:-default} из .env (compose-синтаксис, см. .env.dev.example) shell не
+      # раскрывает: приложение получило бы литерал и упало на circular placeholder.
+      # outer-переменная на хосте не задаётся, поэтому берём default — как compose.
+      if [[ $value == *'${'*':-'*'}' ]]; then
+        value=${value#*:-}
+        value=${value%\}}
+      fi
+      export "$key=$value"
+      ;;
   esac
 done < "$ENV_FILE"
 
 # Дефолты compose-интерполяции (:-) из infrastructure/docker-compose.yaml.
 export OTLP_TRACING_ENDPOINT="${OTLP_TRACING_ENDPOINT:-http://localhost:4318/v1/traces}"
+
+# .env может указывать Collector контейнерным именем (otlp в docker-сети),
+# с хоста он доступен на loopback — порт 4318 проброшен в docker-compose.obs.yaml.
+case "${OTLP_TRACING_ENDPOINT:-}" in
+  *://otel-collector:*)
+    export OTLP_TRACING_ENDPOINT="http://localhost:4318/v1/traces"
+    ;;
+esac
 export TRUST_PROXY_HEADERS="${TRUST_PROXY_HEADERS:-false}"
 export CLIENT_IP_FORWARDED_INDEX="${CLIENT_IP_FORWARDED_INDEX:-0}"
 
 # Адреса инфраструктуры зацикливаются на хост: контейнерные имена (minio) из
 # .env приложениям, запущенным вне сети compose, недоступны.
 export MINIO_ENDPOINT="http://127.0.0.1:${MINIO_API_PORT:-9000}"
+
+# То же для БД: .env адресует postgres контейнерным именем, а OS-env приоритетнее
+# application-host.properties — без подмены host-профиль не получит loopback.
+case "${DB_URL:-}" in
+  *//postgres:*)
+    export DB_URL="${DB_URL//\/\/postgres:/\/\/127.0.0.1:}"
+    ;;
+esac
 
 # Keycloak с хоста: KC_JWK_SET_URI из .env указывает на контейнерное имя
 # keycloak:8080, а OS-env приоритетнее application-host.properties — переопределить
