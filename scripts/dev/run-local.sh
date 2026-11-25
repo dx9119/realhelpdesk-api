@@ -11,9 +11,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-export SPRING_PROFILES_ACTIVE="dev,host"
 # shellcheck source=./load-env.sh
 source scripts/dev/load-env.sh
+
+# После load-env.sh: .env может содержать SPRING_PROFILES_ACTIVE (его экспортирует
+# цикл загрузки), а host обязателен — в нём loopback-адреса инфраструктуры.
+export SPRING_PROFILES_ACTIVE="dev,host"
 
 # --- JDK: если задан JAVA_HOME (например, JDK 25), используем его ---
 if [[ -n "${JAVA_HOME:-}" ]]; then
