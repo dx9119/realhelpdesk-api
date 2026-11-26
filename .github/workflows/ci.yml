@@ -22,7 +22,18 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-          cache: maven
+      # Кэш вместо setup-java `cache: maven`: тот бьёт только по ~/.m2/repository
+      # и без restore-keys, поэтому любая правка pom.xml (CVE-оверрайды) сбрасывает
+      # кэш и весь граф зависимостей качается с Central заново -> HTTP 429.
+      - name: Кэш Maven (зависимости + дистрибутив wrapper)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper/dists
+          key: ${{ runner.os }}-maven-${{ hashFiles('pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
       - name: Стиль, юнит- и интеграционные тесты
         run: ./mvnw -B spotless:check checkstyle:check verify
 
@@ -45,7 +56,17 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-          cache: maven
+      # Тот же ключ, что в job build: кэш build'а уже сохранён → попадание без
+      # повторной загрузки зависимостей Central.
+      - name: Кэш Maven (зависимости + дистрибутив wrapper)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper/dists
+          key: ${{ runner.os }}-maven-${{ hashFiles('pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
       - name: Секреты CI (временные, только для запуска)
         run: |
           cp infrastructure/.env.dev.example infrastructure/.env
