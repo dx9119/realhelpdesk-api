@@ -31,6 +31,7 @@ GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 .PHONY: help build image clean test verify run-local \
         dev-run dev-down dev-down--del-volumes \
+        axelix-up axelix-down axelix-logs \
         env dev-openapi dev-openapi-types \
         check-ci-all check-code-style check-secrets \
         load-smoke load-full .load-up \
@@ -78,7 +79,7 @@ check-code-style: ## Проверки стиля (spotless:check + checkstyle)
 env: ## Создать infrastructure/.env и сгенерировать пустые локальные секреты
 	bash scripts/docker/init-secrets.sh
 
-dev-run: env ## Dev-среда: инфраструктура + наблюдаемость в фоне (БД, MinIO, smtp4dev, Keycloak, Mimir/Tempo/OTel)
+dev-run: env ## Dev-среда: инфраструктура + наблюдаемость в фоне (БД, MinIO, smtp4dev, Keycloak, Axelix, Mimir/Tempo/OTel)
 	$(COMPOSE_OBS) $(PROFILES_OBS) up -d --wait
 
 # COMPOSE_OBS, а не COMPOSE: dev-run поднимает monitoring, а down останавливает
@@ -87,8 +88,22 @@ dev-run: env ## Dev-среда: инфраструктура + наблюдае�
 dev-down: ## Остановить dev-контур (инфраструктура + наблюдаемость)
 	$(COMPOSE_OBS) $(PROFILES_OBS) down --remove-orphans
 
-dev-down--del-volumes: ## Остановить dev-контур и удалить тома (данные БД/MinIO + метрики/трейсы/логи)
+dev-down--del-volumes: ## Остановить dev-контур и удалить тома (данные БД/MinIO, метрики/трейсы/логи, Axelix)
 	$(COMPOSE_OBS) $(PROFILES_OBS) down -v --remove-orphans
+
+## --- Axelix Master (UI мониторинга, профиль local-tools) ---
+# Master входит в dev-контур (make dev-run); отдельные цели — когда нужен
+# только он. Приложение на хосте регистрируется в Master само
+# (application-dev.properties: self-registration на 8081).
+
+axelix-up: ## Поднять только Axelix Master (UI http://localhost:2935, admin/admin)
+	$(COMPOSE) --profile local-tools up -d --wait axelix
+
+axelix-down: ## Остановить Axelix Master (том axelix_data сохраняется)
+	$(COMPOSE) --profile local-tools stop axelix
+
+axelix-logs: ## Логи Axelix Master
+	$(COMPOSE) --profile local-tools logs -f axelix
 
 ## --- Проверки перед коммитом (те же, что job docker в .github/workflows/ci.yml) ---
 

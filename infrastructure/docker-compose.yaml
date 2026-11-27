@@ -6,7 +6,7 @@
 #
 # Профили (запуск — только через make, набор профилей передаётся явно):
 #   infra       — postgres, minio: внутренняя сеть data (internal), портов на хост нет
-#   local-tools — smtp4dev и keycloak (локальные сервисы разработки)
+#   local-tools — smtp4dev, keycloak и axelix (локальные сервисы разработки)
 #
 # make dev-run  → infra + local-tools + monitoring (инфраструктура в фоне)
 # make dev-down → та же выборка, остановка
@@ -20,7 +20,7 @@
 #             портов на хост не имеет — изолированы БД и хранилище файлов
 #             (в локальном оверлее postgres/minio дополнительно подключаются
 #             к backend — только так Docker публикует их порты на хост)
-#   backend — обычная: smtp, keycloak, наблюдаемость
+#   backend — обычная: smtp, keycloak, axelix, наблюдаемость
 #             (подключается через docker-compose.obs.yaml)
 #
 # Наблюдаемость и нагрузка подключаются как отдельные файлы:
@@ -53,6 +53,7 @@ volumes:
   postgres_data:
   keycloak_postgres_data:
   minio_data:
+  axelix_data:
 
 services:
   # ==========================================================================
@@ -230,4 +231,43 @@ services:
       # его не пробрасывает), data — чтобы достучаться до postgres.
       - backend
       - data
+    logging: *default-logging
+
+  # ==========================================================================
+  # Профиль local-tools: Axelix Master (UI мониторинга приложения)
+  # ==========================================================================
+  axelix:
+    profiles: [local-tools]
+    # Версия закреплена: обновление — осознанная правка с ревью, не latest.
+    # Starter той же версии подключён в pom.xml (axelix.version), Master
+    # совместим со стартером в пределах minor-линии 1.3.
+    image: ghcr.io/axelixlabs/axelix:1.3.2
+    mem_limit: 512m
+    ports:
+      # Только loopback: UI Master'а — http://localhost:2935.
+      - "127.0.0.1:2935:2935"
+    environment:
+      # Локальный trial: вход в UI по admin/admin. Наружу не публикуется.
+      AXELIX_MASTER_AUTH_OPTIONS_LOCAL_ENABLED: "true"
+      # SQLite в /application: том сохраняет БД между перезапусками; при
+      # обновлении образа volume не пересоздаётся, поэтому jar и AOT-кэш
+      # остаются из предыдущего релиза — для dev это нормально.
+      AXELIX_MASTER_DATABASE_URL: jdbc:sqlite:/application/axelix.db
+    volumes:
+      - axelix_data:/application
+    extra_hosts:
+      # Master опрашивает actuator приложения на хосте (8081) по адресу
+      # host.docker.internal — на Linux без этой записи имени нет.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # wget из образа: страница логина отдаёт 200, когда Tomcat поднялся.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2935/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      # Явная сеть проекта: без неё compose создаёт лишнюю default.
+      - backend
     logging: *default-logging
